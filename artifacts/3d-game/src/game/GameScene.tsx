@@ -933,6 +933,7 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       const resolved = resolveCollision(posRef.current, newX, newZ, 0.55)
       posRef.current.x = resolved.x
       posRef.current.z = resolved.z
+      posRef.current.y = 0
       sharedPlayerPos.copy(posRef.current)
 
       // Enter vehicle
@@ -1040,7 +1041,7 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       <AnimatedHumanoid
         modelPath='/models/soldier.glb'
         getAnimState={() => playerAnimState.value}
-        targetHeight={1.15}
+        targetHeight={1.85}
         colorTint={playerUser?.characterColor ?? null}
         skinTone={playerUser?.skinTone ?? null}
       />

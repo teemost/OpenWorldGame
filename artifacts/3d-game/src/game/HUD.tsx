@@ -76,8 +76,8 @@ export default function HUD() {
       {/* ── Non-interactive HUD overlay ───────────────────────────────────── */}
       <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 100 }}>
 
-        {/* Top-left: Wanted + player badge */}
-        <div style={{ position: 'absolute', top: 14, left: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* Bottom-right: Wanted + player badge (above FPS) */}
+        <div style={{ position: 'absolute', bottom: 56, right: 14, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
           <div style={{
             background: 'rgba(0,0,0,0.72)', color: '#ffcc00',
             padding: '5px 12px', borderRadius: 6, fontSize: 20, fontFamily: 'monospace', letterSpacing: 4,
@@ -151,9 +151,9 @@ export default function HUD() {
           </div>
         </div>
 
-        {/* Top-right: Circular Minimap */}
+        {/* Top-left: Circular Minimap */}
         <div style={{
-          position: 'absolute', top: 16, right: 14, width: mapSize, height: mapSize,
+          position: 'absolute', top: 16, left: 14, width: mapSize, height: mapSize,
           background: 'rgba(0,0,0,0.78)', border: '2px solid rgba(255,255,255,0.25)',
           borderRadius: '50%', overflow: 'hidden',
           boxShadow: '0 0 0 1px rgba(0,255,170,0.3), 0 4px 24px rgba(0,0,0,0.7)',
