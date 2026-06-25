@@ -1183,6 +1183,7 @@ export default function GameScene() {
   const wantedLevel    = useGameStore(s=>s.wantedLevel)
   const { takeDamage, setWantedLevel, incrementWanted, addMoney, addScore, isGameOver } = useGameStore()
   const [policeIndexMap, setPoliceIndexMap] = useState<Map<string,number>>(new Map())
+  const { settings } = useModelStore()
 
   useFrame((_,delta)=>{
     const prevTime = timeRef.current
@@ -1262,7 +1263,7 @@ export default function GameScene() {
       <DynamicLighting timeOfDay={timeOfDay}/>
       <City/>
       {INITIAL_VEHICLES.map(v=><Vehicle key={v.id} vehicleId={v.id}/>)}
-      {INITIAL_NPCS.map((n,i)=><NPC key={n.id} npcId={n.id} npcIndex={i}/>)}
+      {INITIAL_NPCS.slice(0, settings.npcCount).map((n,i)=><NPC key={n.id} npcId={n.id} npcIndex={i}/>)}
       {policeIds.map(id=>policeRefs.has(id)?(
         <PoliceUnit key={id} policeId={id}
           policeIndex={policeIndexMap.get(id)??0}
