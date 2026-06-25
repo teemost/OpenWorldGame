@@ -255,7 +255,7 @@ export default function HUD() {
 
       {/* Admin panel toggle */}
       {isAdmin && (
-        <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 400 }}>
+        <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
           <button
             type="button"
             onClick={e => { e.stopPropagation(); setShowAdmin(v => !v) }}
@@ -277,7 +277,7 @@ export default function HUD() {
           onMouseDown={e => e.stopPropagation()}
           style={{
             position: 'fixed', top: 55, left: '50%', transform: 'translateX(-50%)',
-            width: 460, maxHeight: '70vh', overflowY: 'auto', zIndex: 500,
+            width: 460, maxHeight: '70vh', overflowY: 'auto', zIndex: 1000,
             background: 'rgba(8,6,0,0.97)', border: '1px solid rgba(255,200,0,0.3)',
             borderRadius: 12, padding: '18px 22px', fontFamily: 'monospace',
             boxShadow: '0 12px 50px rgba(0,0,0,0.85)',

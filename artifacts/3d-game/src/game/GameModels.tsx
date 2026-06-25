@@ -18,12 +18,31 @@ const SkeletonUtils: { clone: (obj: THREE.Object3D) => THREE.Object3D } =
 // scale:0.01 + rotation:90°X on its "Character" root) are applied before we
 // measure the bounding box. Then measures geometry bounds in *world space*.
 function computeFit(obj: THREE.Object3D, targetHeight: number): { scale: number; yOffset: number } {
-  // Propagate all node transforms without needing a live scene
+  // ── Normalise bad root rotations before measuring ───────────────────────────
+  // Some GLTF exports (e.g. Mixamo fembot) place a +90°X rotation on their
+  // root "Character" node. That maps the geometry's local Y axis (already Y-up
+  // in local space) to world Z, collapsing the world-space Y extent to nearly
+  // zero and producing a giant scale factor.
+  //
+  // Detection: qx ≈ +0.707, qy ≈ 0, qz ≈ 0, qw ≈ 0.707 → +90°X.
+  // We zero this rotation permanently so the geometry stands upright AND the
+  // Y-extent measurement is correct.
+  //
+  // Soldier-style models use –90°X (qx ≈ –0.707) which correctly brings their
+  // centimetre-scale Z-up geometry to world Y — those are intentional and left
+  // unchanged. The check `q.x > 0.5` therefore only fires for the +90°X case.
+  //
+  // The "Character" node is typically obj.children[0] in a GLTF scene wrapper;
+  // for FBX the root IS obj itself — so we check both.
+  const rootCandidate = obj.children.length > 0 ? obj.children[0] : obj
+  const q = rootCandidate.quaternion
+  if (q.x > 0.5 && Math.abs(q.y) < 0.1 && Math.abs(q.z) < 0.1 && q.w > 0.5) {
+    rootCandidate.quaternion.set(0, 0, 0, 1)
+  }
+
   obj.updateMatrixWorld(true)
 
-  let minX = Infinity, maxX = -Infinity
   let minY = Infinity, maxY = -Infinity
-  let minZ = Infinity, maxZ = -Infinity
   const tmpBox = new THREE.Box3()
   obj.traverse(child => {
     const mesh = child as THREE.Mesh
@@ -33,25 +52,12 @@ function computeFit(obj: THREE.Object3D, targetHeight: number): { scale: number;
     if (!bb) return
     // Transform local geometry bbox → world space using the node's world matrix
     tmpBox.copy(bb).applyMatrix4(mesh.matrixWorld)
-    if (tmpBox.min.x < minX) minX = tmpBox.min.x
-    if (tmpBox.max.x > maxX) maxX = tmpBox.max.x
     if (tmpBox.min.y < minY) minY = tmpBox.min.y
     if (tmpBox.max.y > maxY) maxY = tmpBox.max.y
-    if (tmpBox.min.z < minZ) minZ = tmpBox.min.z
-    if (tmpBox.max.z > maxZ) maxZ = tmpBox.max.z
   })
 
   if (!isFinite(minY) || !isFinite(maxY)) return { scale: 1, yOffset: 0 }
-
-  // Use the largest dimension as the effective height so rotated models
-  // (e.g. fembot.glb exported with a 90° X root rotation) scale correctly.
-  // A standing humanoid's true height equals its longest axis regardless of
-  // how the root node is oriented in the file.
-  const xSize = isFinite(minX) && isFinite(maxX) ? maxX - minX : 0
-  const ySize = maxY - minY
-  const zSize = isFinite(minZ) && isFinite(maxZ) ? maxZ - minZ : 0
-  const modelHeight = Math.max(xSize, ySize, zSize)
-
+  const modelHeight = maxY - minY
   if (modelHeight < 0.001) return { scale: 1, yOffset: 0 }
   const scale = targetHeight / modelHeight
   const yOffset = -minY * scale
