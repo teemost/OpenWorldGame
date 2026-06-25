@@ -1,21 +1,10 @@
 import { useGameStore } from '../store/useGameStore'
 
-interface MinimapDot {
-  x: number
-  z: number
-  color: string
-  size: number
-}
-
-interface HUDProps {
-  minimapDots: MinimapDot[]
-  playerX: number
-  playerZ: number
-}
-
-export default function HUD({ minimapDots, playerX, playerZ }: HUDProps) {
-  const { health, money, wantedLevel, score, isGameOver, ammo, inVehicle, resetGame } =
-    useGameStore()
+export default function HUD() {
+  const {
+    health, money, wantedLevel, score, isGameOver, ammo, inVehicle,
+    minimapDots, playerX, playerZ, resetGame,
+  } = useGameStore()
 
   const mapSize = 160
   const mapScale = mapSize / 220 // map covers -110 to 110

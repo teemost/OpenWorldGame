@@ -1,5 +1,12 @@
 import { create } from 'zustand'
 
+interface MinimapDot {
+  x: number
+  z: number
+  color: string
+  size: number
+}
+
 interface GameStore {
   health: number
   money: number
@@ -9,6 +16,10 @@ interface GameStore {
   isGameOver: boolean
   inVehicle: boolean
   ammo: number
+  // Minimap data (written from scene, read by HUD)
+  minimapDots: MinimapDot[]
+  playerX: number
+  playerZ: number
 
   setHealth: (h: number) => void
   takeDamage: (amount: number) => void
@@ -22,6 +33,8 @@ interface GameStore {
   setInVehicle: (v: boolean) => void
   useAmmo: () => boolean
   addAmmo: (amount: number) => void
+  setMinimapDots: (dots: MinimapDot[]) => void
+  setPlayerPos: (x: number, z: number) => void
   resetGame: () => void
 }
 
@@ -34,6 +47,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   isGameOver: false,
   inVehicle: false,
   ammo: 60,
+  minimapDots: [],
+  playerX: 5,
+  playerZ: 5,
 
   setHealth: (h) => set({ health: Math.max(0, Math.min(100, h)) }),
   takeDamage: (amount) =>
@@ -58,6 +74,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return true
   },
   addAmmo: (amount) => set((s) => ({ ammo: s.ammo + amount })),
+  setMinimapDots: (dots) => set({ minimapDots: dots }),
+  setPlayerPos: (x, z) => set({ playerX: x, playerZ: z }),
   resetGame: () =>
     set({
       health: 100,

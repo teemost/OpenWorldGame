@@ -3,6 +3,7 @@ import { KeyboardControls } from '@react-three/drei'
 import { Component, ReactNode, useState, useEffect } from 'react'
 import GameScene, { Controls } from './game/GameScene'
 import TouchControls from './game/TouchControls'
+import HUD from './game/HUD'
 import './index.css'
 
 const keyMap = [
@@ -168,6 +169,9 @@ export default function App() {
             </KeyboardControls>
           </ErrorBoundary>
         </WebGLCheck>
+
+        {/* HUD — rendered OUTSIDE Canvas so it never inherits camera transforms */}
+        <HUD />
 
         {/* Touch controls — rendered OUTSIDE Canvas so position:fixed is viewport-relative */}
         {isTouch && <TouchControls />}

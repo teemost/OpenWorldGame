@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { useKeyboardControls, Html } from '@react-three/drei'
+import { useKeyboardControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '../store/useGameStore'
 import {
@@ -10,7 +10,6 @@ import {
   isInsideBuilding,
   resolveCollision,
 } from './cityData'
-import HUD from './HUD'
 import { touchState } from './touchState'
 
 // ─── Controls enum ───────────────────────────────────────────────────────────
@@ -792,7 +791,9 @@ function DynamicLighting({ timeOfDay }: { timeOfDay: number }) {
 // ─── Minimap dot collector ─────────────────────────────────────────────────────
 let minimapDots: Array<{ x: number; z: number; color: string; size: number }> = []
 
-function MinimapCollector({ onUpdate }: { onUpdate: (dots: typeof minimapDots) => void }) {
+function MinimapCollector() {
+  const setMinimapDots = useGameStore((s) => s.setMinimapDots)
+  const setPlayerPos   = useGameStore((s) => s.setPlayerPos)
   const frameCount = useRef(0)
 
   useFrame(() => {
@@ -809,7 +810,8 @@ function MinimapCollector({ onUpdate }: { onUpdate: (dots: typeof minimapDots) =
     for (const [, p] of policeRefs) {
       if (p.health > 0) dots.push({ x: p.pos.x, z: p.pos.z, color: '#4466ff', size: 4 })
     }
-    onUpdate(dots)
+    setMinimapDots(dots)
+    setPlayerPos(sharedPlayerPos.x, sharedPlayerPos.z)
   })
   return null
 }
@@ -850,9 +852,7 @@ function spawnPolice(wantedLevel: number) {
 export default function GameScene() {
   const [bullets, setBullets] = useState<BulletRef[]>([])
   const [policeIds, setPoliceIds] = useState<string[]>([])
-  const [minimapDotsState, setMinimapDotsState] = useState<typeof minimapDots>([])
   const [timeOfDay, setTimeOfDay] = useState(10)
-  const [playerDisplayPos, setPlayerDisplayPos] = useState({ x: 5, z: 5 })
 
   const timeRef = useRef(10)
   const wantedDecayRef = useRef(0)
@@ -879,8 +879,7 @@ export default function GameScene() {
       }
     }
 
-    // Update player display pos for minimap (every 10 frames)
-    setPlayerDisplayPos({ x: sharedPlayerPos.x, z: sharedPlayerPos.z })
+    // (player pos written to store by MinimapCollector)
   })
 
   // Police spawning when wanted level changes
@@ -974,16 +973,7 @@ export default function GameScene() {
   }, [takeDamage])
 
   if (isGameOver) {
-    return (
-      <>
-        <DynamicLighting timeOfDay={timeOfDay} />
-        <HUD
-          minimapDots={minimapDotsState}
-          playerX={playerDisplayPos.x}
-          playerZ={playerDisplayPos.z}
-        />
-      </>
-    )
+    return <DynamicLighting timeOfDay={timeOfDay} />
   }
 
   return (
@@ -1023,17 +1013,8 @@ export default function GameScene() {
       {/* Player */}
       <Player onShoot={handleShoot} />
 
-      {/* Minimap data collector */}
-      <MinimapCollector onUpdate={setMinimapDotsState} />
-
-      {/* HUD (HTML overlay) */}
-      <Html fullscreen>
-        <HUD
-          minimapDots={minimapDotsState}
-          playerX={playerDisplayPos.x}
-          playerZ={playerDisplayPos.z}
-        />
-      </Html>
+      {/* Minimap + player pos → Zustand store → HUD rendered in App.tsx */}
+      <MinimapCollector />
     </>
   )
 }
