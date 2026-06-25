@@ -4,6 +4,11 @@ import { saveModelToDB, loadModelFromDB, deleteModelFromDB } from '../db/modelDB
 
 export type ModelCategory =
   | 'player'
+  | 'player_hair'
+  | 'player_shirt'
+  | 'player_pant'
+  | 'player_shoe'
+  | 'player_eyes'
   | 'npc'
   | 'police'
   | 'swat'
@@ -15,7 +20,7 @@ export type ModelCategory =
 export type AnimClip = 'idle' | 'walk' | 'run'
 
 export interface ModelMeta {
-  key: string
+  key: string            // unique IndexedDB key, e.g. model_player_1234abcd
   category: ModelCategory
   name: string
   format: string
@@ -34,61 +39,51 @@ export interface AnimMeta {
 }
 
 export interface GameSettings {
-  // ── Player ──────────────────────────────────────────────────────────────────
-  playerSpeedMult:      number    // 0.3–3.0
-  playerHealthMax:      number    // 50–500
+  playerSpeedMult:      number
+  playerHealthMax:      number
   startingMoney:        number
   startingAmmo:         number
-  bulletDamage:         number    // 1–100 HP
-  playerDamageResist:   number    // 0–0.9 (damage reduction ratio)
-  // ── World & Environment ───────────────────────────────────────────────────
+  bulletDamage:         number
+  playerDamageResist:   number
   enableDayCycle:       boolean
-  dayCycleSpeed:        number    // 0–0.5
-  fogDistance:          number    // 30–500 m
+  dayCycleSpeed:        number
+  fogDistance:          number
   enableWeather:        boolean
-  gravityMultiplier:    number    // 0.5–3.0
-  // ── NPC Citizens ──────────────────────────────────────────────────────────
-  npcCount:             number    // 0–50
-  npcSpeed:             number    // 0.2–3.0 ×
-  npcPanicRadius:       number    // 3–60 m
+  gravityMultiplier:    number
+  npcCount:             number
+  npcSpeed:             number
+  npcPanicRadius:       number
   enableAI:             boolean
-  aiDifficulty:         number    // 0–3
-  aiReactionTime:       number    // 0.1–2.0 s
-  // ── Police ────────────────────────────────────────────────────────────────
+  aiDifficulty:         number
+  aiReactionTime:       number
   enableWantedSystem:   boolean
-  policeSpeed:          number    // 0.3–3.0 ×
-  policeAggression:     number    // 0–3
-  policeSpawnDelay:     number    // 3–120 s
-  policeHealthMult:     number    // 0.5–3.0
-  // ── Vehicles ──────────────────────────────────────────────────────────────
-  vehicleCount:         number    // 0–30
-  vehicleMaxSpeed:      number    // 10–60
-  vehicleAcceleration:  number    // 5–50
-  vehicleFriction:      number    // 0.7–0.99
-  vehicleCameraFollow:  boolean   // auto-align camera to vehicle direction
-  // ── Weapons & Combat ─────────────────────────────────────────────────────
-  weaponFireRate:       number    // 0.05–1.0 s between shots
-  weaponRange:          number    // 20–200 m
-  bulletSpeed:          number    // 20–120 m/s
-  explosionRadius:      number    // 0–20 m
+  policeSpeed:          number
+  policeAggression:     number
+  policeSpawnDelay:     number
+  policeHealthMult:     number
+  vehicleCount:         number
+  vehicleMaxSpeed:      number
+  vehicleAcceleration:  number
+  vehicleFriction:      number
+  vehicleCameraFollow:  boolean
+  weaponFireRate:       number
+  weaponRange:          number
+  bulletSpeed:          number
+  explosionRadius:      number
   enableExplosions:     boolean
-  maxBullets:           number    // 10–200
-  // ── Economy & Progression ─────────────────────────────────────────────────
-  moneyMultiplier:      number    // 0.1–5.0 ×
-  scoreMultiplier:      number    // 0.1–5.0 ×
-  killBounty:           number    // 0–500 $
-  // ── Visual & Effects ──────────────────────────────────────────────────────
+  maxBullets:           number
+  moneyMultiplier:      number
+  scoreMultiplier:      number
+  killBounty:           number
   enableBloodEffects:   boolean
   showNameTags:         boolean
-  minimapZoom:          number    // 0.5–3.0
-  fieldOfView:          number    // 50–110 deg
-  // ── Character Model Scale ─────────────────────────────────────────────────
-  soldierModelScale:    number    // 0.5–4.0 m
-  // ── Custom-upload category scales (when no built-in model is active) ──────
-  playerModelScale:     number    // 0.5–4.0 m
-  npcModelScale:        number    // 0.5–4.0 m
-  policeModelScale:     number    // 0.5–4.0 m
-  swatModelScale:       number    // 0.5–4.0 m
+  minimapZoom:          number
+  fieldOfView:          number
+  soldierModelScale:    number
+  playerModelScale:     number
+  npcModelScale:        number
+  policeModelScale:     number
+  swatModelScale:       number
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -139,40 +134,59 @@ export const DEFAULT_SETTINGS: GameSettings = {
   swatModelScale:      1.15,
 }
 
-// In-memory blob URLs for current session (keyed by category)
+// ─── In-memory runtime maps ───────────────────────────────────────────────────
+// Active model URL per category (consumed by GameScene / CharacterSelect)
 export const modelBlobURLs = new Map<ModelCategory, { url: string; format: string }>()
-
-// In-memory animation blob URLs — key: `${category}_${clip}` → url string
+// All loaded blob URLs keyed by ModelMeta.key (for admin UI showing all uploaded models)
+export const allModelBlobURLs = new Map<string, { url: string; format: string }>()
+// Animation blob URLs — key: `${category}_${clip}`
 export const animBlobURLs = new Map<string, string>()
-
-// Reactive version counter — increment to force game scene to reload models
+// Reactive version counter
 export const modelVersion = { value: 0 }
 
 // Categories that support separate animation file uploads (humanoids only)
 export const HUMANOID_CATS: ModelCategory[] = ['player', 'npc', 'police', 'swat']
 export const ANIM_CLIPS: AnimClip[] = ['idle', 'walk', 'run']
 
+// All categories in the store
+export const ALL_CATEGORIES: ModelCategory[] = [
+  'player', 'player_hair', 'player_shirt', 'player_pant', 'player_shoe', 'player_eyes',
+  'npc', 'police', 'swat', 'vehicle', 'police_vehicle', 'weapon', 'ai_character',
+]
+
+// Categories that represent full character/game models (shown in CharacterSelect)
+export const CHARACTER_CATEGORIES: ModelCategory[] = [
+  'player', 'npc', 'police', 'swat', 'ai_character', 'vehicle', 'police_vehicle', 'weapon',
+]
+
 interface ModelStore {
-  models:     Record<ModelCategory, ModelMeta | null>
-  animations: Record<string, AnimMeta | null>   // key: `${category}_${clip}`
-  settings:   GameSettings
+  models:        Record<ModelCategory, ModelMeta[]>
+  activeModelId: Record<ModelCategory, string | null>
+  animations:    Record<string, AnimMeta | null>
+  settings:      GameSettings
   modelRevision: number
-  setSettings: (patch: Partial<GameSettings>) => void
+  setSettings:   (patch: Partial<GameSettings>) => void
   resetSettings: () => void
-  uploadModel: (category: ModelCategory, file: File) => Promise<void>
-  removeModel: (category: ModelCategory) => Promise<void>
+  uploadModel:   (category: ModelCategory, file: File) => Promise<void>
+  removeModel:   (category: ModelCategory, key: string) => Promise<void>
+  setActiveModel:(category: ModelCategory, key: string) => void
   uploadAnimation: (category: ModelCategory, clip: AnimClip, file: File) => Promise<void>
   removeAnimation: (category: ModelCategory, clip: AnimClip) => Promise<void>
   loadAllModelURLs: () => Promise<void>
-  getModelURL: (category: ModelCategory) => { url: string; format: string } | null
+  getModelURL:   (category: ModelCategory) => { url: string; format: string } | null
 }
 
-const ALL_CATEGORIES: ModelCategory[] = [
-  'player', 'npc', 'police', 'swat', 'vehicle', 'police_vehicle', 'weapon', 'ai_character',
-]
+const makeEmptyModels = (): Record<ModelCategory, ModelMeta[]> => {
+  const r = {} as Record<ModelCategory, ModelMeta[]>
+  for (const c of ALL_CATEGORIES) r[c as ModelCategory] = []
+  return r
+}
 
-const makeEmptyModels = (): Record<ModelCategory, ModelMeta | null> =>
-  Object.fromEntries(ALL_CATEGORIES.map(c => [c, null])) as Record<ModelCategory, ModelMeta | null>
+const makeEmptyActiveIds = (): Record<ModelCategory, string | null> => {
+  const r = {} as Record<ModelCategory, string | null>
+  for (const c of ALL_CATEGORIES) r[c as ModelCategory] = null
+  return r
+}
 
 const makeEmptyAnimations = (): Record<string, AnimMeta | null> =>
   Object.fromEntries(
@@ -188,10 +202,15 @@ function getMime(format: string): string {
   }
 }
 
+function genKey(category: ModelCategory): string {
+  return `model_${category}_${Date.now()}${Math.random().toString(36).slice(2, 6)}`
+}
+
 export const useModelStore = create<ModelStore>()(
   persist(
     (set, get) => ({
       models:        makeEmptyModels(),
+      activeModelId: makeEmptyActiveIds(),
       animations:    makeEmptyAnimations(),
       settings:      { ...DEFAULT_SETTINGS },
       modelRevision: 0,
@@ -203,16 +222,13 @@ export const useModelStore = create<ModelStore>()(
 
       uploadModel: async (category, file) => {
         const format = file.name.split('.').pop()?.toLowerCase() ?? 'glb'
-        const key    = `model_${category}`
+        const key    = genKey(category)
         const buf    = await file.arrayBuffer()
         await saveModelToDB(key, buf)
 
-        // Revoke old URL
-        const old = modelBlobURLs.get(category)
-        if (old) URL.revokeObjectURL(old.url)
-
-        // Create new Blob URL
         const url = URL.createObjectURL(new Blob([buf], { type: getMime(format) }))
+        allModelBlobURLs.set(key, { url, format })
+        // New upload always becomes active
         modelBlobURLs.set(category, { url, format })
         modelVersion.value++
 
@@ -221,36 +237,61 @@ export const useModelStore = create<ModelStore>()(
           uploadedAt: new Date().toISOString(),
         }
         set((s) => ({
-          models: { ...s.models, [category]: meta },
+          models:        { ...s.models, [category]: [...(s.models[category] ?? []), meta] },
+          activeModelId: { ...s.activeModelId, [category]: key },
           modelRevision: s.modelRevision + 1,
         }))
       },
 
-      removeModel: async (category) => {
-        const key = `model_${category}`
+      removeModel: async (category, key) => {
         await deleteModelFromDB(key)
-        const old = modelBlobURLs.get(category)
-        if (old) URL.revokeObjectURL(old.url)
-        modelBlobURLs.delete(category)
+        const entry = allModelBlobURLs.get(key)
+        if (entry) URL.revokeObjectURL(entry.url)
+        allModelBlobURLs.delete(key)
+
+        const { activeModelId, models } = get()
+        const remaining = (models[category] ?? []).filter(m => m.key !== key)
+
+        let newActiveKey = activeModelId[category]
+        if (newActiveKey === key) {
+          newActiveKey = remaining.length > 0 ? remaining[remaining.length - 1].key : null
+        }
+        if (newActiveKey) {
+          const newEntry = allModelBlobURLs.get(newActiveKey)
+          if (newEntry) modelBlobURLs.set(category, newEntry)
+          else modelBlobURLs.delete(category)
+        } else {
+          modelBlobURLs.delete(category)
+        }
+
         modelVersion.value++
         set((s) => ({
-          models: { ...s.models, [category]: null },
+          models:        { ...s.models, [category]: remaining },
+          activeModelId: { ...s.activeModelId, [category]: newActiveKey },
+          modelRevision: s.modelRevision + 1,
+        }))
+      },
+
+      setActiveModel: (category, key) => {
+        const entry = allModelBlobURLs.get(key)
+        if (entry) modelBlobURLs.set(category, entry)
+        modelVersion.value++
+        set((s) => ({
+          activeModelId: { ...s.activeModelId, [category]: key },
           modelRevision: s.modelRevision + 1,
         }))
       },
 
       uploadAnimation: async (category, clip, file) => {
-        const format  = file.name.split('.').pop()?.toLowerCase() ?? 'fbx'
-        const dbKey   = `anim_${category}_${clip}`
+        const format   = file.name.split('.').pop()?.toLowerCase() ?? 'fbx'
+        const dbKey    = `anim_${category}_${clip}`
         const storeKey = `${category}_${clip}`
-        const buf     = await file.arrayBuffer()
+        const buf      = await file.arrayBuffer()
         await saveModelToDB(dbKey, buf)
 
-        // Revoke old blob URL
         const oldUrl = animBlobURLs.get(storeKey)
         if (oldUrl) URL.revokeObjectURL(oldUrl)
 
-        // Create new blob URL
         const url = URL.createObjectURL(new Blob([buf], { type: getMime(format) }))
         animBlobURLs.set(storeKey, url)
         modelVersion.value++
@@ -280,21 +321,24 @@ export const useModelStore = create<ModelStore>()(
       },
 
       loadAllModelURLs: async () => {
-        const { models, animations } = get()
+        const { models, animations, activeModelId } = get()
 
-        // Load main model blob URLs
         for (const cat of ALL_CATEGORIES) {
-          if (!models[cat]) continue
-          if (modelBlobURLs.has(cat)) continue
-          const key = `model_${cat}`
-          const buf = await loadModelFromDB(key)
-          if (!buf) continue
-          const fmt = models[cat]!.format
-          const url = URL.createObjectURL(new Blob([buf], { type: getMime(fmt) }))
-          modelBlobURLs.set(cat, { url, format: fmt })
+          const catModels = models[cat as ModelCategory] ?? []
+          for (const meta of catModels) {
+            if (allModelBlobURLs.has(meta.key)) continue
+            const buf = await loadModelFromDB(meta.key)
+            if (!buf) continue
+            const url = URL.createObjectURL(new Blob([buf], { type: getMime(meta.format) }))
+            allModelBlobURLs.set(meta.key, { url, format: meta.format })
+          }
+          // Sync the active URL into modelBlobURLs
+          const activeKey = activeModelId[cat as ModelCategory]
+          if (activeKey && allModelBlobURLs.has(activeKey)) {
+            modelBlobURLs.set(cat as ModelCategory, allModelBlobURLs.get(activeKey)!)
+          }
         }
 
-        // Load animation blob URLs
         for (const cat of HUMANOID_CATS) {
           for (const clip of ANIM_CLIPS) {
             const storeKey = `${cat}_${clip}`
@@ -316,15 +360,36 @@ export const useModelStore = create<ModelStore>()(
       getModelURL: (category) => modelBlobURLs.get(category) ?? null,
     }),
     {
-      name: 'owcc_model_store_v2',
-      partialize: (s) => ({ models: s.models, settings: s.settings, animations: s.animations }),
+      name: 'owcc_model_store_v3',
+      partialize: (s) => ({ models: s.models, activeModelId: s.activeModelId, settings: s.settings, animations: s.animations }),
       merge: (persisted: unknown, current) => {
         const p = persisted as Partial<typeof current>
+        // Migrate old single-model format to arrays
+        const migratedModels = makeEmptyModels()
+        if (p.models) {
+          for (const cat of ALL_CATEGORIES) {
+            const val = (p.models as Record<string, unknown>)[cat]
+            if (!val) migratedModels[cat as ModelCategory] = []
+            else if (Array.isArray(val)) migratedModels[cat as ModelCategory] = val as ModelMeta[]
+            else migratedModels[cat as ModelCategory] = [val as ModelMeta]
+          }
+        }
+        // Migrate activeModelId: infer from first model if not stored
+        const migratedActive = makeEmptyActiveIds()
+        if (p.activeModelId) {
+          Object.assign(migratedActive, p.activeModelId)
+        } else {
+          for (const cat of ALL_CATEGORIES) {
+            const arr = migratedModels[cat as ModelCategory]
+            migratedActive[cat as ModelCategory] = arr.length > 0 ? arr[0].key : null
+          }
+        }
         return {
           ...current,
-          ...p,
-          settings:   { ...DEFAULT_SETTINGS, ...(p.settings ?? {}) },
-          animations: { ...makeEmptyAnimations(), ...(p.animations ?? {}) },
+          settings:      { ...DEFAULT_SETTINGS, ...(p.settings ?? {}) },
+          animations:    { ...makeEmptyAnimations(), ...(p.animations ?? {}) },
+          models:        migratedModels,
+          activeModelId: migratedActive,
         }
       },
     }

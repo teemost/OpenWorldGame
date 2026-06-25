@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from './useAuthStore'
 import CharacterPreview3D from './CharacterPreview3D'
-import { useModelStore, modelBlobURLs, ModelCategory } from '../store/useModelStore'
+import { useModelStore, modelBlobURLs, ModelCategory, CHARACTER_CATEGORIES } from '../store/useModelStore'
 
 const SKIN_TONES = [
   { label: 'Fair',   color: '#FDDBB4' },
@@ -29,6 +29,11 @@ const BUILTIN_CHARACTER_MODELS = [
 
 const CATEGORY_META: Record<ModelCategory, { emoji: string; label: string; accent: string }> = {
   player:         { emoji: '🎮', label: 'Player Upload',    accent: '#ff6600' },
+  player_hair:    { emoji: '💇', label: 'Hair',             accent: '#cc8844' },
+  player_shirt:   { emoji: '👕', label: 'Shirt',            accent: '#4488cc' },
+  player_pant:    { emoji: '👖', label: 'Pants',            accent: '#336699' },
+  player_shoe:    { emoji: '👟', label: 'Shoes',            accent: '#996633' },
+  player_eyes:    { emoji: '👁️', label: 'Eyes',             accent: '#44aaaa' },
   npc:            { emoji: '🚶', label: 'NPC Upload',       accent: '#44aaff' },
   police:         { emoji: '👮', label: 'Police Upload',    accent: '#4488ff' },
   swat:           { emoji: '🪖', label: 'SWAT Upload',      accent: '#66aaaa' },
@@ -50,7 +55,7 @@ interface Props {
 
 export default function CharacterSelect({ onReady }: Props) {
   const { currentUser, updateCharacter } = useAuthStore()
-  const { modelRevision, models, loadAllModelURLs } = useModelStore()
+  const { modelRevision, models, activeModelId, loadAllModelURLs } = useModelStore()
 
   const [skin,   setSkin  ] = useState(currentUser?.skinTone      ?? '#D4956A')
   const [shirt,  setShirt ] = useState(currentUser?.characterColor ?? '#0055cc')
@@ -61,19 +66,22 @@ export default function CharacterSelect({ onReady }: Props) {
   // so the blob URLs haven't been restored yet.
   useEffect(() => { loadAllModelURLs() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Build the list of admin-uploaded models from the store
+  // Build the list of admin-uploaded models from the store (character categories only, not accessories)
   const [uploadedModels, setUploadedModels] = useState<
     { id: string; label: string; emoji: string; description: string; accent: string; url: string; format: string }[]
   >([])
 
   useEffect(() => {
     const entries: typeof uploadedModels = []
-    for (const [cat, meta] of Object.entries(models) as [ModelCategory, typeof models[ModelCategory]][]) {
-      if (!meta) continue
+    for (const cat of CHARACTER_CATEGORIES) {
+      const catModels = models[cat] ?? []
+      if (catModels.length === 0) continue
       const blobEntry = modelBlobURLs.get(cat)
       if (!blobEntry) continue
+      const activeKey = activeModelId[cat]
+      const meta = catModels.find(m => m.key === activeKey) ?? catModels[catModels.length - 1]
       const catMeta = CATEGORY_META[cat]
-      const shortName = meta.name.replace(/\.[^.]+$/, '') // strip extension
+      const shortName = meta.name.replace(/\.[^.]+$/, '')
       entries.push({
         id:          `custom_${cat}`,
         label:       shortName.length > 10 ? shortName.slice(0, 10) + '…' : shortName,

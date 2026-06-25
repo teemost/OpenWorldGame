@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuthStore } from '../auth/useAuthStore'
-import { useModelStore, ModelCategory, AnimClip, DEFAULT_SETTINGS, modelBlobURLs, animBlobURLs, HUMANOID_CATS, ANIM_CLIPS } from '../store/useModelStore'
+import { useModelStore, ModelCategory, AnimClip, DEFAULT_SETTINGS, modelBlobURLs, allModelBlobURLs, animBlobURLs, HUMANOID_CATS, ANIM_CLIPS } from '../store/useModelStore'
 import { useGameStore } from '../store/useGameStore'
 
-const CATEGORIES: { key: ModelCategory; label: string; icon: string; desc: string }[] = [
+type CatDef = { key: ModelCategory; label: string; icon: string; desc: string }
+
+const MAIN_CATEGORIES: CatDef[] = [
   { key: 'player',         label: 'Player Character',    icon: '🎮', desc: 'The main controllable player character model' },
   { key: 'npc',            label: 'Civilian NPCs',       icon: '🚶', desc: 'Generic civilian NPC walking characters' },
   { key: 'police',         label: 'Police Officers',     icon: '👮', desc: 'Standard police officer character model' },
@@ -13,6 +15,16 @@ const CATEGORIES: { key: ModelCategory; label: string; icon: string; desc: strin
   { key: 'police_vehicle', label: 'Police Vehicle',      icon: '🚔', desc: 'Police cruiser model' },
   { key: 'weapon',         label: 'Weapon / Gun',        icon: '🔫', desc: 'Handheld weapon model shown in player hands' },
 ]
+
+const PLAYER_ACCESSORIES: CatDef[] = [
+  { key: 'player_hair',   label: 'Hair',   icon: '💇', desc: 'Player hair / head accessory mesh overlay' },
+  { key: 'player_shirt',  label: 'Shirt',  icon: '👕', desc: 'Player shirt / top clothing mesh overlay' },
+  { key: 'player_pant',   label: 'Pants',  icon: '👖', desc: 'Player pants / lower-body mesh overlay' },
+  { key: 'player_shoe',   label: 'Shoes',  icon: '👟', desc: 'Player footwear mesh overlay' },
+  { key: 'player_eyes',   label: 'Eyes',   icon: '👁️', desc: 'Player eye / face detail mesh overlay' },
+]
+
+const CATEGORIES = [...MAIN_CATEGORIES, ...PLAYER_ACCESSORIES]
 
 const ACCEPTED        = '.glb,.gltf,.fbx,.obj,.ply'
 const ACCEPTED_FORMATS = ['glb', 'gltf', 'fbx', 'obj', 'ply']
@@ -35,17 +47,18 @@ const NAV: { key: Section; label: string; icon: string }[] = [
   { key: 'players',  label: 'Player Manager', icon: '👥' },
 ]
 
-// ─── Model upload card ────────────────────────────────────────────────────────
-function ModelUploadCard({ cat }: { cat: typeof CATEGORIES[0] }) {
-  const { models, uploadModel, removeModel, modelRevision } = useModelStore()
-  const meta    = models[cat.key]
-  const fileRef = useRef<HTMLInputElement>(null)
+// ─── Model upload card — supports multiple models per category ────────────────
+function ModelUploadCard({ cat }: { cat: CatDef }) {
+  const { models, activeModelId, uploadModel, removeModel, setActiveModel, modelRevision } = useModelStore()
+  const catModels  = models[cat.key] ?? []
+  const activeKey  = activeModelId[cat.key]
+  const fileRef    = useRef<HTMLInputElement>(null)
   const [dragging,  setDragging ] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error,     setError    ] = useState('')
-  const [hasURL,    setHasURL   ] = useState(() => modelBlobURLs.has(cat.key))
+  const [hasActive, setHasActive] = useState(() => modelBlobURLs.has(cat.key))
 
-  useEffect(() => { setHasURL(modelBlobURLs.has(cat.key)) }, [modelRevision, cat.key])
+  useEffect(() => { setHasActive(modelBlobURLs.has(cat.key)) }, [modelRevision, cat.key])
 
   const handleFile = async (file: File) => {
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
@@ -54,13 +67,9 @@ function ModelUploadCard({ cat }: { cat: typeof CATEGORIES[0] }) {
       return
     }
     setError(''); setUploading(true)
-    try {
-      await uploadModel(cat.key, file)
-    } catch (e) {
-      setError(String(e))
-    } finally {
-      setUploading(false)
-    }
+    try { await uploadModel(cat.key, file) }
+    catch (e) { setError(String(e)) }
+    finally   { setUploading(false) }
   }
 
   const onDrop = (e: React.DragEvent) => {
@@ -69,66 +78,90 @@ function ModelUploadCard({ cat }: { cat: typeof CATEGORIES[0] }) {
     if (file) handleFile(file)
   }
 
-  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) handleFile(file)
-    e.target.value = ''
-  }
-
   return (
     <div style={{
       background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
       borderRadius: 12, padding: '20px 22px', marginBottom: 14,
     }}>
+      {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
         <span style={{ fontSize: 28 }}>{cat.icon}</span>
         <div style={{ flex: 1 }}>
           <div style={{ color: '#fff', fontSize: 15, fontWeight: 'bold' }}>{cat.label}</div>
           <div style={{ color: '#555', fontSize: 12, marginTop: 2 }}>{cat.desc}</div>
         </div>
-        {hasURL && (
+        {hasActive && (
           <div style={{
             background: 'rgba(0,200,100,0.15)', border: '1px solid rgba(0,200,100,0.3)',
             color: '#00cc66', padding: '3px 10px', borderRadius: 20, fontSize: 11, flexShrink: 0,
           }}>● ACTIVE IN-GAME</div>
         )}
-        {meta && !hasURL && (
+        {catModels.length > 0 && !hasActive && (
           <div style={{
             background: 'rgba(200,150,0,0.15)', border: '1px solid rgba(200,150,0,0.3)',
             color: '#ccaa00', padding: '3px 10px', borderRadius: 20, fontSize: 11, flexShrink: 0,
           }}>⟳ RELOAD TO ACTIVATE</div>
         )}
+        <span style={{ color: '#555', fontSize: 11, flexShrink: 0 }}>
+          {catModels.length} model{catModels.length !== 1 ? 's' : ''}
+        </span>
       </div>
 
-      {meta && (
-        <div style={{
-          background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '12px 14px',
-          marginBottom: 12, border: '1px solid rgba(255,255,255,0.06)',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ color: '#aaa', fontSize: 13, marginBottom: 4 }}>
-                📄 <span style={{ color: '#fff' }}>{meta.name}</span>
+      {/* ── Model list ── */}
+      {catModels.length > 0 && (
+        <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {catModels.map((meta) => {
+            const isActive  = meta.key === activeKey
+            const isLoaded  = allModelBlobURLs.has(meta.key)
+            return (
+              <div key={meta.key} style={{
+                background: isActive ? 'rgba(0,200,100,0.07)' : 'rgba(0,0,0,0.3)',
+                borderRadius: 8, padding: '10px 12px',
+                border: `1px solid ${isActive ? 'rgba(0,200,100,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: isActive ? '#00cc66' : '#aaa', fontSize: 13, fontWeight: isActive ? 'bold' : 'normal',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {isActive ? '★ ' : '○ '}{meta.name}
+                  </div>
+                  <div style={{ color: '#555', fontSize: 10, marginTop: 2 }}>
+                    .{meta.format.toUpperCase()}
+                    &ensp;·&ensp;{formatBytes(meta.size)}
+                    &ensp;·&ensp;{formatDate(meta.uploadedAt)}
+                    {isLoaded && !isActive && <span style={{ color: '#666', marginLeft: 6 }}>· loaded</span>}
+                  </div>
+                </div>
+                {!isActive && (
+                  <button type="button"
+                    onClick={(e) => { e.stopPropagation(); setActiveModel(cat.key, meta.key) }}
+                    style={{
+                      background: 'rgba(0,180,80,0.15)', border: '1px solid rgba(0,180,80,0.3)',
+                      color: '#00cc66', padding: '4px 10px', borderRadius: 6,
+                      fontSize: 11, cursor: 'pointer', fontFamily: 'monospace', flexShrink: 0, whiteSpace: 'nowrap',
+                    }}>Set Active</button>
+                )}
+                {isActive && (
+                  <div style={{
+                    background: 'rgba(0,200,100,0.2)', border: '1px solid rgba(0,200,100,0.35)',
+                    color: '#00cc66', padding: '4px 10px', borderRadius: 6,
+                    fontSize: 11, fontFamily: 'monospace', flexShrink: 0,
+                  }}>✓ Active</div>
+                )}
+                <button type="button"
+                  onClick={(e) => { e.stopPropagation(); removeModel(cat.key, meta.key) }}
+                  style={{
+                    background: 'rgba(200,0,0,0.15)', border: '1px solid rgba(200,0,0,0.3)',
+                    color: '#ff6666', padding: '4px 10px', borderRadius: 6,
+                    fontSize: 11, cursor: 'pointer', fontFamily: 'monospace', flexShrink: 0,
+                  }}>✕</button>
               </div>
-              <div style={{ color: '#555', fontSize: 11 }}>
-                Format: <span style={{ color: '#888' }}>.{meta.format.toUpperCase()}</span>
-                &ensp;·&ensp;Size: <span style={{ color: '#888' }}>{formatBytes(meta.size)}</span>
-                &ensp;·&ensp;Uploaded: <span style={{ color: '#888' }}>{formatDate(meta.uploadedAt)}</span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); removeModel(cat.key) }}
-              style={{
-                background: 'rgba(200,0,0,0.2)', border: '1px solid rgba(200,0,0,0.35)',
-                color: '#ff6666', padding: '4px 12px', borderRadius: 6,
-                fontSize: 12, cursor: 'pointer', fontFamily: 'monospace', flexShrink: 0,
-              }}
-            >Remove</button>
-          </div>
+            )
+          })}
         </div>
       )}
 
+      {/* ── Upload zone ── */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
@@ -136,7 +169,7 @@ function ModelUploadCard({ cat }: { cat: typeof CATEGORIES[0] }) {
         onClick={() => fileRef.current?.click()}
         style={{
           border: `2px dashed ${dragging ? 'rgba(255,100,0,0.7)' : 'rgba(255,255,255,0.15)'}`,
-          borderRadius: 8, padding: '18px 12px', textAlign: 'center',
+          borderRadius: 8, padding: '16px 12px', textAlign: 'center',
           cursor: 'pointer', background: dragging ? 'rgba(255,100,0,0.06)' : 'transparent',
           transition: 'all 0.15s',
         }}
@@ -145,17 +178,16 @@ function ModelUploadCard({ cat }: { cat: typeof CATEGORIES[0] }) {
           <div style={{ color: '#ff6600', fontSize: 13 }}>⟳ Uploading…</div>
         ) : (
           <>
-            <div style={{ fontSize: 24, marginBottom: 6 }}>⬆️</div>
-            <div style={{ color: '#888', fontSize: 13 }}>
-              {meta ? 'Drop a new file to replace' : 'Drop 3D model file here or click to browse'}
+            <div style={{ fontSize: 20, marginBottom: 4 }}>⬆️</div>
+            <div style={{ color: '#888', fontSize: 12 }}>
+              {catModels.length > 0 ? 'Add another model to this slot' : 'Drop 3D model here or click to browse'}
             </div>
-            <div style={{ color: '#444', fontSize: 11, marginTop: 4 }}>
-              GLB · GLTF · FBX · OBJ · PLY
-            </div>
+            <div style={{ color: '#444', fontSize: 10, marginTop: 3 }}>GLB · GLTF · FBX · OBJ · PLY</div>
           </>
         )}
       </div>
-      <input ref={fileRef} type="file" accept={ACCEPTED} style={{ display: 'none' }} onChange={onInputChange} />
+      <input ref={fileRef} type="file" accept={ACCEPTED} style={{ display: 'none' }}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
       {error && (
         <div style={{ color: '#ff6666', fontSize: 12, marginTop: 8, padding: '6px 10px',
           background: 'rgba(255,0,0,0.1)', borderRadius: 4 }}>{error}</div>
@@ -543,7 +575,7 @@ function PlayersSection() {
 
 // ─── Overview section ─────────────────────────────────────────────────────────
 function OverviewSection() {
-  const { models, settings } = useModelStore()
+  const { models, activeModelId, settings } = useModelStore()
   const { getAllUsers, currentUser } = useAuthStore()
   const triggerRestart = useGameStore(s => s.triggerRestart)
   const [confirmRestart, setConfirmRestart] = useState(false)
@@ -604,22 +636,28 @@ function OverviewSection() {
         <div style={{ color: '#ff6600', fontSize: 12, letterSpacing: 2, marginBottom: 14, fontFamily: 'monospace' }}>
           ── ACTIVE 3D MODELS
         </div>
-        {CATEGORIES.map(c => (
-          <div key={c.key} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
-          }}>
-            <span style={{ color: '#888', fontSize: 13 }}>{c.icon} {c.label}</span>
-            <span style={{
-              fontSize: 11, padding: '2px 10px', borderRadius: 20,
-              background: models[c.key] ? 'rgba(0,200,100,0.15)' : 'rgba(255,255,255,0.05)',
-              color: models[c.key] ? '#00cc66' : '#444',
-              border: `1px solid ${models[c.key] ? 'rgba(0,200,100,0.3)' : 'rgba(255,255,255,0.07)'}`,
+        {CATEGORIES.map(c => {
+          const catModels = models[c.key] ?? []
+          const hasModel  = catModels.length > 0
+          const activeKey = activeModelId[c.key]
+          const activeMeta = catModels.find(m => m.key === activeKey) ?? catModels[catModels.length - 1]
+          return (
+            <div key={c.key} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
             }}>
-              {models[c.key] ? models[c.key]!.name : 'Default 3D'}
-            </span>
-          </div>
-        ))}
+              <span style={{ color: '#888', fontSize: 13 }}>{c.icon} {c.label}</span>
+              <span style={{
+                fontSize: 11, padding: '2px 10px', borderRadius: 20,
+                background: hasModel ? 'rgba(0,200,100,0.15)' : 'rgba(255,255,255,0.05)',
+                color: hasModel ? '#00cc66' : '#444',
+                border: `1px solid ${hasModel ? 'rgba(0,200,100,0.3)' : 'rgba(255,255,255,0.07)'}`,
+              }}>
+                {hasModel ? `${activeMeta?.name ?? '?'} (+${catModels.length})` : 'Default 3D'}
+              </span>
+            </div>
+          )
+        })}
       </div>
 
       {/* ── Restart Server ─────────────────────────────────────────────── */}
@@ -853,10 +891,21 @@ export default function AdminDashboard() {
               3D Model Manager
             </div>
             <div style={{ color: '#555', fontSize: 13, marginBottom: 22 }}>
-              Upload custom 3D models (.GLB .GLTF .FBX .OBJ .PLY). Models activate in-game immediately — 
-              GLB/GLTF recommended for best compatibility. No restart required for GLB/GLTF.
+              Upload custom 3D models (.GLB .GLTF .FBX .OBJ .PLY). Upload multiple models per slot — pick which one is active. GLB/GLTF recommended for best compatibility.
             </div>
-            {CATEGORIES.map(c => <ModelUploadCard key={c.key} cat={c} />)}
+
+            <div style={{ color: '#ff6600', fontSize: 11, letterSpacing: 2, marginBottom: 12, fontFamily: 'monospace' }}>
+              ── GAME CHARACTERS &amp; VEHICLES
+            </div>
+            {MAIN_CATEGORIES.map(c => <ModelUploadCard key={c.key} cat={c} />)}
+
+            <div style={{ color: '#ff6600', fontSize: 11, letterSpacing: 2, margin: '24px 0 12px', fontFamily: 'monospace' }}>
+              ── PLAYER BODY PART OVERLAYS
+            </div>
+            <div style={{ color: '#555', fontSize: 12, marginBottom: 14 }}>
+              Upload separate meshes for individual body parts. These layer on top of the active player model.
+            </div>
+            {PLAYER_ACCESSORIES.map(c => <ModelUploadCard key={c.key} cat={c} />)}
           </div>
         )}
         {section === 'settings' && <SettingsSection />}
