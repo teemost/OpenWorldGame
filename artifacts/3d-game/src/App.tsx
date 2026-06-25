@@ -7,6 +7,7 @@ import HUD from './game/HUD'
 import AuthScreen from './auth/AuthScreen'
 import AdminDashboard from './admin/AdminDashboard'
 import { useAuthStore } from './auth/useAuthStore'
+import { useModelStore } from './store/useModelStore'
 import { touchState } from './game/touchState'
 import './index.css'
 
@@ -146,6 +147,12 @@ function useMouseCameraOrbit(enabled: boolean) {
 function Game() {
   const isTouch = useIsTouch()
   useMouseCameraOrbit(!isTouch)
+  const loadAllModelURLs = useModelStore(s => s.loadAllModelURLs)
+
+  // Restore blob URLs from IndexedDB every time the game mounts
+  // (covers fresh page load AND returning from the admin panel)
+  useEffect(() => { loadAllModelURLs() }, [loadAllModelURLs])
+
   return (
     <LandscapeGuard>
       <div style={{ width: '100vw', height: '100vh', background: '#000', overflow: 'hidden', position: 'relative' }}>
