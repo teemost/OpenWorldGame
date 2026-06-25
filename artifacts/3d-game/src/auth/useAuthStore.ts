@@ -12,6 +12,7 @@ export interface UserAccount {
   kills: number
   createdAt: string
   characterColor: string
+  skinTone: string
 }
 
 const ADMIN: UserAccount = {
@@ -26,6 +27,7 @@ const ADMIN: UserAccount = {
   kills: 0,
   createdAt: new Date().toISOString(),
   characterColor: '#FFD700',
+  skinTone: '#D4956A',
 }
 
 const STORAGE_KEY = 'owcc_users'
@@ -66,6 +68,7 @@ interface AuthStore {
   logout: () => void
   clearError: () => void
   updateStats: (score: number, money: number, kills: number) => void
+  updateCharacter: (characterColor: string, skinTone: string) => void
   getAllUsers: () => UserAccount[]
   kickUser: (id: string) => void
 }
@@ -127,6 +130,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       kills: 0,
       createdAt: new Date().toISOString(),
       characterColor: colors[Math.floor(Math.random() * colors.length)],
+      skinTone: '#D4956A',
     }
     saveUsers([...users, newUser])
     saveSession(newUser)
@@ -140,6 +144,18 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  updateCharacter: (characterColor, skinTone) => {
+    const { currentUser } = get()
+    if (!currentUser) return
+    const updated = { ...currentUser, characterColor, skinTone }
+    if (currentUser.role !== 'admin') {
+      const users = loadUsers().map(u => u.id === currentUser.id ? updated : u)
+      saveUsers(users)
+    }
+    saveSession(updated)
+    set({ currentUser: updated })
+  },
 
   updateStats: (score, money, kills) => {
     const { currentUser } = get()

@@ -161,14 +161,17 @@ function LoadingPlaceholder({ targetHeight }: { targetHeight: number }) {
 // ─── Animated Humanoid — real GLB with per-frame animation blending ──────────
 type AnimState = 'Idle' | 'Walk' | 'Run'
 
+const SKIN_MAT_RE = /skin|head|face|hair/i
+
 interface AnimatedHumanoidProps {
   modelPath: string
   getAnimState: () => AnimState
   targetHeight?: number
   colorTint?: string | null
+  skinTone?: string | null
 }
 
-function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, colorTint }: AnimatedHumanoidProps) {
+function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, colorTint, skinTone }: AnimatedHumanoidProps) {
   const gltf = useLoader(GLTFLoader, modelPath)
   const groupRef = useRef<THREE.Group>(null!)
   const mixerRef = useRef<THREE.AnimationMixer | null>(null)
@@ -184,16 +187,18 @@ function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, c
       if (mesh.isMesh) {
         mesh.castShadow = true
         mesh.receiveShadow = true
-        if (colorTint) {
-          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-          mats.forEach(m => {
-            if (m && 'color' in m) (m as THREE.MeshStandardMaterial).color.set(colorTint)
-          })
-        }
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+        mats.forEach(m => {
+          if (!m || !('color' in m)) return
+          const mat = m as THREE.MeshStandardMaterial
+          const isSkin = SKIN_MAT_RE.test(mat.name) || SKIN_MAT_RE.test(mesh.name)
+          if (isSkin && skinTone) mat.color.set(skinTone)
+          else if (!isSkin && colorTint) mat.color.set(colorTint)
+        })
       }
     })
     return { scene: clone, fit: computeFit(clone, targetHeight) }
-  }, [gltf.scene, targetHeight, colorTint])
+  }, [gltf.scene, targetHeight, colorTint, skinTone])
 
   useEffect(() => {
     const clips = gltf.animations
@@ -240,7 +245,7 @@ function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, c
 
 export function AnimatedHumanoid(props: AnimatedHumanoidProps) {
   return (
-    <Suspense fallback={<LoadingPlaceholder targetHeight={props.targetHeight ?? 1.85} />}>
+    <Suspense fallback={<LoadingPlaceholder targetHeight={props.targetHeight ?? 1.15} />}>
       <AnimatedHumanoidInner {...props} />
     </Suspense>
   )

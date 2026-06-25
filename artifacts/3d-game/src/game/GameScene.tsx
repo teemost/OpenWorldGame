@@ -522,7 +522,7 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
     return (
       <group ref={groupRef} position={[nRef.pos.x, 0, nRef.pos.z]}>
         {npcTag}
-        <CustomModel url={npcModel.url} format={npcModel.format} targetHeight={1.8} />
+        <CustomModel url={npcModel.url} format={npcModel.format} targetHeight={1.15} />
       </group>
     )
   }
@@ -538,7 +538,7 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
           if (s === 'walking') return 'Walk' as const
           return 'Idle' as const
         }}
-        targetHeight={1.82}
+        targetHeight={1.15}
       />
     </group>
   )
@@ -618,7 +618,7 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
     return (
       <group ref={groupRef} position={[pRef.pos.x, 0, pRef.pos.z]}>
         {policeTag}
-        <CustomModel url={policeModel.url} format={policeModel.format} targetHeight={1.85} />
+        <CustomModel url={policeModel.url} format={policeModel.format} targetHeight={1.15} />
       </group>
     )
   }
@@ -632,7 +632,7 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
           const dist = pRef.pos.distanceTo(sharedPlayerPos)
           return dist > 5 ? 'Run' as const : 'Idle' as const
         }}
-        targetHeight={1.88}
+        targetHeight={1.15}
       />
     </group>
   )
@@ -905,13 +905,17 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
     )
   }
 
+  const playerUser = useAuthStore(s => s.currentUser)
+
   return (
     <group ref={groupRef} position={[sharedPlayerPos.x,sharedPlayerPos.y,sharedPlayerPos.z]}>
       {nameTag}
       <AnimatedHumanoid
         modelPath='/models/soldier.glb'
         getAnimState={() => playerAnimState.value}
-        targetHeight={1.85}
+        targetHeight={1.15}
+        colorTint={playerUser?.characterColor ?? null}
+        skinTone={playerUser?.skinTone ?? null}
       />
     </group>
   )

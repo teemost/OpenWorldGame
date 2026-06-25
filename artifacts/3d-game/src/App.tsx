@@ -5,6 +5,7 @@ import GameScene, { Controls } from './game/GameScene'
 import TouchControls from './game/TouchControls'
 import HUD from './game/HUD'
 import AuthScreen from './auth/AuthScreen'
+import CharacterSelect from './auth/CharacterSelect'
 import AdminDashboard from './admin/AdminDashboard'
 import { useAuthStore } from './auth/useAuthStore'
 import { useModelStore } from './store/useModelStore'
@@ -236,12 +237,16 @@ function useHash() {
 export default function App() {
   const currentUser = useAuthStore(s => s.currentUser)
   const hash        = useHash()
+  const [characterReady, setCharacterReady] = useState(false)
 
   if (!currentUser) return <AuthScreen />
 
-  // Dedicated standalone admin dashboard — full-screen, no game canvas
   if ((hash === '#/admin' || hash === '#/admin/dashboard') && currentUser.role === 'admin') {
     return <AdminDashboard />
+  }
+
+  if (!characterReady) {
+    return <CharacterSelect onReady={() => setCharacterReady(true)} />
   }
 
   return <Game />
