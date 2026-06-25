@@ -13,67 +13,41 @@ const SkeletonUtils: { clone: (obj: THREE.Object3D) => THREE.Object3D } =
   (_SkeletonUtilsMod as any).default ??
   _SkeletonUtilsMod
 
-// Compute scale + y-offset to fit targetHeight, grounded at y=0.
-// Forces updateMatrixWorld so root-node transforms (e.g. Mixamo Vanguard has
-// scale:0.01 + rotation:90°X on its "Character" root) are applied before we
-// measure the bounding box. Then measures geometry bounds in *world space*.
-function computeFit(obj: THREE.Object3D, targetHeight: number): { scale: number; yOffset: number } {
-  // Measure world-space Y bounds of all mesh geometries.
-  const tmpBox = new THREE.Box3()
-  const measureY = (): { min: number; max: number } => {
-    let mn = Infinity, mx = -Infinity
-    obj.traverse(child => {
-      const mesh = child as THREE.Mesh
-      if (!mesh.isMesh || !mesh.geometry) return
-      mesh.geometry.computeBoundingBox()
-      if (!mesh.geometry.boundingBox) return
-      tmpBox.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld)
-      if (tmpBox.min.y < mn) mn = tmpBox.min.y
-      if (tmpBox.max.y > mx) mx = tmpBox.max.y
-    })
-    return { min: mn, max: mx }
-  }
-
-  // ── Pass 1: measure with ORIGINAL transforms ─────────────────────────────
+// Compute scale + yOffset + optional counter-rotation to fit targetHeight, grounded at y=0.
+// Measures all three world-space extents (X, Y, Z) to handle models exported with a
+// +90°X root rotation (e.g. Mixamo fembot) that map the character's height to world Z.
+// In that case we return counterRotX = –90° so the wrapper group stands it Y-up without
+// touching any bones — the skeleton binding stays fully intact.
+function computeFit(obj: THREE.Object3D, targetHeight: number): { scale: number; yOffset: number; counterRotX: number } {
   obj.updateMatrixWorld(true)
-  const origBounds = measureY()
-  const origH = (isFinite(origBounds.min) && isFinite(origBounds.max))
-    ? origBounds.max - origBounds.min : 0
-
-  // ── Pass 2: zero every node's rotation, measure again ───────────────────
-  // This gives a rotation-agnostic Y-extent. If this is much larger than the
-  // original, the model had a "bad" root rotation (e.g. Mixamo fembot +90°X)
-  // that mapped the geometry's natural Y-up axis to world Z, collapsing world Y.
-  const savedQuats = new Map<THREE.Object3D, THREE.Quaternion>()
-  obj.traverse(node => {
-    savedQuats.set(node, node.quaternion.clone())
-    node.quaternion.set(0, 0, 0, 1)
+  const box = new THREE.Box3()
+  let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity, minZ=Infinity, maxZ=-Infinity
+  obj.traverse(child => {
+    const mesh = child as THREE.Mesh
+    if (!mesh.isMesh || !mesh.geometry) return
+    mesh.geometry.computeBoundingBox()
+    if (!mesh.geometry.boundingBox) return
+    box.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld)
+    if (box.min.x < minX) minX = box.min.x; if (box.max.x > maxX) maxX = box.max.x
+    if (box.min.y < minY) minY = box.min.y; if (box.max.y > maxY) maxY = box.max.y
+    if (box.min.z < minZ) minZ = box.min.z; if (box.max.z > maxZ) maxZ = box.max.z
   })
-  obj.updateMatrixWorld(true)
-  const zeroBounds = measureY()
-  const zeroH = (isFinite(zeroBounds.min) && isFinite(zeroBounds.max))
-    ? zeroBounds.max - zeroBounds.min : 0
+  if (!isFinite(minY)) return { scale: 1, yOffset: 0, counterRotX: 0 }
+  const sX = isFinite(minX) ? maxX - minX : 0
+  const sY = maxY - minY
+  const sZ = isFinite(minZ) ? maxZ - minZ : 0
+  const maxSize = Math.max(sX, sY, sZ)
+  if (maxSize < 0.001) return { scale: 1, yOffset: 0, counterRotX: 0 }
+  const scale = targetHeight / maxSize
 
-  // ── Decide which measurement (and orientation) to use ────────────────────
-  // If zeroing rotations reveals a height more than 2× the original, the model
-  // was lying flat due to a bad export rotation → keep rotations zeroed.
-  // Otherwise the original rotation is correct (e.g. soldier –90°X that maps
-  // centimetre-scale Z geometry to world Y) → restore it.
-  const useZeroed = zeroH > origH * 2
-
-  if (!useZeroed) {
-    savedQuats.forEach((q, node) => node.quaternion.copy(q))
-    obj.updateMatrixWorld(true)
+  // If Z is much taller than Y the character is lying flat along Z — a Mixamo
+  // +90°X export maps local Y (height) → world Z. Apply a –90°X counter-rotation
+  // on the outer wrapper group so the character stands upright. No bones are touched.
+  if (sZ > sY * 2) {
+    // After –90°X: world Z → new Y axis; minZ is the new floor.
+    return { scale, yOffset: -minZ * scale, counterRotX: -Math.PI / 2 }
   }
-  // if useZeroed: all rotations remain at identity — model now stands Y-up ✓
-
-  const finalMin = useZeroed ? zeroBounds.min : origBounds.min
-  const modelH   = useZeroed ? zeroH          : origH
-
-  if (modelH < 0.001) return { scale: 1, yOffset: 0 }
-  const scale   = targetHeight / modelH
-  const yOffset = -finalMin * scale
-  return { scale, yOffset }
+  return { scale, yOffset: -minY * scale, counterRotX: 0 }
 }
 
 // Play the best animation: prefer walk then idle then run then first clip
@@ -301,8 +275,10 @@ function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, c
   })
 
   return (
-    <group ref={groupRef}>
-      <primitive object={scene} scale={fit.scale} position-y={fit.yOffset} />
+    <group ref={groupRef} position-y={fit.yOffset}>
+      <group rotation-x={fit.counterRotX}>
+        <primitive object={scene} scale={fit.scale} />
+      </group>
     </group>
   )
 }

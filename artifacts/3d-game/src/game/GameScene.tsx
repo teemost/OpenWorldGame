@@ -87,22 +87,22 @@ function Tree({ x, z }: { x: number; z: number }) {
       {/* Bark */}
       <mesh position={[0, 0.9, 0]} castShadow>
         <cylinderGeometry args={[0.16, 0.24, 1.8, 8]} />
-        <meshStandardMaterial color="#4a3018" roughness={0.98} metalness={0.0}/>
+        <meshStandardMaterial map={BARK_TEX} color="#5a3a18" roughness={0.97} metalness={0.0}/>
       </mesh>
       {/* Lower canopy */}
       <mesh position={[0, 2.8, 0]} castShadow>
         <sphereGeometry args={[1.35, 10, 8]} />
-        <meshStandardMaterial color="#1e5c1e" roughness={0.97} metalness={0.0}/>
+        <meshStandardMaterial map={LEAF_TEX} color="#1e5c1e" roughness={0.96} metalness={0.0}/>
       </mesh>
       {/* Mid canopy — slightly brighter */}
       <mesh position={[0.2, 3.6, 0.1]} castShadow>
         <sphereGeometry args={[0.95, 9, 7]} />
-        <meshStandardMaterial color="#267a26" roughness={0.96} metalness={0.0}/>
+        <meshStandardMaterial map={LEAF_TEX} color="#267a26" roughness={0.95} metalness={0.0}/>
       </mesh>
       {/* Top canopy */}
       <mesh position={[-0.1, 4.2, -0.1]} castShadow>
         <sphereGeometry args={[0.65, 8, 6]} />
-        <meshStandardMaterial color="#1e6a1e" roughness={0.97} metalness={0.0}/>
+        <meshStandardMaterial map={LEAF_TEX} color="#1e6a1e" roughness={0.96} metalness={0.0}/>
       </mesh>
     </group>
   )
@@ -129,11 +129,134 @@ function StreetBench({ x, z, rot = 0 }: { x: number; z: number; rot?: number }) 
   )
 }
 
+// ─── Procedural canvas textures ───────────────────────────────────────────────
+function mkTex(
+  size: number,
+  draw: (ctx: CanvasRenderingContext2D, s: number) => void,
+  rX = 1, rY = 1
+): THREE.CanvasTexture {
+  const c = document.createElement('canvas')
+  c.width = c.height = size
+  draw(c.getContext('2d')!, size)
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.repeat.set(rX, rY)
+  t.needsUpdate = true
+  return t
+}
+
+// Deterministic pseudo-random (avoids non-reproducible Math.random in loops)
+const _r = (n: number) => Math.abs(Math.sin(n * 127.1 + 311.7))
+
+const ROAD_TEX = mkTex(512, (ctx, s) => {
+  ctx.fillStyle = '#1c1c1c'; ctx.fillRect(0, 0, s, s)
+  for (let i = 0; i < 7000; i++) {
+    const x = _r(i)*s, y = _r(i+0.3)*s, v = Math.floor(_r(i+0.6)*38)
+    ctx.fillStyle = `rgb(${v},${v},${v})`
+    ctx.fillRect(x, y, 1+_r(i+1), 1+_r(i+1.3))
+  }
+  for (let i = 0; i < 90; i++) {
+    ctx.fillStyle = `rgba(80,80,80,0.35)`
+    ctx.beginPath()
+    ctx.ellipse(_r(i+5)*s, _r(i+5.3)*s, 3+_r(i+5.6)*3, 1.5+_r(i+5.9), _r(i+6)*Math.PI, 0, Math.PI*2)
+    ctx.fill()
+  }
+}, 3, 60)
+
+const SWALK_TEX = mkTex(256, (ctx, s) => {
+  ctx.fillStyle = '#a09080'; ctx.fillRect(0, 0, s, s)
+  ctx.strokeStyle = '#78706a'; ctx.lineWidth = 3
+  for (let i = 0; i <= s; i += 64) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, s); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(s, i); ctx.stroke()
+  }
+  for (let i = 0; i < 1200; i++) {
+    ctx.fillStyle = `rgba(0,0,0,${_r(i+10)*0.09})`
+    ctx.fillRect(_r(i+10.2)*s, _r(i+10.5)*s, 1, 1)
+  }
+}, 1, 30)
+
+const GROUND_GRASS_TEX = mkTex(512, (ctx, s) => {
+  ctx.fillStyle = '#1f3a0c'; ctx.fillRect(0, 0, s, s)
+  for (let i = 0; i < 5000; i++) {
+    const x = _r(i+20)*s, y = _r(i+20.3)*s
+    ctx.fillStyle = `hsl(${92+_r(i+20.6)*26},${44+_r(i+20.9)*24}%,${15+_r(i+21)*19}%)`
+    ctx.fillRect(x, y, 1, 2+_r(i+21.3)*4)
+  }
+}, 55, 55)
+
+const PARK_GRASS_TEX = mkTex(512, (ctx, s) => {
+  ctx.fillStyle = '#254e0d'; ctx.fillRect(0, 0, s, s)
+  for (let i = 0; i < 4500; i++) {
+    const x = _r(i+30)*s, y = _r(i+30.3)*s
+    ctx.fillStyle = `hsl(${100+_r(i+30.6)*28},${48+_r(i+30.9)*22}%,${19+_r(i+31)*18}%)`
+    ctx.fillRect(x, y, 1, 2+_r(i+31.3)*5)
+  }
+}, 6, 6)
+
+const BRICK_TEX = mkTex(512, (ctx, s) => {
+  ctx.fillStyle = '#4a2a14'; ctx.fillRect(0, 0, s, s)
+  const bw = 52, bh = 20
+  for (let row = 0; row <= Math.ceil(s/bh)+1; row++) {
+    const offset = (row % 2) * (bw/2)
+    for (let col = -1; col <= s/bw+2; col++) {
+      const seed = row * 31 + col * 17
+      const r = 130 + Math.floor(_r(seed)*35)
+      const g = 52 + Math.floor(_r(seed+0.3)*20)
+      ctx.fillStyle = `rgb(${r},${g},38)`
+      ctx.fillRect(col*bw+offset+2, row*bh+2, bw-4, bh-4)
+      ctx.fillStyle = `rgba(0,0,0,${0.04+_r(seed+0.7)*0.1})`
+      ctx.fillRect(col*bw+offset+2, row*bh+2, bw-4, bh-4)
+    }
+  }
+}, 2, 7)
+
+const CONCRETE_TEX = mkTex(512, (ctx, s) => {
+  ctx.fillStyle = '#8a8272'; ctx.fillRect(0, 0, s, s)
+  for (let i = 0; i < 4000; i++) {
+    ctx.fillStyle = `rgba(0,0,0,${_r(i+40)*0.12})`
+    ctx.fillRect(_r(i+40.2)*s, _r(i+40.5)*s, 1+_r(i+40.8), 1)
+  }
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1.5
+  for (let i = 0; i < s; i += 128) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, s); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(s, i); ctx.stroke()
+  }
+}, 2, 5)
+
+const BARK_TEX = mkTex(256, (ctx, s) => {
+  ctx.fillStyle = '#261408'; ctx.fillRect(0, 0, s, s)
+  let x = 0
+  let seed = 0
+  while (x < s) {
+    const w = 3 + Math.floor(_r(seed)*6)
+    ctx.fillStyle = `hsl(22,${50+_r(seed+0.2)*25}%,${13+_r(seed+0.5)*24}%)`
+    ctx.fillRect(x, 0, w, s)
+    x += w + 1 + Math.floor(_r(seed+0.8)*4)
+    seed++
+  }
+  for (let i = 0; i < 500; i++) {
+    ctx.fillStyle = `rgba(0,0,0,${_r(i+50)*0.28})`
+    ctx.fillRect(_r(i+50.2)*s, _r(i+50.5)*s, 1, 1+_r(i+50.8)*4)
+  }
+}, 2, 3)
+
+const LEAF_TEX = mkTex(512, (ctx, s) => {
+  ctx.fillStyle = '#153a0f'; ctx.fillRect(0, 0, s, s)
+  for (let i = 0; i < 2200; i++) {
+    const x = _r(i+60)*s, y = _r(i+60.2)*s
+    ctx.fillStyle = `hsl(${100+_r(i+60.4)*36},${38+_r(i+60.6)*28}%,${16+_r(i+60.8)*25}%)`
+    ctx.beginPath()
+    ctx.ellipse(x, y, 4+_r(i+61)*7, 3+_r(i+61.2)*5, _r(i+61.4)*Math.PI, 0, Math.PI*2)
+    ctx.fill()
+  }
+}, 4, 4)
+
 // Shared realistic materials (defined once, reused across meshes)
-const ROAD_MAT    = <meshStandardMaterial color="#212121" roughness={0.97} metalness={0.02}/>
-const SIDEWALK_MAT= <meshStandardMaterial color="#8a8070" roughness={0.93} metalness={0.0}/>
-const GRASS_MAT   = <meshStandardMaterial color="#2e5c16" roughness={0.98} metalness={0.0}/>
-const PARK_MAT    = <meshStandardMaterial color="#3b6e1a" roughness={0.97} metalness={0.0}/>
+const ROAD_MAT    = <meshStandardMaterial map={ROAD_TEX} color="#282828" roughness={0.96} metalness={0.04}/>
+const SIDEWALK_MAT= <meshStandardMaterial map={SWALK_TEX} color="#8a8070" roughness={0.92} metalness={0.0}/>
+const GRASS_MAT   = <meshStandardMaterial map={GROUND_GRASS_TEX} color="#2e5c16" roughness={0.97} metalness={0.0}/>
+const PARK_MAT    = <meshStandardMaterial map={PARK_GRASS_TEX} color="#3b6e1a" roughness={0.96} metalness={0.0}/>
 const LAMP_MAT    = <meshStandardMaterial color="#7a8090" roughness={0.5} metalness={0.7}/>
 
 function City() {
@@ -205,9 +328,10 @@ function City() {
             <mesh position={[0,b.height/2,0]} castShadow receiveShadow>
               <boxGeometry args={[b.width,b.height,b.depth]} />
               <meshStandardMaterial
+                map={isBrick ? BRICK_TEX : isGlass ? undefined : CONCRETE_TEX}
                 color={wallCol}
-                roughness={isBrick ? 0.92 : isGlass ? 0.08 : 0.75}
-                metalness={isGlass ? 0.5 : isBrick ? 0.0 : 0.1}
+                roughness={isBrick ? 0.91 : isGlass ? 0.07 : 0.74}
+                metalness={isGlass ? 0.55 : isBrick ? 0.0 : 0.08}
               />
             </mesh>
             {/* Roof parapet */}
@@ -279,8 +403,10 @@ function City() {
           {/* Bulb glow */}
           <mesh position={[1.05,5.75,0]}>
             <sphereGeometry args={[0.18,8,6]}/>
-            <meshStandardMaterial color="#ffe8aa" emissive="#ffdd66" emissiveIntensity={3}/>
+            <meshStandardMaterial color="#ffe8aa" emissive="#ffdd66" emissiveIntensity={4}/>
           </mesh>
+          {/* Actual point light — illuminates the street below at night */}
+          <pointLight position={[1.05,5.5,0]} color="#ffdd88" intensity={20} distance={22} decay={2} castShadow={false}/>
         </group>
       )))}
       {/* Park trees */}
@@ -970,9 +1096,12 @@ function DynamicLighting({ timeOfDay }: { timeOfDay: number }) {
         shadow-camera-top={90}  shadow-camera-bottom={-90}
         shadow-bias={-0.0005}
       />
-      {/* Night street glow */}
-      {!isDay && <pointLight position={[0,8,0]} intensity={1.2} color="#ffee88" distance={55} decay={2}/>}
-      <fog attach="fog" args={[fogColor, 70, 210]}/>
+      {/* Night: soft blue moonlight fill + distant city glow */}
+      {!isDay && <>
+        <pointLight position={[0,25,0]} intensity={3} color="#2244aa" distance={200} decay={1}/>
+        <pointLight position={[0,8,0]} intensity={0.8} color="#aaccff" distance={80} decay={2}/>
+      </>}
+      <fog attach="fog" args={[fogColor, isDay ? 70 : 40, isDay ? 210 : 150]}/>
     </>
   )
 }

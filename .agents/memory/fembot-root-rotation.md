@@ -1,33 +1,47 @@
 ---
 name: Fembot GLB root rotation
-description: fembot.glb has a +90°X rotation on its root node that makes it appear giant and lying flat; the fix is to zero the quaternion in computeFit
+description: fembot.glb has a +90°X rotation on its root node that makes it appear giant and lying flat; the correct fix is a counter-rotation on the wrapper group — never zero bone rotations
 ---
 
 ## The rule
-In `computeFit` (GameModels.tsx), detect and zero any `+90°X` root rotation before measuring the bounding box.
+In `computeFit` (GameModels.tsx), detect the Z-flat case by comparing world-space extents, then return `counterRotX = -Math.PI/2` for the wrapper group. Do NOT touch any node quaternions (bones or root) — that breaks skeleton binding.
 
-**Why:** fembot.glb was exported from Mixamo with its geometry already in Y-up orientation (local Y = character height, range ~0 to 1.662 m). The root "Character" node has `scale=0.01` and `rotation=+90°X` (quaternion: qx≈+0.707, qw≈0.707). This maps local Y → world Z, leaving world Y extent at ~0.004 units. `computeFit` then computes `scale = 1.15 / 0.004 ≈ 287`, making the character enormous and lying flat.
+**Why:** fembot.glb was exported from Mixamo with `scale=0.01` and `rotation=+90°X` on the root "Character" node. This maps the geometry's local Y axis (height, range 0–1.662m) → world Z, so world Y extent collapses to ~0.004 units (body depth only). Previous fixes zeroed bone rotations, which corrupted the inverse-bind-matrix calculation and caused deformed skinning.
 
-Soldier.glb uses `rotation=-90°X` (qx≈-0.707) which is intentional: its geometry is in centimetre-scale Z-up orientation (local Z = height, ~183 cm), and `-90°X` correctly maps local Z → world Y. Never zero negative-X rotations.
+The correct geometry orientation approach:
+1. Measure all three world-space extents (sX, sY, sZ) with original transforms
+2. If `sZ > sY * 2`: character is lying flat along Z → return `counterRotX = -Math.PI/2`
+3. Apply counter-rotation on the OUTER wrapper group; the inner `<primitive>` is untouched
 
-**How to apply:**
-```typescript
-const rootCandidate = obj.children.length > 0 ? obj.children[0] : obj
-const q = rootCandidate.quaternion
-if (q.x > 0.5 && Math.abs(q.y) < 0.1 && Math.abs(q.z) < 0.1 && q.w > 0.5) {
-  rootCandidate.quaternion.set(0, 0, 0, 1)  // zero +90°X permanently
-}
-obj.updateMatrixWorld(true)
-// now measure Y bounds normally
+**How to apply (in AnimatedHumanoidInner):**
+```tsx
+// Two-group wrapper: outer for yOffset, inner for counter-rotation
+return (
+  <group ref={groupRef} position-y={fit.yOffset}>
+    <group rotation-x={fit.counterRotX}>
+      <primitive object={scene} scale={fit.scale} />
+    </group>
+  </group>
+)
 ```
-This permanently fixes both the scale (correct Y measurement) and the display (character stands upright).
 
-## Key data from fembot.glb inspection
-- Root node: `scale=[0.01,0.01,0.01]`, `rotation=[0.707,0,0,0.707]` (+90°X)
-- Mesh POSITION accessor: count=16340, min=[-0.728,-0.003,-0.181], max=[0.728,1.662,0.206]
-- Character is ~1.662m tall in local Y space (already metre-scale, already Y-up)
+computeFit logic:
+```typescript
+if (sZ > sY * 2) {
+  // fembot case: Z is the height axis (from +90°X root)
+  // -90°X counter-rotation makes Z→Y, standing the character upright
+  return { scale: targetHeight / maxSize, yOffset: -minZ * scale, counterRotX: -Math.PI / 2 }
+}
+// soldier/default: Y is already height axis
+return { scale: targetHeight / maxSize, yOffset: -minY * scale, counterRotX: 0 }
+```
 
-## Key data from soldier.glb inspection  
-- Root node: `scale=[0.01,0.01,0.01]`, `rotation=[-0.707,0,0,0.707]` (-90°X)
-- Mesh POSITION: min=[-92,-22,-0.037], max=[92,22,183] (centimetre-scale, Z-up)
-- Character is ~183 cm tall in local Z → after -90°X → world Y = 1.83m ✓
+## Key data
+- fembot.glb: root "Character" node has `scale=[0.01,0.01,0.01]`, `rotation=[0.707,0,0,0.707]` (+90°X)
+- Geometry Y range [0, 1.662m] → after +90°X → world Z range [0, 0.01662]
+- World Y extent (body depth) ≈ 0.004, World Z extent (height) ≈ 0.01665
+- sZ/sY ≈ 4.3 → well above the 2× threshold
+- Final scale = 1.15 / 0.01665 ≈ 69
+
+## useMemo caching note
+React Fast Refresh preserves useMemo cache across HMR updates (since `gltf.scene` reference is unchanged). User must do a **hard page refresh** (not soft reload) to see computeFit changes take effect after HMR. Full page reload → useMemo runs fresh → fix applies.
