@@ -11,7 +11,6 @@ import {
   resolveCollision,
 } from './cityData'
 import HUD from './HUD'
-import TouchControls from './TouchControls'
 import { touchState } from './touchState'
 
 // ─── Controls enum ───────────────────────────────────────────────────────────
@@ -1027,14 +1026,13 @@ export default function GameScene() {
       {/* Minimap data collector */}
       <MinimapCollector onUpdate={setMinimapDotsState} />
 
-      {/* HUD + Touch Controls (HTML overlay) */}
+      {/* HUD (HTML overlay) */}
       <Html fullscreen>
         <HUD
           minimapDots={minimapDotsState}
           playerX={playerDisplayPos.x}
           playerZ={playerDisplayPos.z}
         />
-        <TouchControls inVehicle={sharedInVehicle.value} />
       </Html>
     </>
   )

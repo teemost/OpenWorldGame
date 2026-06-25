@@ -30,3 +30,15 @@ canvas {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
 }
+
+/* Hide desktop-only hint on touch devices */
+@media (pointer: coarse) {
+  .desktop-hint { display: none !important; }
+}
+
+/* Prevent text selection and callout on mobile during game */
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+}
+

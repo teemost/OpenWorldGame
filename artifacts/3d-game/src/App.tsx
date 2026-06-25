@@ -2,35 +2,35 @@ import { Canvas } from '@react-three/fiber'
 import { KeyboardControls } from '@react-three/drei'
 import { Component, ReactNode, useState, useEffect } from 'react'
 import GameScene, { Controls } from './game/GameScene'
+import TouchControls from './game/TouchControls'
 import './index.css'
 
 const keyMap = [
   { name: Controls.forward, keys: ['ArrowUp', 'KeyW'] },
-  { name: Controls.back, keys: ['ArrowDown', 'KeyS'] },
-  { name: Controls.left, keys: ['ArrowLeft', 'KeyA'] },
-  { name: Controls.right, keys: ['ArrowRight', 'KeyD'] },
-  { name: Controls.shoot, keys: ['Space'] },
-  { name: Controls.enter, keys: ['KeyE'] },
-  { name: Controls.run, keys: ['ShiftLeft', 'ShiftRight'] },
+  { name: Controls.back,    keys: ['ArrowDown', 'KeyS'] },
+  { name: Controls.left,    keys: ['ArrowLeft', 'KeyA'] },
+  { name: Controls.right,   keys: ['ArrowRight', 'KeyD'] },
+  { name: Controls.shoot,   keys: ['Space'] },
+  { name: Controls.enter,   keys: ['KeyE'] },
+  { name: Controls.run,     keys: ['ShiftLeft', 'ShiftRight'] },
 ]
 
+// ── Error boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
-  { hasError: boolean; error: Error | null }
+  { hasError: boolean }
 > {
   constructor(props: { children: ReactNode; fallback: ReactNode }) {
     super(props)
-    this.state = { hasError: false, error: null }
+    this.state = { hasError: false }
   }
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error }
-  }
+  static getDerivedStateFromError() { return { hasError: true } }
   render() {
-    if (this.state.hasError) return this.props.fallback
-    return this.props.children
+    return this.state.hasError ? this.props.fallback : this.props.children
   }
 }
 
+// ── No-WebGL fallback ─────────────────────────────────────────────────────────
 function NoWebGLFallback() {
   return (
     <div style={{
@@ -63,96 +63,138 @@ function NoWebGLFallback() {
           🗺️ Live minimap HUD
         </div>
       </div>
-      <div style={{ marginTop: 24, color: '#666', fontSize: 12 }}>
-        Controls: WASD = Move · Space = Shoot · E = Enter Vehicle · Shift = Run
-      </div>
     </div>
   )
 }
 
+// ── WebGL detection ───────────────────────────────────────────────────────────
 function WebGLCheck({ children }: { children: ReactNode }) {
-  const [webglSupported, setWebglSupported] = useState<boolean | null>(null)
-
+  const [supported, setSupported] = useState<boolean | null>(null)
   useEffect(() => {
     try {
-      const canvas = document.createElement('canvas')
-      const ctx =
-        canvas.getContext('webgl2') ||
-        canvas.getContext('webgl') ||
-        canvas.getContext('experimental-webgl')
-      setWebglSupported(!!ctx)
-    } catch {
-      setWebglSupported(false)
-    }
+      const c = document.createElement('canvas')
+      setSupported(
+        !!(c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl'))
+      )
+    } catch { setSupported(false) }
   }, [])
 
-  if (webglSupported === null) {
+  if (supported === null) {
     return (
       <div style={{
-        width: '100vw', height: '100vh',
-        background: '#0a0a1a', display: 'flex',
-        alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: 'monospace',
+        width: '100vw', height: '100vh', background: '#0a0a1a',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#fff', fontFamily: 'monospace',
       }}>
         Loading…
       </div>
     )
   }
+  return supported ? <>{children}</> : <NoWebGLFallback />
+}
 
-  if (!webglSupported) return <NoWebGLFallback />
+// ── Landscape guard (mobile only) ─────────────────────────────────────────────
+function LandscapeGuard({ children }: { children: ReactNode }) {
+  const [isPortrait, setIsPortrait] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const checkMobile = () =>
+      setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0)
+
+    const checkOrientation = () =>
+      setIsPortrait(window.innerHeight > window.innerWidth)
+
+    checkMobile()
+    checkOrientation()
+    window.addEventListener('resize', checkOrientation)
+    window.addEventListener('orientationchange', checkOrientation)
+    return () => {
+      window.removeEventListener('resize', checkOrientation)
+      window.removeEventListener('orientationchange', checkOrientation)
+    }
+  }, [])
+
+  if (isMobile && isPortrait) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: '#0a0a1a',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        color: '#fff', fontFamily: 'monospace', textAlign: 'center', gap: 20,
+      }}>
+        <div style={{ fontSize: 72 }}>↻</div>
+        <div style={{ fontSize: 22, fontWeight: 'bold', color: '#ffcc00' }}>
+          ROTATE YOUR DEVICE
+        </div>
+        <div style={{ fontSize: 14, color: '#aaa', maxWidth: 260 }}>
+          This game plays in landscape mode. Please rotate your phone sideways.
+        </div>
+      </div>
+    )
+  }
+
   return <>{children}</>
 }
 
-export default function App() {
-  return (
-    <div style={{ width: '100vw', height: '100vh', background: '#000', overflow: 'hidden' }}>
-      <WebGLCheck>
-        <ErrorBoundary fallback={<NoWebGLFallback />}>
-          <KeyboardControls map={keyMap}>
-            <Canvas
-              shadows
-              camera={{ position: [5, 15, 25], fov: 65, near: 0.1, far: 500 }}
-              gl={{
-                antialias: true,
-                powerPreference: 'default',
-                failIfMajorPerformanceCaveat: false,
-              }}
-              style={{ width: '100%', height: '100%' }}
-            >
-              <GameScene />
-            </Canvas>
-          </KeyboardControls>
-        </ErrorBoundary>
-      </WebGLCheck>
+// ── Touch device detection (for hiding desktop hint) ──────────────────────────
+function useIsTouch() {
+  const [isTouch, setIsTouch] = useState(false)
+  useEffect(() => {
+    setIsTouch('ontouchstart' in window || navigator.maxTouchPoints > 0)
+  }, [])
+  return isTouch
+}
 
-      {/* Startup tip overlay */}
-      <div
-        style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          background: 'rgba(0,0,0,0.8)',
-          color: '#fff',
-          padding: '16px 28px',
-          borderRadius: 12,
-          fontFamily: 'monospace',
-          fontSize: 16,
-          textAlign: 'center',
-          pointerEvents: 'none',
-          animation: 'fadeOut 0.5s ease-out 4s forwards',
-          zIndex: 200,
-          border: '1px solid #444',
-        }}
-      >
-        <div style={{ fontSize: 22, fontWeight: 'bold', color: '#ffcc00', marginBottom: 10 }}>
-          OPEN WORLD CRIME CITY
-        </div>
-        <div style={{ color: '#aaa', lineHeight: 1.8 }}>
-          Click the game · WASD to move
-          <br />
-          SPACE: Shoot · E: Enter/Exit Vehicle · Shift: Run
-        </div>
+// ── Root App ──────────────────────────────────────────────────────────────────
+export default function App() {
+  const isTouch = useIsTouch()
+
+  return (
+    <LandscapeGuard>
+      <div style={{ width: '100vw', height: '100vh', background: '#000', overflow: 'hidden', position: 'relative' }}>
+        <WebGLCheck>
+          <ErrorBoundary fallback={<NoWebGLFallback />}>
+            <KeyboardControls map={keyMap}>
+              <Canvas
+                shadows
+                camera={{ position: [5, 15, 25], fov: 65, near: 0.1, far: 500 }}
+                gl={{ antialias: true, powerPreference: 'default', failIfMajorPerformanceCaveat: false }}
+                style={{ width: '100%', height: '100%' }}
+              >
+                <GameScene />
+              </Canvas>
+            </KeyboardControls>
+          </ErrorBoundary>
+        </WebGLCheck>
+
+        {/* Touch controls — rendered OUTSIDE Canvas so position:fixed is viewport-relative */}
+        {isTouch && <TouchControls />}
+
+        {/* Startup hint — desktop only, fades after 4s */}
+        {!isTouch && (
+          <div style={{
+            position: 'fixed', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'rgba(0,0,0,0.82)', color: '#fff',
+            padding: '16px 28px', borderRadius: 12,
+            fontFamily: 'monospace', fontSize: 16, textAlign: 'center',
+            pointerEvents: 'none',
+            animation: 'fadeOut 0.5s ease-out 4s forwards',
+            zIndex: 200, border: '1px solid #444',
+          }}>
+            <div style={{ fontSize: 22, fontWeight: 'bold', color: '#ffcc00', marginBottom: 10 }}>
+              OPEN WORLD CRIME CITY
+            </div>
+            <div style={{ color: '#aaa', lineHeight: 1.8 }}>
+              Click the game · WASD to move
+              <br />
+              SPACE: Shoot · E: Enter/Exit Vehicle · Shift: Run
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </LandscapeGuard>
   )
 }

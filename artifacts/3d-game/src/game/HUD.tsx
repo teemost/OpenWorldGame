@@ -313,8 +313,8 @@ export default function HUD({ minimapDots, playerX, playerZ }: HUDProps) {
         </div>
       </div>
 
-      {/* Center: Controls hint (fades after a few seconds) */}
-      <div
+      {/* Center: Controls hint — desktop only (hidden on touch devices via CSS) */}
+      <div className="desktop-hint"
         style={{
           position: 'absolute',
           bottom: 90,
