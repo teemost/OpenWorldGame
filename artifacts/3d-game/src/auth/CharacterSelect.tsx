@@ -50,11 +50,15 @@ interface Props {
 
 export default function CharacterSelect({ onReady }: Props) {
   const { currentUser, updateCharacter } = useAuthStore()
-  const { modelRevision, models } = useModelStore()
+  const { modelRevision, models, loadAllModelURLs } = useModelStore()
 
   const [skin,   setSkin  ] = useState(currentUser?.skinTone      ?? '#D4956A')
   const [outfit, setOutfit] = useState(currentUser?.characterColor ?? '#0055cc')
   const [model,  setModel ] = useState(currentUser?.characterModel ?? 'soldier')
+
+  // Load blob URLs from IndexedDB on mount — CharacterSelect renders before Game mounts,
+  // so the blob URLs haven't been restored yet.
+  useEffect(() => { loadAllModelURLs() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build the list of admin-uploaded models from the store
   const [uploadedModels, setUploadedModels] = useState<
