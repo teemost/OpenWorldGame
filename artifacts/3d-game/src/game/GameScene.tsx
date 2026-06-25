@@ -385,14 +385,29 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
       if (groupRef.current) groupRef.current.visible = false
       return
     }
-    groupRef.current.visible = true
     nRef.moveTimer  += delta
     nRef.panicTimer  = Math.max(0, nRef.panicTimer - delta)
     const dist = nRef.pos.distanceTo(sharedPlayerPos)
 
-    // ── Advanced AI state machine ─────────────────────────────────────────
+    // ── Distance culling: skip + hide beyond fog range ────────────────────
+    if (dist > 105) { groupRef.current.visible = false; return }
+    groupRef.current.visible = true
+
+    // ── Fast path for distant NPCs: simple wander, skip expensive AI ──────
+    if (dist > 72) {
+      if (nRef.moveTimer > 3.0) {
+        nRef.moveTimer = 0
+        nRef.dir += (npcId.charCodeAt(3) % 7 - 3) * 0.5
+      }
+      nRef.pos.x = Math.max(-108, Math.min(108, nRef.pos.x + Math.sin(nRef.dir) * nRef.speed * delta))
+      nRef.pos.z = Math.max(-108, Math.min(108, nRef.pos.z + Math.cos(nRef.dir) * nRef.speed * delta))
+      groupRef.current.position.set(nRef.pos.x, 0, nRef.pos.z)
+      groupRef.current.rotation.y = nRef.dir
+      return
+    }
+
+    // ── Full AI state machine (nearby NPCs only) ──────────────────────────
     if (sharedWantedLevel.value >= 3) {
-      // Mass panic at high wanted level
       nRef.state = 'panicking'
       nRef.panicTimer = 5
     } else if (dist < 20 && sharedWantedLevel.value > 0) {
@@ -400,14 +415,13 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
     } else if (nRef.panicTimer > 0) {
       nRef.state = 'panicking'
     } else if (dist < 18 && sharedWantedLevel.value === 0) {
-      // Just walk away slowly, don't flee from peaceful player
       if (nRef.state === 'fleeing') nRef.state = 'walking'
     } else if (dist > 40) {
       nRef.state = 'walking'
     }
 
-    // Propagate panic to nearby NPCs
-    if (nRef.state === 'panicking' || nRef.state === 'fleeing') {
+    // Propagate panic to nearby NPCs (throttled: only when moveTimer resets)
+    if ((nRef.state === 'panicking' || nRef.state === 'fleeing') && nRef.moveTimer < delta * 2) {
       for (const [, other] of npcRefs) {
         if (other !== nRef && other.state === 'walking' && other.pos.distanceTo(nRef.pos) < 12) {
           other.state = 'panicking'
@@ -420,8 +434,9 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
     const speed = nRef.speed * speedMult
 
     if (nRef.state === 'fleeing' || nRef.state === 'panicking') {
-      const away = nRef.pos.clone().sub(sharedPlayerPos).normalize()
-      nRef.dir = Math.atan2(away.x, away.z)
+      const awayX = nRef.pos.x - sharedPlayerPos.x
+      const awayZ = nRef.pos.z - sharedPlayerPos.z
+      nRef.dir = Math.atan2(awayX, awayZ)
     } else {
       if (nRef.moveTimer > 2.5) {
         nRef.moveTimer = 0
@@ -1077,10 +1092,11 @@ export default function GameScene() {
   const [policeIndexMap, setPoliceIndexMap] = useState<Map<string,number>>(new Map())
 
   useFrame((_,delta)=>{
+    const prevTime = timeRef.current
     timeRef.current += delta * 0.05
     if (timeRef.current>=24) timeRef.current=0
-    const tod=Math.floor(timeRef.current*10)/10
-    if(Math.floor(tod)!==Math.floor(timeRef.current-delta*0.05)) setTimeOfDay(tod)
+    // Only setState roughly every 1-2 real seconds (when half-hour changes in game time)
+    if(Math.floor(timeRef.current * 2) !== Math.floor(prevTime * 2)) setTimeOfDay(timeRef.current)
 
     if(sharedWantedLevel.value>0){
       wantedDecayRef.current+=delta
