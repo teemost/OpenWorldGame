@@ -1673,6 +1673,78 @@ function MinimapCollector() {
   return null
 }
 
+// ─── Traffic Light System ─────────────────────────────────────────────────────
+// Phase 0: NS green / EW red  (4 s)
+// Phase 1: NS amber / EW red  (1 s)
+// Phase 2: NS red  / EW green (4 s)
+// Phase 3: NS red  / EW amber (1 s)
+const trafficState = { phase: 0, timer: 0 }
+const TRAFFIC_DUR  = [4, 1, 4, 1]
+
+function TrafficController() {
+  useFrame((_, delta) => {
+    trafficState.timer += delta
+    if (trafficState.timer >= TRAFFIC_DUR[trafficState.phase]) {
+      trafficState.timer = 0
+      trafficState.phase = (trafficState.phase + 1) % 4
+    }
+  })
+  return null
+}
+
+function TrafficLight({ x, z, rotY, direction }: {
+  x: number; z: number; rotY: number; direction: 'NS' | 'EW'
+}) {
+  const redRef   = useRef<THREE.MeshStandardMaterial>(null!)
+  const amberRef = useRef<THREE.MeshStandardMaterial>(null!)
+  const greenRef = useRef<THREE.MeshStandardMaterial>(null!)
+
+  useFrame(() => {
+    const ph = trafficState.phase
+    const isGreen = direction === 'NS' ? ph === 0 : ph === 2
+    const isAmber = direction === 'NS' ? ph === 1 : ph === 3
+    const isRed   = !isGreen && !isAmber
+    if (redRef.current)   redRef.current.emissiveIntensity   = isRed   ? 4 : 0.06
+    if (amberRef.current) amberRef.current.emissiveIntensity = isAmber ? 4 : 0.06
+    if (greenRef.current) greenRef.current.emissiveIntensity = isGreen ? 4 : 0.06
+  })
+
+  return (
+    <group position={[x, 0, z]} rotation-y={rotY}>
+      {/* Pole */}
+      <mesh position={[0, 2.5, 0]} castShadow>
+        <cylinderGeometry args={[0.06, 0.08, 5, 8]} />
+        <meshStandardMaterial color="#3a3a3a" metalness={0.85} roughness={0.25} />
+      </mesh>
+      {/* Horizontal arm */}
+      <mesh position={[0.7, 4.9, 0]} rotation-z={Math.PI / 2} castShadow>
+        <cylinderGeometry args={[0.05, 0.05, 1.4, 8]} />
+        <meshStandardMaterial color="#3a3a3a" metalness={0.85} roughness={0.25} />
+      </mesh>
+      {/* Housing */}
+      <mesh position={[1.4, 4.9, 0]} castShadow>
+        <boxGeometry args={[0.28, 1.0, 0.28]} />
+        <meshStandardMaterial color="#1a1a1a" />
+      </mesh>
+      {/* Red */}
+      <mesh position={[1.4, 5.25, 0]}>
+        <sphereGeometry args={[0.1, 8, 6]} />
+        <meshStandardMaterial ref={redRef}   color="#ff2200" emissive="#ff2200" emissiveIntensity={0.06} />
+      </mesh>
+      {/* Amber */}
+      <mesh position={[1.4, 4.9, 0]}>
+        <sphereGeometry args={[0.1, 8, 6]} />
+        <meshStandardMaterial ref={amberRef} color="#ff8800" emissive="#ff8800" emissiveIntensity={0.06} />
+      </mesh>
+      {/* Green */}
+      <mesh position={[1.4, 4.55, 0]}>
+        <sphereGeometry args={[0.1, 8, 6]} />
+        <meshStandardMaterial ref={greenRef} color="#00cc44" emissive="#00cc44" emissiveIntensity={0.06} />
+      </mesh>
+    </group>
+  )
+}
+
 // ─── FPS Collector ────────────────────────────────────────────────────────────
 function FPSCollector() {
   const setFps    = useGameStore(s => s.setFps)
@@ -1827,6 +1899,16 @@ export default function GameScene() {
       <Player onShoot={handleShoot}/>
       <MinimapCollector/>
       <FPSCollector/>
+      <TrafficController/>
+      {/* Traffic lights at the 9 main intersections (x/z ∈ {-40,0,40}) */}
+      {[-40, 0, 40].flatMap(ix =>
+        [-40, 0, 40].flatMap(iz => [
+          <TrafficLight key={`tl_ns_${ix}_${iz}`} x={ix - 6} z={iz - 6} rotY={0}           direction="NS" />,
+          <TrafficLight key={`tl_ns2_${ix}_${iz}`} x={ix + 6} z={iz + 6} rotY={Math.PI}    direction="NS" />,
+          <TrafficLight key={`tl_ew_${ix}_${iz}`}  x={ix + 6} z={iz - 6} rotY={Math.PI / 2} direction="EW" />,
+          <TrafficLight key={`tl_ew2_${ix}_${iz}`} x={ix - 6} z={iz + 6} rotY={-Math.PI / 2} direction="EW" />,
+        ])
+      )}
     </>
   )
 }

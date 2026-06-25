@@ -106,14 +106,26 @@ function GLBMesh({ url, targetHeight }: { url: string; targetHeight: number }) {
 export function VehicleGLBMesh({ url, targetHeight = 1.5 }: { url: string; targetHeight?: number }) {
   const gltf = useLoader(GLTFLoader, url)
 
-  const { scene, fit } = useMemo(() => {
+  const { scene, scale, yOffset } = useMemo(() => {
     const clone = SkeletonUtils.clone(gltf.scene) as THREE.Object3D
+    clone.updateMatrixWorld(true)
+
+    // Vehicle-specific fit: normalise by HEIGHT (Y-axis only).
+    // computeFit's general branch fires for cars because their length (Z) > height*2,
+    // wrongly returning yOffset = –minZ*scale which makes cars float.
+    let minY = Infinity, maxY = -Infinity
     clone.traverse(c => {
       const mesh = c as THREE.Mesh
       if (!mesh.isMesh) return
       mesh.castShadow = true
       mesh.receiveShadow = true
       mesh.frustumCulled = false
+      mesh.geometry.computeBoundingBox()
+      if (mesh.geometry.boundingBox) {
+        const b = mesh.geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld)
+        if (b.min.y < minY) minY = b.min.y
+        if (b.max.y > maxY) maxY = b.max.y
+      }
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
       mats.forEach(m => {
         if (!(m instanceof THREE.MeshStandardMaterial)) return
@@ -123,11 +135,14 @@ export function VehicleGLBMesh({ url, targetHeight = 1.5 }: { url: string; targe
         m.needsUpdate = true
       })
     })
-    const fit = computeFit(clone, targetHeight)
-    return { scene: clone, fit }
+
+    const sY = (isFinite(minY) && isFinite(maxY)) ? maxY - minY : 1
+    const scale = sY > 0.001 ? targetHeight / sY : 1
+    const yOffset = isFinite(minY) ? -minY * scale : 0
+    return { scene: clone, scale, yOffset }
   }, [gltf.scene, targetHeight])
 
-  return <primitive object={scene} scale={fit.scale} position-y={fit.yOffset} />
+  return <primitive object={scene} scale={scale} position-y={yOffset} />
 }
 
 // ─── OBJ ──────────────────────────────────────────────────────────────────────
