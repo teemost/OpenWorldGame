@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuthStore } from './useAuthStore'
+import CharacterPreview3D from './CharacterPreview3D'
 
 const SKIN_TONES = [
   { label: 'Fair',   color: '#FDDBB4' },
@@ -166,21 +167,16 @@ export default function CharacterSelect({ onReady }: Props) {
           {/* ── Preview + colour pickers side by side ── */}
           <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
 
-            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
               <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 2 }}>PREVIEW</div>
-              <div style={{
-                width: 110, height: 170,
-                borderRadius: 10,
-                background: `rgba(${hexToRgb(selectedModelData.accent)},0.12)`,
-                border: `1px solid ${selectedModelData.accent}44`,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: 6,
-              }}>
-                <span style={{ fontSize: 50 }}>{selectedModelData.emoji}</span>
-                <span style={{ fontSize: 9, color: selectedModelData.accent, letterSpacing: 1 }}>
-                  {selectedModelData.label.toUpperCase()}
-                </span>
-              </div>
+              <CharacterPreview3D
+                modelId={model}
+                colorTint={outfit}
+                skinTone={skin}
+                width={155}
+                height={210}
+                accentColor={selectedModelData.accent}
+              />
               <div style={{ fontSize: 12, color: '#ff6600', fontWeight: 'bold', letterSpacing: 1 }}>
                 {(currentUser?.username ?? 'PLAYER').toUpperCase()}
               </div>
