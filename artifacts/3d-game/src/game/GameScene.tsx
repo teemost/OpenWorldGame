@@ -428,6 +428,13 @@ function City() {
 type VehicleStyle = 'sedan' | 'suv' | 'sports' | 'luxury'
 const VEHICLE_STYLES: VehicleStyle[] = ['sedan', 'suv', 'sports', 'luxury']
 
+const VEHICLE_GLB: Record<VehicleStyle, string> = {
+  sedan:  '/models/sedan.glb',
+  suv:    '/models/suv.glb',
+  sports: '/models/sports.glb',
+  luxury: '/models/taxi.glb',
+}
+
 function Wheel({ x, y, z, r = 0.38 }: { x:number; y:number; z:number; r?:number }) {
   return (
     <group position={[x, y, z]}>
@@ -954,7 +961,6 @@ function Vehicle({ vehicleId }: { vehicleId: string }) {
 
   void modelRevision
 
-  const c = vRef.color
   if (vehicleModel) {
     return (
       <group ref={groupRef}>
@@ -965,10 +971,7 @@ function Vehicle({ vehicleId }: { vehicleId: string }) {
 
   return (
     <group ref={groupRef}>
-      {style === 'sedan'  && <RealisticSedan  c={c}/>}
-      {style === 'suv'    && <RealisticSUV    c={c}/>}
-      {style === 'sports' && <RealisticSports c={c}/>}
-      {style === 'luxury' && <RealisticLuxury c={c}/>}
+      <CustomModel url={VEHICLE_GLB[style]} format="glb" targetHeight={1.5} />
     </group>
   )
 }
