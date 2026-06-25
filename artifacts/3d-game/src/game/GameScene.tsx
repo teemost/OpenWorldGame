@@ -1422,8 +1422,8 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
     // ── Orbit camera with collision ───────────────────────────────────────
     const camYaw   = sharedCamYaw.value
     const camPitch = sharedCamPitch.value
-    const CAM_DIST   = 3.2
-    const CAM_HEIGHT = 1.4
+    const CAM_DIST   = 1.8
+    const CAM_HEIGHT = 1.1
 
     const safeCam = (ox:number,oy:number,oz:number,dx:number,dy:number,dz:number)=>{
       for (let i=0;i<=12;i++){
