@@ -245,34 +245,32 @@ export default function HUD() {
 
       </div>
 
-      {/* ── Interactive buttons (zIndex≥1000 to clear TouchControls) ────────── */}
-
-      {/* Settings button — bottom-right above touch buttons */}
-      <div style={{ position:'fixed', bottom:110, right:16, zIndex:1000 }}>
+      {/* ── Interactive buttons — fixed below the right stats column ────────── */}
+      {/* top:270 sits below Money+Score+Stars+Player+FPS (~240px) with margin */}
+      <div style={{
+        position:'fixed', top:270, right:16, zIndex:1000,
+        display:'flex', gap:6,
+      }}>
         <button type="button"
           onClick={e=>{ e.stopPropagation(); setShowSettings(v=>!v) }}
           onPointerDown={e=>e.stopPropagation()}
           style={{
-            background: showSettings ? 'rgba(0,180,255,0.22)' : 'rgba(0,0,0,0.78)',
-            border:`2px solid ${showSettings ? '#00ccff' : 'rgba(0,180,255,0.3)'}`,
-            color: showSettings ? '#00ccff' : '#5588aa',
-            padding:'7px 16px', borderRadius:7, fontSize:12, fontFamily:'monospace',
+            background: showSettings ? 'rgba(0,180,255,0.22)' : 'rgba(0,0,0,0.82)',
+            border:`1px solid ${showSettings ? '#00ccff' : 'rgba(0,180,255,0.28)'}`,
+            color: showSettings ? '#00ccff' : '#4d7a99',
+            padding:'5px 13px', borderRadius:6, fontSize:11, fontFamily:'monospace',
             cursor:'pointer', letterSpacing:1, touchAction:'manipulation', transition:'all 0.15s',
           }}
         >⚙ SETTINGS</button>
-      </div>
-
-      {/* Logout — bottom-right, below settings */}
-      <div style={{ position:'fixed', bottom:72, right:16, zIndex:1000 }}>
         <button type="button"
           onClick={e=>{ e.stopPropagation(); logout() }}
           onPointerDown={e=>e.stopPropagation()}
           style={{
-            background:'rgba(0,0,0,0.6)', border:'1px solid #2a2a2a', color:'#444',
-            padding:'5px 14px', borderRadius:6, fontSize:11, fontFamily:'monospace',
-            cursor:'pointer', touchAction:'manipulation',
+            background:'rgba(0,0,0,0.72)', border:'1px solid rgba(255,255,255,0.08)',
+            color:'#555', padding:'5px 12px', borderRadius:6,
+            fontSize:11, fontFamily:'monospace', cursor:'pointer', touchAction:'manipulation',
           }}
-        >LOG OUT</button>
+        >EXIT</button>
       </div>
 
       {/* Admin button — top-center */}

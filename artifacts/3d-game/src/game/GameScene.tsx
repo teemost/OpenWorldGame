@@ -1673,87 +1673,6 @@ function MinimapCollector() {
   return null
 }
 
-// ─── NPC Traffic Cars ─────────────────────────────────────────────────────────
-interface TrafficCarData {
-  axis: 'NS' | 'EW'
-  lane: number        // fixed axis coordinate (x for NS roads, z for EW roads)
-  laneOffset: number  // ±1.8 for right-hand traffic lane separation
-  pos: number         // current position on moving axis
-  dir: 1 | -1
-  speed: number
-  color: string
-}
-
-const TRAFFIC_COLORS = ['#c0392b','#2980b9','#27ae60','#e67e22','#8e44ad','#16a085','#f39c12','#1abc9c']
-
-function makeTrafficCars(): TrafficCarData[] {
-  const cars: TrafficCarData[] = []
-  const roads = [-80, -40, 0, 40, 80]
-  let ci = 0
-  roads.forEach((r, ri) => {
-    cars.push({ axis:'NS', lane:r, laneOffset:-1.8, pos: 90-ri*36, dir:-1, speed:7+ri%3,   color:TRAFFIC_COLORS[ci++%8] })
-    cars.push({ axis:'NS', lane:r, laneOffset:+1.8, pos:-90+ri*36, dir:+1, speed:7+ri%3+1, color:TRAFFIC_COLORS[ci++%8] })
-    cars.push({ axis:'EW', lane:r, laneOffset:-1.8, pos: 85-ri*28, dir:-1, speed:6+ri%4,   color:TRAFFIC_COLORS[ci++%8] })
-    cars.push({ axis:'EW', lane:r, laneOffset:+1.8, pos:-85+ri*28, dir:+1, speed:6+ri%4+1, color:TRAFFIC_COLORS[ci++%8] })
-  })
-  return cars
-}
-
-const npcTrafficCars = makeTrafficCars()
-
-function isTrafficCarStopped(car: TrafficCarData): boolean {
-  for (const ic of [-40, 0, 40]) {
-    const ahead = (ic - car.pos) * car.dir
-    if (ahead > 0 && ahead < 11) {
-      if (car.axis === 'NS' && trafficState.phase >= 2) return true
-      if (car.axis === 'EW' && trafficState.phase < 2)  return true
-    }
-  }
-  return false
-}
-
-function NpcTrafficSystem() {
-  const meshRef = useRef<THREE.InstancedMesh>(null!)
-  const dummy   = useRef(new THREE.Object3D())
-  const count   = npcTrafficCars.length
-
-  useEffect(() => {
-    const m = meshRef.current
-    if (!m) return
-    npcTrafficCars.forEach((car, i) => m.setColorAt(i, new THREE.Color(car.color)))
-    if (m.instanceColor) m.instanceColor.needsUpdate = true
-  }, [])
-
-  useFrame((_, delta) => {
-    const m = meshRef.current
-    if (!m) return
-    npcTrafficCars.forEach((car, i) => {
-      if (!isTrafficCarStopped(car)) {
-        car.pos += car.dir * car.speed * delta
-        if (car.pos >  115) car.pos = -108
-        if (car.pos < -115) car.pos =  108
-      }
-      const x    = car.axis === 'NS' ? car.lane + car.laneOffset : car.pos
-      const z    = car.axis === 'NS' ? car.pos : car.lane + car.laneOffset
-      const rotY = car.axis === 'NS'
-        ? (car.dir < 0 ? 0 : Math.PI)
-        : (car.dir > 0 ? Math.PI / 2 : -Math.PI / 2)
-      dummy.current.position.set(x, 0.42, z)
-      dummy.current.rotation.set(0, rotY, 0)
-      dummy.current.updateMatrix()
-      m.setMatrixAt(i, dummy.current.matrix)
-    })
-    m.instanceMatrix.needsUpdate = true
-  })
-
-  return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, count]} castShadow>
-      <boxGeometry args={[1.8, 0.82, 3.8]} />
-      <meshStandardMaterial metalness={0.25} roughness={0.55} />
-    </instancedMesh>
-  )
-}
-
 // ─── Traffic Light System ─────────────────────────────────────────────────────
 // Phase 0: NS green / EW red  (4 s)
 // Phase 1: NS amber / EW red  (1 s)
@@ -1981,7 +1900,6 @@ export default function GameScene() {
       <MinimapCollector/>
       <FPSCollector/>
       <TrafficController/>
-      <NpcTrafficSystem/>
       {/* Traffic lights at the 9 main intersections (x/z ∈ {-40,0,40}) */}
       {[-40, 0, 40].flatMap(ix =>
         [-40, 0, 40].flatMap(iz => [
