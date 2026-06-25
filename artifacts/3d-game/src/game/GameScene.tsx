@@ -1119,13 +1119,16 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
     </Html>
   ) : null
 
-  const npcHeight = useModelStore(s => s.settings.npcModelScale)
+  const npcCustomHeight = useModelStore(s => s.settings.npcModelScale)
+  const npcBuiltinHeight = useModelStore(s =>
+    isFemale ? s.settings.fembotModelScale : s.settings.soldierModelScale
+  )
 
   if (npcModel) {
     return (
       <group ref={groupRef} position={[nRef.pos.x, 0, nRef.pos.z]}>
         {npcTag}
-        <CustomModel url={npcModel.url} format={npcModel.format} targetHeight={npcHeight} />
+        <CustomModel url={npcModel.url} format={npcModel.format} targetHeight={npcCustomHeight} />
       </group>
     )
   }
@@ -1141,7 +1144,7 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
           if (s === 'walking') return 'Walk' as const
           return 'Idle' as const
         }}
-        targetHeight={npcHeight}
+        targetHeight={npcBuiltinHeight}
         disableAnimation
       />
     </group>
@@ -1218,13 +1221,14 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
     </Html>
   ) : null
 
-  const policeHeight = useModelStore(s => isSwat ? s.settings.swatModelScale : s.settings.policeModelScale)
+  const policeCustomHeight = useModelStore(s => isSwat ? s.settings.swatModelScale : s.settings.policeModelScale)
+  const policeBuiltinHeight = useModelStore(s => s.settings.soldierModelScale)
 
   if (policeModel) {
     return (
       <group ref={groupRef} position={[pRef.pos.x, 0, pRef.pos.z]}>
         {policeTag}
-        <CustomModel url={policeModel.url} format={policeModel.format} targetHeight={policeHeight} />
+        <CustomModel url={policeModel.url} format={policeModel.format} targetHeight={policeCustomHeight} />
       </group>
     )
   }
@@ -1238,7 +1242,7 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
           const dist = pRef.pos.distanceTo(sharedPlayerPos)
           return dist > 5 ? 'Run' as const : 'Idle' as const
         }}
-        targetHeight={policeHeight}
+        targetHeight={policeBuiltinHeight}
       />
     </group>
   )
@@ -1520,13 +1524,22 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
   }
 
   const selectedModelPath = CHARACTER_MODEL_PATHS[currentUser?.characterModel ?? 'soldier'] ?? '/models/soldier.glb'
-  const playerHeight = useModelStore(s => s.settings.playerModelScale)
+  const selectedModelId   = currentUser?.characterModel ?? 'soldier'
+  const playerCustomHeight = useModelStore(s => s.settings.playerModelScale)
+  const playerBuiltinHeight = useModelStore(s => {
+    const st = s.settings
+    if (selectedModelId === 'fembot')   return st.fembotModelScale
+    if (selectedModelId === 'michelle') return st.michelleModelScale
+    if (selectedModelId === 'xbot')     return st.xbotModelScale
+    if (selectedModelId === 'robot')    return st.robotModelScale
+    return st.soldierModelScale
+  })
 
   if (playerModel) {
     return (
       <group ref={groupRef} position={[sharedPlayerPos.x,sharedPlayerPos.y,sharedPlayerPos.z]}>
         {nameTag}
-        <CustomModel url={playerModel.url} format={playerModel.format} targetHeight={playerHeight} />
+        <CustomModel url={playerModel.url} format={playerModel.format} targetHeight={playerCustomHeight} />
       </group>
     )
   }
@@ -1537,7 +1550,7 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       <AnimatedHumanoid
         modelPath={selectedModelPath}
         getAnimState={() => playerAnimState.value}
-        targetHeight={playerHeight}
+        targetHeight={playerBuiltinHeight}
         colorTint={currentUser?.characterColor ?? null}
         skinTone={currentUser?.skinTone ?? null}
       />

@@ -315,24 +315,50 @@ function SettingsSection() {
       </SettingsCard>
 
       <SettingsCard title="── CHARACTER MODEL SCALE">
-        <div style={{ color: '#777', fontSize: 11, marginBottom: 12, letterSpacing: 0.5 }}>
-          Sets the rendered height (in world units) for each character type. Changes apply instantly in-game.
+        <div style={{ color: '#666', fontSize: 11, marginBottom: 12, letterSpacing: 0.3 }}>
+          Sets the rendered height (metres) for each downloaded humanoid model. Changes apply instantly in-game.
         </div>
-        <Slider label="Player Height"   value={s.playerModelScale}  min={0.5} max={4} step={0.05} unit=" m" onChange={v => setSettings({ playerModelScale: v })} />
-        <Slider label="NPC Height"      value={s.npcModelScale}     min={0.5} max={4} step={0.05} unit=" m" onChange={v => setSettings({ npcModelScale: v })} />
-        <Slider label="Police Height"   value={s.policeModelScale}  min={0.5} max={4} step={0.05} unit=" m" onChange={v => setSettings({ policeModelScale: v })} />
-        <Slider label="SWAT Height"     value={s.swatModelScale}    min={0.5} max={4} step={0.05} unit=" m" onChange={v => setSettings({ swatModelScale: v })} />
-        <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+        {([
+          { emoji: '🪖', label: 'Soldier',   key: 'soldierModelScale',  desc: 'player default · police · SWAT · male NPCs' },
+          { emoji: '🤖', label: 'Fembot',    key: 'fembotModelScale',   desc: 'female NPC default'                          },
+          { emoji: '💃', label: 'Michelle',  key: 'michelleModelScale', desc: 'animated street character'                   },
+          { emoji: '🦾', label: 'X-Bot',     key: 'xbotModelScale',     desc: 'mechanised humanoid'                         },
+          { emoji: '🤖', label: 'Robot',     key: 'robotModelScale',    desc: 'expressive AI unit'                          },
+        ] as { emoji: string; label: string; key: keyof typeof s; desc: string }[]).map(({ emoji, label, key, desc }) => (
+          <div key={key as string}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+              <span style={{ color: '#ddd', fontSize: 12 }}>{emoji} <strong>{label}</strong></span>
+              <span style={{ color: '#555', fontSize: 10 }}>{desc}</span>
+            </div>
+            <Slider
+              label=""
+              value={s[key] as number}
+              min={0.5} max={4} step={0.05} unit=" m"
+              onChange={v => setSettings({ [key]: v })}
+            />
+          </div>
+        ))}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => setSettings({
+            soldierModelScale: 1.85, fembotModelScale: 1.85, michelleModelScale: 1.85,
+            xbotModelScale: 1.85, robotModelScale: 1.85,
+          })} style={{
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+            color: '#aaa', padding: '4px 10px', borderRadius: 5, cursor: 'pointer',
+            fontFamily: 'monospace', fontSize: 11,
+          }}>Reset All</button>
           {([
-            ['Reset Player', { playerModelScale: 1.85 }],
-            ['Reset NPCs',   { npcModelScale: 1.15 }],
-            ['Reset Police', { policeModelScale: 1.15, swatModelScale: 1.15 }],
-          ] as [string, Partial<typeof s>][]).map(([label, patch]) => (
-            <button key={label} type="button" onClick={() => setSettings(patch)} style={{
+            ['Reset Soldier',  { soldierModelScale:  1.85 }],
+            ['Reset Fembot',   { fembotModelScale:   1.85 }],
+            ['Reset Michelle', { michelleModelScale: 1.85 }],
+            ['Reset X-Bot',    { xbotModelScale:     1.85 }],
+            ['Reset Robot',    { robotModelScale:    1.85 }],
+          ] as [string, Partial<typeof s>][]).map(([lbl, patch]) => (
+            <button key={lbl} type="button" onClick={() => setSettings(patch)} style={{
               background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
               color: '#aaa', padding: '4px 10px', borderRadius: 5, cursor: 'pointer',
               fontFamily: 'monospace', fontSize: 11,
-            }}>{label}</button>
+            }}>{lbl}</button>
           ))}
         </div>
       </SettingsCard>

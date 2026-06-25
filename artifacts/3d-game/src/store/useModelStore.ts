@@ -70,8 +70,14 @@ export interface GameSettings {
   showNameTags:         boolean
   minimapZoom:          number    // 0.5–3.0
   fieldOfView:          number    // 50–110 deg
-  // ── Character Model Scale ─────────────────────────────────────────────────
-  playerModelScale:     number    // 0.5–4.0 m (targetHeight)
+  // ── Character Model Scale (per built-in model) ───────────────────────────
+  soldierModelScale:    number    // 0.5–4.0 m
+  fembotModelScale:     number    // 0.5–4.0 m
+  michelleModelScale:   number    // 0.5–4.0 m
+  xbotModelScale:       number    // 0.5–4.0 m
+  robotModelScale:      number    // 0.5–4.0 m
+  // ── Custom-upload category scales (when no built-in model is active) ──────
+  playerModelScale:     number    // 0.5–4.0 m
   npcModelScale:        number    // 0.5–4.0 m
   policeModelScale:     number    // 0.5–4.0 m
   swatModelScale:       number    // 0.5–4.0 m
@@ -118,6 +124,11 @@ export const DEFAULT_SETTINGS: GameSettings = {
   showNameTags:        true,
   minimapZoom:         1.0,
   fieldOfView:         68,
+  soldierModelScale:   1.85,
+  fembotModelScale:    1.85,
+  michelleModelScale:  1.85,
+  xbotModelScale:      1.85,
+  robotModelScale:     1.85,
   playerModelScale:    1.85,
   npcModelScale:       1.15,
   policeModelScale:    1.15,
