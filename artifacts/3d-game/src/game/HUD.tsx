@@ -327,7 +327,7 @@ export default function HUD() {
 
       {/* FPS + quality display — bottom-right, above buttons */}
       <div style={{
-        position: 'fixed', bottom: 16, right: 14, zIndex: 300,
+        position: 'fixed', bottom: 16, right: 14, zIndex: 1000,
         display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5,
       }}>
         <div style={{
@@ -363,7 +363,7 @@ export default function HUD() {
       </div>
 
       {/* Logout */}
-      <div style={{ position: 'fixed', top: 82, right: 14, zIndex: 300 }}>
+      <div style={{ position: 'fixed', top: 82, right: 14, zIndex: 1000 }}>
         <button
           type="button"
           onClick={e => { e.stopPropagation(); logout() }}
