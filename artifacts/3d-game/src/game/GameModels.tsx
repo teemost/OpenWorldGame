@@ -235,7 +235,7 @@ function LoadingPlaceholder({ targetHeight }: { targetHeight: number }) {
 // ─── Animated Humanoid — real GLB with per-frame animation blending ──────────
 type AnimState = 'Idle' | 'Walk' | 'Run' | 'Sit'
 
-const SKIN_MAT_RE  = /skin|head|face|hair|neck|hand/i
+const SKIN_MAT_RE  = /skin|head|face|neck|hand|body|torso|arm(?!or)/i
 const PANTS_MAT_RE = /pant|leg|lower|boot|shoe|foot|trouser|jean/i
 
 interface AnimatedHumanoidProps {

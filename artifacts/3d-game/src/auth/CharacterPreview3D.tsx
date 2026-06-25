@@ -11,7 +11,7 @@ const SkeletonUtils: { clone: (obj: THREE.Object3D) => THREE.Object3D } =
   (_SkeletonUtilsMod as any).default ??
   _SkeletonUtilsMod
 
-const SKIN_MAT_RE  = /skin|head|face|hair|neck|hand/i
+const SKIN_MAT_RE  = /skin|head|face|neck|hand|body|torso|arm(?!or)/i
 const PANTS_MAT_RE = /pant|leg|lower|boot|shoe|foot|trouser|jean/i
 
 export const CHARACTER_MODEL_PATHS: Record<string, string> = {
