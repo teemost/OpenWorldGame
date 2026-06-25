@@ -33,7 +33,8 @@ const sharedVehicleId = { value: '' }
 const sharedWantedLevel = { value: 0 }
 const sharedCamYaw   = { value: Math.PI }   // camera starts behind player
 const sharedCamPitch = { value: 0.25 }
-const playerAnimState = { value: 'Idle' as 'Idle' | 'Walk' | 'Run' | 'Sit' }
+const playerAnimState   = { value: 'Idle' as 'Idle' | 'Walk' | 'Run' | 'Sit' }
+const playerDisplayRot  = { value: Math.PI } // smoothed display rotation
 
 // ─── NPC / Police names ───────────────────────────────────────────────────────
 const NPC_MALE_NAMES   = ['Marcus','Luis','Devon','Rico','Andre','Jerome','Bobby','Darius','Tank','Malik','Trevor','Slice','Ricky','Cleo','Ray']
@@ -423,22 +424,535 @@ function City() {
   )
 }
 
-// ─── Enhanced Vehicle ─────────────────────────────────────────────────────────
+// ─── Realistic Vehicle Geometry ───────────────────────────────────────────────
+type VehicleStyle = 'sedan' | 'suv' | 'sports' | 'luxury'
+const VEHICLE_STYLES: VehicleStyle[] = ['sedan', 'suv', 'sports', 'luxury']
+
+function Wheel({ x, y, z, r = 0.38 }: { x:number; y:number; z:number; r?:number }) {
+  return (
+    <group position={[x, y, z]}>
+      {/* Tyre */}
+      <mesh rotation={[0,0,Math.PI/2]} castShadow>
+        <cylinderGeometry args={[r, r, 0.26, 20]}/>
+        <meshStandardMaterial color="#111" roughness={0.95} metalness={0}/>
+      </mesh>
+      {/* Rim */}
+      <mesh rotation={[0,0,Math.PI/2]}>
+        <cylinderGeometry args={[r*0.62, r*0.62, 0.28, 12]}/>
+        <meshStandardMaterial color="#c8c8c8" metalness={0.9} roughness={0.12}/>
+      </mesh>
+      {/* Hub cap */}
+      <mesh position={[x > 0 ? 0.14 : -0.14, 0, 0]} rotation={[0,0,Math.PI/2]}>
+        <cylinderGeometry args={[r*0.22, r*0.22, 0.04, 8]}/>
+        <meshStandardMaterial color="#888" metalness={0.8} roughness={0.2}/>
+      </mesh>
+      {/* Brake disc glow */}
+      <mesh rotation={[0,0,Math.PI/2]}>
+        <cylinderGeometry args={[r*0.38, r*0.38, 0.3, 10]}/>
+        <meshStandardMaterial color="#444" roughness={0.7} metalness={0.4}/>
+      </mesh>
+    </group>
+  )
+}
+
+function Windshield({ px=0, py=0, pz=0, rx=0, w=1.6, h=0.62, opacity=0.42 }:
+  { px?:number; py?:number; pz?:number; rx?:number; w?:number; h?:number; opacity?:number }) {
+  return (
+    <mesh position={[px, py, pz]} rotation={[rx, 0, 0]}>
+      <boxGeometry args={[w, h, 0.04]}/>
+      <meshStandardMaterial color="#99ccff" transparent opacity={opacity} roughness={0.04} metalness={0.1} envMapIntensity={2}/>
+    </mesh>
+  )
+}
+
+function RealisticSedan({ c }: { c: string }) {
+  return (
+    <group>
+      {/* Floor pan */}
+      <mesh position={[0, 0.18, 0]} castShadow>
+        <boxGeometry args={[1.88, 0.14, 4.55]}/>
+        <meshStandardMaterial color="#1a1a1a" roughness={0.9}/>
+      </mesh>
+      {/* Lower body sill */}
+      <mesh position={[0, 0.42, 0]} castShadow>
+        <boxGeometry args={[1.94, 0.42, 4.5]}/>
+        <meshStandardMaterial color={c} roughness={0.18} metalness={0.72}/>
+      </mesh>
+      {/* Door panel sculpt */}
+      <mesh position={[0, 0.62, -0.1]} castShadow>
+        <boxGeometry args={[1.98, 0.28, 4.0]}/>
+        <meshStandardMaterial color={c} roughness={0.15} metalness={0.78}/>
+      </mesh>
+      {/* Upper cabin */}
+      <mesh position={[0, 1.05, -0.18]} castShadow>
+        <boxGeometry args={[1.76, 0.5, 2.5]}/>
+        <meshStandardMaterial color={c} roughness={0.16} metalness={0.75}/>
+      </mesh>
+      {/* Roof */}
+      <mesh position={[0, 1.31, -0.28]} castShadow>
+        <boxGeometry args={[1.74, 0.1, 2.3]}/>
+        <meshStandardMaterial color={c} roughness={0.14} metalness={0.8}/>
+      </mesh>
+      {/* Hood long */}
+      <mesh position={[0, 0.72, 1.48]} rotation={[-0.06, 0, 0]} castShadow>
+        <boxGeometry args={[1.82, 0.09, 1.65]}/>
+        <meshStandardMaterial color={c} roughness={0.16} metalness={0.78}/>
+      </mesh>
+      {/* Hood front slope */}
+      <mesh position={[0, 0.62, 2.16]} rotation={[0.3, 0, 0]} castShadow>
+        <boxGeometry args={[1.82, 0.09, 0.55]}/>
+        <meshStandardMaterial color={c} roughness={0.16} metalness={0.78}/>
+      </mesh>
+      {/* Trunk lid */}
+      <mesh position={[0, 0.82, -1.82]} rotation={[0.08, 0, 0]} castShadow>
+        <boxGeometry args={[1.76, 0.09, 1.1]}/>
+        <meshStandardMaterial color={c} roughness={0.16} metalness={0.78}/>
+      </mesh>
+      {/* Front bumper */}
+      <mesh position={[0, 0.3, 2.34]}>
+        <boxGeometry args={[1.86, 0.32, 0.22]}/>
+        <meshStandardMaterial color="#222" roughness={0.8} metalness={0.2}/>
+      </mesh>
+      {/* Front lower diffuser */}
+      <mesh position={[0, 0.14, 2.38]}>
+        <boxGeometry args={[1.6, 0.12, 0.14]}/>
+        <meshStandardMaterial color="#111" roughness={0.9}/>
+      </mesh>
+      {/* Grille kidney (BMW style) */}
+      {[-0.3, 0.3].map((gx, i) => (
+        <mesh key={i} position={[gx, 0.52, 2.36]}>
+          <boxGeometry args={[0.3, 0.2, 0.08]}/>
+          <meshStandardMaterial color="#181818" roughness={0.5} metalness={0.6}/>
+        </mesh>
+      ))}
+      {/* Rear bumper */}
+      <mesh position={[0, 0.3, -2.32]}>
+        <boxGeometry args={[1.86, 0.3, 0.22]}/>
+        <meshStandardMaterial color="#222" roughness={0.8} metalness={0.2}/>
+      </mesh>
+      {/* Exhaust tips */}
+      {[-0.52, 0.52].map((ex, i) => (
+        <mesh key={i} position={[ex, 0.2, -2.37]} rotation={[Math.PI/2, 0, 0]}>
+          <cylinderGeometry args={[0.055, 0.055, 0.12, 8]}/>
+          <meshStandardMaterial color="#777" metalness={0.85} roughness={0.15}/>
+        </mesh>
+      ))}
+      {/* Windshield front */}
+      <Windshield px={0} py={1.04} pz={0.92} rx={-0.48} w={1.62} h={0.58}/>
+      {/* Rear window */}
+      <Windshield px={0} py={1.02} pz={-1.44} rx={0.38} w={1.6} h={0.5} opacity={0.38}/>
+      {/* Side windows */}
+      {[-0.9, 0.9].map((wx, i) => (
+        <mesh key={i} position={[wx, 1.08, -0.2]} rotation={[0, Math.PI/2, 0]}>
+          <boxGeometry args={[2.1, 0.38, 0.03]}/>
+          <meshStandardMaterial color="#88aadd" transparent opacity={0.38} roughness={0.04} metalness={0.1}/>
+        </mesh>
+      ))}
+      {/* LED headlights */}
+      {[[-0.58, 0.62, 2.38], [0.58, 0.62, 2.38]].map(([hx, hy, hz], i) => (
+        <group key={i} position={[hx, hy, hz]}>
+          <mesh><boxGeometry args={[0.42, 0.12, 0.05]}/><meshStandardMaterial color="#fff8f0" emissive="#ffffff" emissiveIntensity={3.5}/></mesh>
+          <mesh position={[0, -0.1, 0]}><boxGeometry args={[0.38, 0.05, 0.05]}/><meshStandardMaterial color="#ccddff" emissive="#aabbff" emissiveIntensity={2}/></mesh>
+        </group>
+      ))}
+      {/* LED taillights strip */}
+      {[[-0.55, 0.58, -2.29], [0.55, 0.58, -2.29]].map(([tx, ty, tz], i) => (
+        <group key={i} position={[tx, ty, tz]}>
+          <mesh><boxGeometry args={[0.38, 0.1, 0.04]}/><meshStandardMaterial color="#ff2200" emissive="#ff2200" emissiveIntensity={4}/></mesh>
+          <mesh position={[0, -0.08, 0]}><boxGeometry args={[0.32, 0.04, 0.04]}/><meshStandardMaterial color="#ff6600" emissive="#ff4400" emissiveIntensity={2}/></mesh>
+        </group>
+      ))}
+      {/* Side mirrors */}
+      {[-1.0, 1.0].map((mx, i) => (
+        <mesh key={i} position={[mx, 0.95, 0.72]}>
+          <boxGeometry args={[0.07, 0.1, 0.2]}/>
+          <meshStandardMaterial color={c} roughness={0.2} metalness={0.7}/>
+        </mesh>
+      ))}
+      {/* A-pillar trim */}
+      {[-0.86, 0.86].map((ax, i) => (
+        <mesh key={i} position={[ax, 0.88, 0.7]} rotation={[0.48, 0, 0]}>
+          <boxGeometry args={[0.06, 0.5, 0.06]}/>
+          <meshStandardMaterial color="#111" roughness={0.7}/>
+        </mesh>
+      ))}
+      {/* Wheels */}
+      <Wheel x={-1.0} y={0.38} z={1.52}/>
+      <Wheel x={ 1.0} y={0.38} z={1.52}/>
+      <Wheel x={-1.0} y={0.38} z={-1.52}/>
+      <Wheel x={ 1.0} y={0.38} z={-1.52}/>
+    </group>
+  )
+}
+
+function RealisticSUV({ c }: { c: string }) {
+  return (
+    <group>
+      {/* Floor */}
+      <mesh position={[0, 0.22, 0]} castShadow>
+        <boxGeometry args={[2.0, 0.16, 4.5]}/>
+        <meshStandardMaterial color="#1a1a1a" roughness={0.9}/>
+      </mesh>
+      {/* Lower body */}
+      <mesh position={[0, 0.55, 0]} castShadow>
+        <boxGeometry args={[2.06, 0.5, 4.45]}/>
+        <meshStandardMaterial color={c} roughness={0.2} metalness={0.68}/>
+      </mesh>
+      {/* Upper body */}
+      <mesh position={[0, 0.98, -0.05]} castShadow>
+        <boxGeometry args={[2.02, 0.55, 4.3]}/>
+        <meshStandardMaterial color={c} roughness={0.18} metalness={0.72}/>
+      </mesh>
+      {/* Tall cabin */}
+      <mesh position={[0, 1.48, -0.1]} castShadow>
+        <boxGeometry args={[1.96, 0.68, 3.5]}/>
+        <meshStandardMaterial color={c} roughness={0.17} metalness={0.74}/>
+      </mesh>
+      {/* Roof */}
+      <mesh position={[0, 1.85, -0.1]} castShadow>
+        <boxGeometry args={[1.94, 0.1, 3.45]}/>
+        <meshStandardMaterial color={c} roughness={0.16} metalness={0.76}/>
+      </mesh>
+      {/* Roof rails */}
+      {[-0.88, 0.88].map((rx, i) => (
+        <mesh key={i} position={[rx, 1.93, -0.1]}>
+          <boxGeometry args={[0.06, 0.07, 3.0]}/>
+          <meshStandardMaterial color="#333" roughness={0.6} metalness={0.7}/>
+        </mesh>
+      ))}
+      {/* Large front grille (Mercedes-style) */}
+      <mesh position={[0, 0.62, 2.28]}>
+        <boxGeometry args={[1.65, 0.38, 0.1]}/>
+        <meshStandardMaterial color="#111" roughness={0.4} metalness={0.7}/>
+      </mesh>
+      <mesh position={[0, 0.62, 2.34]}>
+        <boxGeometry args={[1.5, 0.28, 0.05]}/>
+        <meshStandardMaterial color="#1a1a1a" roughness={0.3} metalness={0.8}/>
+      </mesh>
+      {/* Horizontal grille bars */}
+      {[-0.1, 0, 0.1].map((gy, i) => (
+        <mesh key={i} position={[0, 0.62 + gy, 2.36]}>
+          <boxGeometry args={[1.48, 0.025, 0.04]}/>
+          <meshStandardMaterial color="#555" metalness={0.9} roughness={0.1}/>
+        </mesh>
+      ))}
+      {/* Front bumper */}
+      <mesh position={[0, 0.32, 2.3]}>
+        <boxGeometry args={[2.0, 0.36, 0.24]}/>
+        <meshStandardMaterial color="#222" roughness={0.8}/>
+      </mesh>
+      {/* Skid plate */}
+      <mesh position={[0, 0.14, 2.35]}>
+        <boxGeometry args={[1.7, 0.14, 0.16]}/>
+        <meshStandardMaterial color="#555" roughness={0.5} metalness={0.6}/>
+      </mesh>
+      {/* Rear bumper */}
+      <mesh position={[0, 0.32, -2.3]}>
+        <boxGeometry args={[2.0, 0.34, 0.22]}/>
+        <meshStandardMaterial color="#222" roughness={0.8}/>
+      </mesh>
+      {/* Windshield front */}
+      <Windshield px={0} py={1.46} pz={1.12} rx={-0.38} w={1.78} h={0.65}/>
+      {/* Rear glass */}
+      <Windshield px={0} py={1.44} pz={-1.82} rx={0.28} w={1.72} h={0.6} opacity={0.38}/>
+      {/* Side windows */}
+      {[-0.98, 0.98].map((wx, i) => (
+        <mesh key={i} position={[wx, 1.5, -0.18]} rotation={[0, Math.PI/2, 0]}>
+          <boxGeometry args={[2.8, 0.58, 0.03]}/>
+          <meshStandardMaterial color="#88aacc" transparent opacity={0.38} roughness={0.04} metalness={0.1}/>
+        </mesh>
+      ))}
+      {/* LED headlights (wide DRL) */}
+      {[[-0.7, 0.95, 2.28], [0.7, 0.95, 2.28]].map(([hx, hy, hz], i) => (
+        <group key={i} position={[hx, hy, hz]}>
+          <mesh><boxGeometry args={[0.5, 0.1, 0.06]}/><meshStandardMaterial color="#fff8f0" emissive="#ffffff" emissiveIntensity={3}/></mesh>
+          <mesh position={[0, -0.12, 0]}><boxGeometry args={[0.42, 0.04, 0.06]}/><meshStandardMaterial color="#ccddff" emissive="#aabbff" emissiveIntensity={2.5}/></mesh>
+        </group>
+      ))}
+      {/* Taillights */}
+      {[[-0.65, 1.0, -2.28], [0.65, 1.0, -2.28]].map(([tx, ty, tz], i) => (
+        <mesh key={i} position={[tx, ty, tz]}>
+          <boxGeometry args={[0.5, 0.22, 0.06]}/>
+          <meshStandardMaterial color="#ff2200" emissive="#ff2200" emissiveIntensity={4}/>
+        </mesh>
+      ))}
+      {/* Running boards */}
+      {[-1.05, 1.05].map((sx, i) => (
+        <mesh key={i} position={[sx, 0.3, 0]}>
+          <boxGeometry args={[0.08, 0.06, 3.6]}/>
+          <meshStandardMaterial color="#2a2a2a" roughness={0.9}/>
+        </mesh>
+      ))}
+      {/* Side mirrors */}
+      {[-1.05, 1.05].map((mx, i) => (
+        <mesh key={i} position={[mx, 1.38, 0.96]}>
+          <boxGeometry args={[0.08, 0.14, 0.24]}/>
+          <meshStandardMaterial color={c} roughness={0.2} metalness={0.7}/>
+        </mesh>
+      ))}
+      {/* Wheels (larger for SUV) */}
+      <Wheel x={-1.06} y={0.46} z={1.55} r={0.46}/>
+      <Wheel x={ 1.06} y={0.46} z={1.55} r={0.46}/>
+      <Wheel x={-1.06} y={0.46} z={-1.55} r={0.46}/>
+      <Wheel x={ 1.06} y={0.46} z={-1.55} r={0.46}/>
+    </group>
+  )
+}
+
+function RealisticSports({ c }: { c: string }) {
+  return (
+    <group>
+      {/* Low floor */}
+      <mesh position={[0, 0.12, 0]} castShadow>
+        <boxGeometry args={[1.9, 0.12, 4.7]}/>
+        <meshStandardMaterial color="#1a1a1a" roughness={0.9}/>
+      </mesh>
+      {/* Wide body */}
+      <mesh position={[0, 0.38, 0]} castShadow>
+        <boxGeometry args={[2.0, 0.38, 4.65]}/>
+        <meshStandardMaterial color={c} roughness={0.12} metalness={0.82}/>
+      </mesh>
+      {/* Body crease / character line */}
+      <mesh position={[0, 0.62, 0]} castShadow>
+        <boxGeometry args={[2.02, 0.28, 4.6]}/>
+        <meshStandardMaterial color={c} roughness={0.1} metalness={0.85}/>
+      </mesh>
+      {/* Low cabin */}
+      <mesh position={[0, 0.9, -0.08]} castShadow>
+        <boxGeometry args={[1.88, 0.44, 2.6]}/>
+        <meshStandardMaterial color={c} roughness={0.12} metalness={0.82}/>
+      </mesh>
+      {/* Panoramic glass roof */}
+      <mesh position={[0, 1.14, -0.08]}>
+        <boxGeometry args={[1.5, 0.06, 2.2]}/>
+        <meshStandardMaterial color="#1a2a3a" transparent opacity={0.7} roughness={0.04} metalness={0.2}/>
+      </mesh>
+      {/* Fastback roofline */}
+      <mesh position={[0, 0.98, -1.38]} rotation={[0.28, 0, 0]} castShadow>
+        <boxGeometry args={[1.84, 0.07, 1.2]}/>
+        <meshStandardMaterial color={c} roughness={0.12} metalness={0.82}/>
+      </mesh>
+      {/* Sloped nose (Tesla-style) */}
+      <mesh position={[0, 0.5, 2.22]} rotation={[0.22, 0, 0]} castShadow>
+        <boxGeometry args={[1.92, 0.22, 0.7]}/>
+        <meshStandardMaterial color={c} roughness={0.12} metalness={0.82}/>
+      </mesh>
+      {/* Closed grille (EV-style front fascia) */}
+      <mesh position={[0, 0.5, 2.38]}>
+        <boxGeometry args={[1.78, 0.28, 0.1]}/>
+        <meshStandardMaterial color="#111" roughness={0.3} metalness={0.8}/>
+      </mesh>
+      {/* Front bumper lip */}
+      <mesh position={[0, 0.22, 2.4]}>
+        <boxGeometry args={[1.86, 0.18, 0.16]}/>
+        <meshStandardMaterial color="#222" roughness={0.7}/>
+      </mesh>
+      {/* Rear diffuser */}
+      <mesh position={[0, 0.2, -2.4]}>
+        <boxGeometry args={[1.78, 0.18, 0.18]}/>
+        <meshStandardMaterial color="#111" roughness={0.5} metalness={0.5}/>
+      </mesh>
+      {/* Rear spoiler */}
+      <mesh position={[0, 1.0, -2.1]}>
+        <boxGeometry args={[1.6, 0.06, 0.3]}/>
+        <meshStandardMaterial color={c} roughness={0.12} metalness={0.82}/>
+      </mesh>
+      {/* Full-width LED front bar */}
+      <mesh position={[0, 0.7, 2.4]}>
+        <boxGeometry args={[1.7, 0.06, 0.05]}/>
+        <meshStandardMaterial color="#ccddff" emissive="#aabbff" emissiveIntensity={3}/>
+      </mesh>
+      {/* Headlight clusters */}
+      {[[-0.62, 0.68, 2.38], [0.62, 0.68, 2.38]].map(([hx, hy, hz], i) => (
+        <mesh key={i} position={[hx, hy, hz]}>
+          <boxGeometry args={[0.46, 0.14, 0.06]}/>
+          <meshStandardMaterial color="#fff8f0" emissive="#ffffff" emissiveIntensity={4}/>
+        </mesh>
+      ))}
+      {/* Full-width tail light bar */}
+      <mesh position={[0, 0.65, -2.38]}>
+        <boxGeometry args={[1.8, 0.08, 0.05]}/>
+        <meshStandardMaterial color="#ff2200" emissive="#ff2200" emissiveIntensity={5}/>
+      </mesh>
+      {/* Windshield */}
+      <Windshield px={0} py={0.98} pz={0.88} rx={-0.52} w={1.7} h={0.55} opacity={0.4}/>
+      {/* Rear glass */}
+      <Windshield px={0} py={0.9} pz={-1.55} rx={0.42} w={1.6} h={0.42} opacity={0.36}/>
+      {/* Side windows (low) */}
+      {[-0.96, 0.96].map((wx, i) => (
+        <mesh key={i} position={[wx, 0.96, -0.1]} rotation={[0, Math.PI/2, 0]}>
+          <boxGeometry args={[2.0, 0.32, 0.03]}/>
+          <meshStandardMaterial color="#88aadd" transparent opacity={0.38} roughness={0.04}/>
+        </mesh>
+      ))}
+      {/* Flush door handles */}
+      {[-0.98, 0.98].map((hx, i) => (
+        <mesh key={i} position={[hx, 0.78, 0]}>
+          <boxGeometry args={[0.04, 0.04, 0.22]}/>
+          <meshStandardMaterial color="#aaa" metalness={0.9} roughness={0.1}/>
+        </mesh>
+      ))}
+      {/* Side mirrors (sleek) */}
+      {[-0.98, 0.98].map((mx, i) => (
+        <mesh key={i} position={[mx, 0.88, 0.88]}>
+          <boxGeometry args={[0.06, 0.09, 0.18]}/>
+          <meshStandardMaterial color="#111" roughness={0.3} metalness={0.7}/>
+        </mesh>
+      ))}
+      {/* Sport wheels */}
+      <Wheel x={-1.02} y={0.35} z={1.56} r={0.36}/>
+      <Wheel x={ 1.02} y={0.35} z={1.56} r={0.36}/>
+      <Wheel x={-1.02} y={0.35} z={-1.56} r={0.36}/>
+      <Wheel x={ 1.02} y={0.35} z={-1.56} r={0.36}/>
+    </group>
+  )
+}
+
+function RealisticLuxury({ c }: { c: string }) {
+  return (
+    <group>
+      {/* Long wheelbase floor */}
+      <mesh position={[0, 0.18, 0]} castShadow>
+        <boxGeometry args={[1.92, 0.13, 5.0]}/>
+        <meshStandardMaterial color="#1a1a1a" roughness={0.9}/>
+      </mesh>
+      {/* Main body */}
+      <mesh position={[0, 0.44, 0]} castShadow>
+        <boxGeometry args={[1.98, 0.46, 4.95]}/>
+        <meshStandardMaterial color={c} roughness={0.14} metalness={0.8}/>
+      </mesh>
+      {/* Body crease */}
+      <mesh position={[0, 0.65, 0]} castShadow>
+        <boxGeometry args={[2.0, 0.25, 4.9]}/>
+        <meshStandardMaterial color={c} roughness={0.12} metalness={0.82}/>
+      </mesh>
+      {/* Cabin */}
+      <mesh position={[0, 1.06, -0.28]} castShadow>
+        <boxGeometry args={[1.82, 0.52, 2.6]}/>
+        <meshStandardMaterial color={c} roughness={0.13} metalness={0.8}/>
+      </mesh>
+      {/* Long elegant roof */}
+      <mesh position={[0, 1.33, -0.32]} castShadow>
+        <boxGeometry args={[1.8, 0.1, 2.5]}/>
+        <meshStandardMaterial color={c} roughness={0.12} metalness={0.82}/>
+      </mesh>
+      {/* Long hood */}
+      <mesh position={[0, 0.7, 1.62]} rotation={[-0.04, 0, 0]} castShadow>
+        <boxGeometry args={[1.86, 0.08, 1.95]}/>
+        <meshStandardMaterial color={c} roughness={0.13} metalness={0.82}/>
+      </mesh>
+      {/* Hood ornament mount */}
+      <mesh position={[0, 0.76, 2.5]}>
+        <cylinderGeometry args={[0.02, 0.02, 0.14, 6]}/>
+        <meshStandardMaterial color="#ddd" metalness={0.95} roughness={0.05}/>
+      </mesh>
+      {/* Long trunk */}
+      <mesh position={[0, 0.8, -2.0]} rotation={[0.06, 0, 0]} castShadow>
+        <boxGeometry args={[1.82, 0.08, 1.2]}/>
+        <meshStandardMaterial color={c} roughness={0.13} metalness={0.82}/>
+      </mesh>
+      {/* Chrome front grille surround */}
+      <mesh position={[0, 0.54, 2.52]}>
+        <boxGeometry args={[1.4, 0.36, 0.12]}/>
+        <meshStandardMaterial color="#1a1a1a" roughness={0.3} metalness={0.85}/>
+      </mesh>
+      <mesh position={[0, 0.54, 2.56]}>
+        <boxGeometry args={[1.36, 0.32, 0.06]}/>
+        <meshStandardMaterial color="#222" roughness={0.2} metalness={0.9}/>
+      </mesh>
+      {/* Chrome grille bars */}
+      {[-0.12, 0, 0.12].map((gy, i) => (
+        <mesh key={i} position={[0, 0.54 + gy, 2.58]}>
+          <boxGeometry args={[1.32, 0.02, 0.04]}/>
+          <meshStandardMaterial color="#c8c8c8" metalness={0.95} roughness={0.05}/>
+        </mesh>
+      ))}
+      {/* Front bumper */}
+      <mesh position={[0, 0.3, 2.54]}>
+        <boxGeometry args={[1.92, 0.32, 0.22]}/>
+        <meshStandardMaterial color="#222" roughness={0.8}/>
+      </mesh>
+      {/* Chrome bumper trim */}
+      <mesh position={[0, 0.38, 2.56]}>
+        <boxGeometry args={[1.9, 0.06, 0.08]}/>
+        <meshStandardMaterial color="#c8c8c8" metalness={0.9} roughness={0.1}/>
+      </mesh>
+      {/* Rear bumper */}
+      <mesh position={[0, 0.3, -2.54]}>
+        <boxGeometry args={[1.92, 0.32, 0.22]}/>
+        <meshStandardMaterial color="#222" roughness={0.8}/>
+      </mesh>
+      {/* Exhaust quad tips */}
+      {[-0.6, -0.4, 0.4, 0.6].map((ex, i) => (
+        <mesh key={i} position={[ex, 0.2, -2.58]} rotation={[Math.PI/2, 0, 0]}>
+          <cylinderGeometry args={[0.045, 0.045, 0.1, 8]}/>
+          <meshStandardMaterial color="#888" metalness={0.9} roughness={0.1}/>
+        </mesh>
+      ))}
+      {/* Elegant LED headlights */}
+      {[[-0.6, 0.62, 2.56], [0.6, 0.62, 2.56]].map(([hx, hy, hz], i) => (
+        <group key={i} position={[hx, hy, hz]}>
+          <mesh><boxGeometry args={[0.46, 0.1, 0.06]}/><meshStandardMaterial color="#fff8f0" emissive="#ffffff" emissiveIntensity={3.5}/></mesh>
+          <mesh position={[0, -0.09, 0]}><boxGeometry args={[0.36, 0.04, 0.06]}/><meshStandardMaterial color="#ccddff" emissive="#aabbff" emissiveIntensity={2.5}/></mesh>
+          <mesh position={[hx>0?0.18:-0.18, 0.02, 0]}><boxGeometry args={[0.1, 0.06, 0.06]}/><meshStandardMaterial color="#ccddff" emissive="#aabbff" emissiveIntensity={2}/></mesh>
+        </group>
+      ))}
+      {/* Rear LED taillights */}
+      {[[-0.58, 0.6, -2.56], [0.58, 0.6, -2.56]].map(([tx, ty, tz], i) => (
+        <group key={i} position={[tx, ty, tz]}>
+          <mesh><boxGeometry args={[0.44, 0.14, 0.05]}/><meshStandardMaterial color="#ff1a00" emissive="#ff1a00" emissiveIntensity={5}/></mesh>
+          <mesh position={[0, -0.1, 0]}><boxGeometry args={[0.36, 0.05, 0.05]}/><meshStandardMaterial color="#ff8800" emissive="#ff6600" emissiveIntensity={2.5}/></mesh>
+        </group>
+      ))}
+      {/* Windshield */}
+      <Windshield px={0} py={1.06} pz={0.94} rx={-0.46} w={1.66} h={0.56}/>
+      {/* Rear window */}
+      <Windshield px={0} py={1.04} pz={-1.56} rx={0.36} w={1.62} h={0.5} opacity={0.38}/>
+      {/* Side windows */}
+      {[-0.93, 0.93].map((wx, i) => (
+        <mesh key={i} position={[wx, 1.1, -0.25]} rotation={[0, Math.PI/2, 0]}>
+          <boxGeometry args={[2.2, 0.38, 0.03]}/>
+          <meshStandardMaterial color="#88aadd" transparent opacity={0.38} roughness={0.04}/>
+        </mesh>
+      ))}
+      {/* Chrome window trim */}
+      {[-0.94, 0.94].map((wx, i) => (
+        <mesh key={i} position={[wx, 1.1, -0.25]} rotation={[0, Math.PI/2, 0]}>
+          <boxGeometry args={[2.24, 0.42, 0.015]}/>
+          <meshStandardMaterial color="#c0c0c0" metalness={0.9} roughness={0.1} transparent opacity={0.6}/>
+        </mesh>
+      ))}
+      {/* Side mirrors */}
+      {[-1.02, 1.02].map((mx, i) => (
+        <mesh key={i} position={[mx, 1.0, 0.88]}>
+          <boxGeometry args={[0.07, 0.12, 0.22]}/>
+          <meshStandardMaterial color={c} roughness={0.18} metalness={0.75}/>
+        </mesh>
+      ))}
+      {/* Luxury wheels */}
+      <Wheel x={-1.02} y={0.38} z={1.65} r={0.4}/>
+      <Wheel x={ 1.02} y={0.38} z={1.65} r={0.4}/>
+      <Wheel x={-1.02} y={0.38} z={-1.65} r={0.4}/>
+      <Wheel x={ 1.02} y={0.38} z={-1.65} r={0.4}/>
+    </group>
+  )
+}
+
 function Vehicle({ vehicleId }: { vehicleId: string }) {
   const groupRef = useRef<THREE.Group>(null!)
   const vRef = vehicleRefs.get(vehicleId)!
   const { modelRevision } = useModelStore()
   const vehicleModel = modelBlobURLs.get('vehicle')
+  const style = VEHICLE_STYLES[parseInt(vehicleId.replace('v','')) % 4]
 
   useEffect(() => { vRef.mesh = groupRef.current; return () => { vRef.mesh = null } }, [vRef])
   useFrame(() => {
     if (!groupRef.current) return
     groupRef.current.position.set(vRef.pos.x, 0, vRef.pos.z)
-    // Only update rotation when it actually changes to avoid visual jitter
     groupRef.current.rotation.y = vRef.rot
   })
 
-  void modelRevision // subscribe to re-render when models change
+  void modelRevision
 
   const c = vRef.color
   if (vehicleModel) {
@@ -451,87 +965,10 @@ function Vehicle({ vehicleId }: { vehicleId: string }) {
 
   return (
     <group ref={groupRef}>
-      {/* Main chassis */}
-      <mesh position={[0,0.42,0]} castShadow>
-        <boxGeometry args={[2.1,0.55,4.8]}/>
-        <meshStandardMaterial color={c} roughness={0.3} metalness={0.5}/>
-      </mesh>
-      {/* Raised cabin */}
-      <mesh position={[0,1.05,-0.25]} castShadow>
-        <boxGeometry args={[1.75,0.65,2.6]}/>
-        <meshStandardMaterial color={c} roughness={0.3} metalness={0.5}/>
-      </mesh>
-      {/* Hood slope */}
-      <mesh position={[0,0.72,1.5]} rotation={[0.22,0,0]} castShadow>
-        <boxGeometry args={[1.9,0.12,1.6]}/>
-        <meshStandardMaterial color={c} roughness={0.3} metalness={0.5}/>
-      </mesh>
-      {/* Trunk */}
-      <mesh position={[0,0.68,-1.65]} rotation={[-0.15,0,0]} castShadow>
-        <boxGeometry args={[1.9,0.12,1.4]}/>
-        <meshStandardMaterial color={c} roughness={0.3} metalness={0.5}/>
-      </mesh>
-      {/* Front bumper */}
-      <mesh position={[0,0.28,2.48]}>
-        <boxGeometry args={[2.0,0.28,0.18]}/>
-        <meshStandardMaterial color="#333" roughness={0.8}/>
-      </mesh>
-      {/* Rear bumper */}
-      <mesh position={[0,0.28,-2.48]}>
-        <boxGeometry args={[2.0,0.28,0.18]}/>
-        <meshStandardMaterial color="#333" roughness={0.8}/>
-      </mesh>
-      {/* Windshield */}
-      <mesh position={[0,1.08,0.9]} rotation={[-0.45,0,0]}>
-        <boxGeometry args={[1.65,0.7,0.07]}/>
-        <meshStandardMaterial color="#88ccff" transparent opacity={0.5} roughness={0} metalness={0.1}/>
-      </mesh>
-      {/* Rear window */}
-      <mesh position={[0,1.08,-1.4]} rotation={[0.4,0,0]}>
-        <boxGeometry args={[1.65,0.55,0.07]}/>
-        <meshStandardMaterial color="#88ccff" transparent opacity={0.45} roughness={0} metalness={0.1}/>
-      </mesh>
-      {/* Side windows */}
-      {[-0.88,0.88].map((wx,i)=>(
-        <mesh key={i} position={[wx,1.08,-0.2]} rotation={[0,Math.PI/2,0]}>
-          <boxGeometry args={[1.9,0.45,0.04]}/>
-          <meshStandardMaterial color="#88ccff" transparent opacity={0.4} roughness={0}/>
-        </mesh>
-      ))}
-      {/* Wheels — enhanced with hub detail */}
-      {[[-1.06,0.36,1.55],[1.06,0.36,1.55],[-1.06,0.36,-1.55],[1.06,0.36,-1.55]].map(([wx,wy,wz],i)=>(
-        <group key={i} position={[wx,wy,wz]}>
-          <mesh rotation={[0,0,Math.PI/2]}>
-            <cylinderGeometry args={[0.38,0.38,0.28,16]}/>
-            <meshStandardMaterial color="#111" roughness={0.9}/>
-          </mesh>
-          <mesh rotation={[0,0,Math.PI/2]}>
-            <cylinderGeometry args={[0.22,0.22,0.3,8]}/>
-            <meshStandardMaterial color="#aaa" metalness={0.8} roughness={0.2}/>
-          </mesh>
-        </group>
-      ))}
-      {/* Headlights */}
-      {[[-0.65,0.65,2.42],[0.65,0.65,2.42]].map(([hx,hy,hz],i)=>(
-        <mesh key={i} position={[hx,hy,hz]}>
-          <boxGeometry args={[0.45,0.22,0.06]}/>
-          <meshStandardMaterial color="#ffffee" emissive="#ffffff" emissiveIntensity={1.5}/>
-        </mesh>
-      ))}
-      {/* Taillights */}
-      {[[-0.7,0.65,-2.42],[0.7,0.65,-2.42]].map(([tx,ty,tz],i)=>(
-        <mesh key={i} position={[tx,ty,tz]}>
-          <boxGeometry args={[0.38,0.2,0.06]}/>
-          <meshStandardMaterial color="#ff2222" emissive="#ff0000" emissiveIntensity={1.2}/>
-        </mesh>
-      ))}
-      {/* Side mirrors */}
-      {[-1.12,1.12].map((mx,i)=>(
-        <mesh key={i} position={[mx,1.1,0.55]}>
-          <boxGeometry args={[0.08,0.14,0.22]}/>
-          <meshStandardMaterial color={c} roughness={0.3} metalness={0.4}/>
-        </mesh>
-      ))}
+      {style === 'sedan'  && <RealisticSedan  c={c}/>}
+      {style === 'suv'    && <RealisticSUV    c={c}/>}
+      {style === 'sports' && <RealisticSports c={c}/>}
+      {style === 'luxury' && <RealisticLuxury c={c}/>}
     </group>
   )
 }
@@ -967,9 +1404,16 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       }
     }
 
-    // Sync mesh — player faces movement direction, NOT camera
+    // Sync mesh — smooth rotation via angular lerp (avoids snapping)
+    {
+      const target = rotRef.current.value
+      let diff = target - playerDisplayRot.value
+      while (diff >  Math.PI) diff -= 2 * Math.PI
+      while (diff < -Math.PI) diff += 2 * Math.PI
+      playerDisplayRot.value += diff * Math.min(1, 14 * delta)
+    }
     groupRef.current.position.copy(posRef.current)
-    groupRef.current.rotation.y = rotRef.current.value
+    groupRef.current.rotation.y = playerDisplayRot.value
     groupRef.current.visible = true
 
     // ── Orbit camera with collision ───────────────────────────────────────
@@ -1052,62 +1496,124 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
 
 // ─── Lighting ─────────────────────────────────────────────────────────────────
 function DynamicLighting({ timeOfDay }: { timeOfDay: number }) {
-  const isDay  = timeOfDay >= 6 && timeOfDay <= 20
-  const isDawn = timeOfDay >= 6 && timeOfDay < 9
-  const isDusk = timeOfDay >= 17 && timeOfDay <= 20
+  // Time phases:  Dawn 5-8 | Day 8-17 | Golden 17-19 | Dusk 19-21 | Evening 21-23 | Night 23-5
+  const isDawn    = timeOfDay >= 5  && timeOfDay < 8
+  const isDay     = timeOfDay >= 8  && timeOfDay < 17
+  const isGolden  = timeOfDay >= 17 && timeOfDay < 19
+  const isDusk    = timeOfDay >= 19 && timeOfDay < 21
+  const isEvening = timeOfDay >= 21 && timeOfDay < 23
+  const isNight   = timeOfDay >= 23 || timeOfDay < 5
+  const hasSky    = isDawn || isDay || isGolden || isDusk
 
-  // Normalise daytime 0→1→0 (peaks at 1pm)
-  const t        = Math.max(0, Math.min(1, (timeOfDay - 6) / 14))
-  const elevation = Math.sin(t * Math.PI)                  // 0 at horizon, 1 at noon
-  const azimuth   = 0.15 + t * 0.7                         // 0.15 to 0.85
+  // Smooth 0→1 sun arc across the day (peaks at 12:30)
+  const t         = Math.max(0, Math.min(1, (timeOfDay - 5) / 15))
+  const elevation = Math.sin(t * Math.PI)
+  const azimuth   = 0.12 + t * 0.76
 
-  // Sun world position (used for dir-light too)
   const sunX = Math.cos(azimuth * Math.PI * 2) * 80
-  const sunY = elevation * 90 + 5
+  const sunY = elevation * 90 + (isDusk ? 3 : isDawn ? 4 : 8)
   const sunZ = Math.sin(azimuth * Math.PI * 2) * 80
 
-  const dirIntensity = isDay ? elevation * 6 + 2 : 0
-  const dirColor     = isDawn ? '#ffaa55' : isDusk ? '#ff7733' : '#fff8f0'
-  const hemiSky      = isDawn ? '#ffcc88' : isDusk ? '#ff9966' : isDay ? '#b0d4ff' : '#1a2a44'
-  const hemiGround   = isDay ? '#3a5a28' : '#0e1a08'
-  const fogColor     = isDay ? (isDawn ? '#ffcc99' : isDusk ? '#ff9966' : '#c6e0f5') : '#06060f'
-  const ambientInt   = isDay ? 2.5 : 0.15
+  // Per-phase light parameters
+  const dirIntensity = hasSky ? Math.max(0.3, elevation * 7 + (isDawn || isDusk ? 1.5 : 2)) : 0
+  const dirColor = isDawn ? '#ffbb66' : isGolden ? '#ffaa44' : isDusk ? '#ff7744' : '#fff8f0'
+
+  const hemiSky    = isDawn ? '#ffc87a' : isGolden ? '#ffbb55' : isDusk ? '#ff9955' :
+                     isEvening ? '#1a2a55' : isNight ? '#101830' : '#b8d4ff'
+  const hemiGround = hasSky ? '#3a5a1a' : '#0c1808'
+
+  const ambientInt  = isDay ? 2.8 : isGolden ? 2.2 : isDawn ? 1.8 : isDusk ? 1.2 :
+                      isEvening ? 1.0 : 1.2   // night is bright enough to play
+  const ambientCol  = isEvening || isNight ? '#7090cc' : '#ffffff'
+
+  const fogColor = isDawn    ? '#ffc89a' : isGolden ? '#ffa95a' : isDusk ? '#cc8855' :
+                   isEvening ? '#0d1a35' : isNight  ? '#07101e' : '#c6e0f5'
+  const fogNear  = isEvening || isNight ? 55 : 75
+  const fogFar   = isEvening || isNight ? 170 : 220
+
+  // Night sky gradient (deep blue)
+  const nightSkyColor = isEvening ? '#0b1528' : '#06101e'
 
   return (
     <>
-      {isDay ? (
+      {/* Sky or night background */}
+      {hasSky ? (
         <Sky
           distance={450000}
           sunPosition={[sunX, sunY, sunZ]}
-          turbidity={isDawn || isDusk ? 9 : 3}
-          rayleigh={isDawn || isDusk ? 4 : 0.8}
-          mieCoefficient={0.006}
-          mieDirectionalG={0.82}
+          turbidity={isDawn || isDusk ? 10 : isGolden ? 8 : 3}
+          rayleigh={isDawn || isDusk || isGolden ? 5 : 0.8}
+          mieCoefficient={isDusk || isGolden ? 0.012 : 0.005}
+          mieDirectionalG={0.85}
         />
       ) : (
-        <color attach="background" args={['#06060f']}/>
+        <>
+          <color attach="background" args={[nightSkyColor]}/>
+          {/* Stars simulation via emissive hemisphere fill */}
+        </>
       )}
-      {/* Ambient fill — prevents total darkness */}
-      <ambientLight intensity={ambientInt} color={isDay ? '#ffffff' : '#1a2a44'}/>
-      {/* Sky / ground hemisphere for soft fill */}
-      <hemisphereLight args={[hemiSky as THREE.ColorRepresentation, hemiGround as THREE.ColorRepresentation, isDay ? 4.0 : 0.3]}/>
-      <directionalLight
-        position={[sunX, sunY, sunZ]}
-        intensity={dirIntensity}
-        color={dirColor}
-        castShadow
-        shadow-mapSize={[1024,1024]}
-        shadow-camera-near={1} shadow-camera-far={200}
-        shadow-camera-left={-90} shadow-camera-right={90}
-        shadow-camera-top={90}  shadow-camera-bottom={-90}
-        shadow-bias={-0.0005}
+
+      {/* Ambient fill */}
+      <ambientLight intensity={ambientInt} color={ambientCol}/>
+
+      {/* Hemisphere sky/ground */}
+      <hemisphereLight
+        args={[hemiSky as THREE.ColorRepresentation, hemiGround as THREE.ColorRepresentation,
+               hasSky ? 4.5 : (isEvening ? 1.8 : 2.2)]}
       />
-      {/* Night: soft blue moonlight fill + distant city glow */}
-      {!isDay && <>
-        <pointLight position={[0,25,0]} intensity={12} color="#2244aa" distance={200} decay={1}/>
-        <pointLight position={[0,8,0]} intensity={4} color="#aaccff" distance={80} decay={2}/>
+
+      {/* Sun directional light */}
+      {hasSky && (
+        <directionalLight
+          position={[sunX, sunY, sunZ]}
+          intensity={dirIntensity}
+          color={dirColor}
+          castShadow
+          shadow-mapSize={[1024, 1024]}
+          shadow-camera-near={1} shadow-camera-far={200}
+          shadow-camera-left={-90} shadow-camera-right={90}
+          shadow-camera-top={90}  shadow-camera-bottom={-90}
+          shadow-bias={-0.0005}
+        />
+      )}
+
+      {/* Moon — cool directional light at night/evening */}
+      {(isEvening || isNight) && (
+        <directionalLight
+          position={[-40, 60, 30]}
+          intensity={isNight ? 2.8 : 1.6}
+          color="#c8d8f8"
+          castShadow={false}
+        />
+      )}
+
+      {/* City-wide ambient glow at night — warm neon atmosphere */}
+      {(isEvening || isNight || isDusk) && <>
+        {/* Central city uplight */}
+        <pointLight position={[0, 18, 0]}  intensity={isNight?55:35}  color="#ffcc88" distance={220} decay={1.4}/>
+        {/* District fills — 4 quadrants */}
+        <pointLight position={[-55,-2,-55]} intensity={isNight?38:22}  color="#ff9944" distance={140} decay={1.6}/>
+        <pointLight position={[ 55,-2,-55]} intensity={isNight?38:22}  color="#44aaff" distance={140} decay={1.6}/>
+        <pointLight position={[-55,-2, 55]} intensity={isNight?38:22}  color="#ff6688" distance={140} decay={1.6}/>
+        <pointLight position={[ 55,-2, 55]} intensity={isNight?38:22}  color="#88ff88" distance={140} decay={1.6}/>
+        {/* Moonlight fill pools */}
+        <pointLight position={[0, 30, 0]}  intensity={isNight?22:10}   color="#c8d8ff" distance={280} decay={1.0}/>
+        <pointLight position={[0,  5, 0]}  intensity={isNight?12:6}    color="#aaccff" distance={120} decay={1.8}/>
+        {/* Distant glow columns */}
+        <pointLight position={[-80,10,-80]} intensity={isNight?20:10}  color="#ffaa55" distance={100} decay={2}/>
+        <pointLight position={[ 80,10, 80]} intensity={isNight?20:10}  color="#55aaff" distance={100} decay={2}/>
+        <pointLight position={[-80,10, 80]} intensity={isNight?20:10}  color="#ff55aa" distance={100} decay={2}/>
+        <pointLight position={[ 80,10,-80]} intensity={isNight?20:10}  color="#aaff55" distance={100} decay={2}/>
       </>}
-      <fog attach="fog" args={[fogColor, isDay ? 70 : 40, isDay ? 210 : 150]}/>
+
+      {/* Low-lying road glow at dusk/evening */}
+      {(isDusk || isEvening) && <>
+        <pointLight position={[0, 2, 0]}   intensity={18} color="#ff9955" distance={90} decay={2}/>
+        <pointLight position={[40, 2, 0]}  intensity={12} color="#ffaa66" distance={70} decay={2}/>
+        <pointLight position={[-40, 2, 0]} intensity={12} color="#ffaa66" distance={70} decay={2}/>
+      </>}
+
+      <fog attach="fog" args={[fogColor, fogNear, fogFar]}/>
     </>
   )
 }

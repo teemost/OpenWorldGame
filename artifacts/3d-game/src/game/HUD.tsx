@@ -14,8 +14,10 @@ const QUALITY_COLORS: Record<GraphicsQuality, string> = {
   high:   '#44ff88',
 }
 
-const NEXT_QUALITY: Record<GraphicsQuality, GraphicsQuality> = {
-  low: 'medium', medium: 'high', high: 'low',
+const QUALITY_DESC: Record<GraphicsQuality, string> = {
+  low:    'Best for weak devices — max FPS',
+  medium: 'Balanced visuals & performance',
+  high:   'Maximum detail — needs GPU',
 }
 
 function fpsColor(fps: number): string {
@@ -24,13 +26,144 @@ function fpsColor(fps: number): string {
   return '#ff4444'
 }
 
+// ─── In-Game Settings Panel ───────────────────────────────────────────────────
+function SettingsPanel({
+  quality, setQuality, fps, onClose,
+}: {
+  quality: GraphicsQuality
+  setQuality: (q: GraphicsQuality) => void
+  fps: number
+  onClose: () => void
+}) {
+  const qColor = QUALITY_COLORS[quality]
+  const qualities: GraphicsQuality[] = ['low', 'medium', 'high']
+
+  return (
+    <div
+      onClick={e => e.stopPropagation()}
+      onPointerDown={e => e.stopPropagation()}
+      style={{
+        position: 'fixed', top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 340, zIndex: 2000,
+        background: 'rgba(6,8,14,0.97)',
+        border: '1px solid rgba(0,200,255,0.25)',
+        borderRadius: 14,
+        padding: '22px 24px 20px',
+        fontFamily: 'monospace',
+        boxShadow: '0 0 60px rgba(0,180,255,0.12), 0 20px 60px rgba(0,0,0,0.9)',
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+        <div style={{ color: '#00ccff', fontSize: 13, fontWeight: 'bold', letterSpacing: 2 }}>
+          ⚙ GAME SETTINGS
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          onPointerDown={e => e.stopPropagation()}
+          style={{
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+            color: '#888', borderRadius: 6, padding: '3px 10px',
+            cursor: 'pointer', fontSize: 12, fontFamily: 'monospace',
+          }}
+        >
+          ✕ CLOSE
+        </button>
+      </div>
+
+      {/* FPS Monitor */}
+      <div style={{
+        background: 'rgba(255,255,255,0.04)', borderRadius: 8,
+        padding: '10px 14px', marginBottom: 18,
+        border: '1px solid rgba(255,255,255,0.06)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <span style={{ color: '#666', fontSize: 11, letterSpacing: 1 }}>FRAME RATE</span>
+        <span style={{ color: fpsColor(fps), fontSize: 18, fontWeight: 'bold' }}>
+          {fps > 0 ? fps : '—'} <span style={{ fontSize: 11, color: '#555' }}>FPS</span>
+        </span>
+      </div>
+
+      {/* Graphics Quality */}
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ color: '#888', fontSize: 10, letterSpacing: 2, marginBottom: 10 }}>
+          GRAPHICS QUALITY
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {qualities.map(q => {
+            const selected = q === quality
+            const col = QUALITY_COLORS[q]
+            return (
+              <button
+                key={q}
+                type="button"
+                onClick={e => { e.stopPropagation(); setQuality(q) }}
+                onPointerDown={e => e.stopPropagation()}
+                style={{
+                  flex: 1,
+                  padding: '10px 4px',
+                  borderRadius: 8,
+                  border: selected ? `2px solid ${col}` : '2px solid rgba(255,255,255,0.08)',
+                  background: selected ? `${col}18` : 'rgba(255,255,255,0.03)',
+                  color: selected ? col : '#555',
+                  fontSize: 12, fontFamily: 'monospace',
+                  fontWeight: selected ? 'bold' : 'normal',
+                  cursor: 'pointer',
+                  letterSpacing: 1,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {QUALITY_LABELS[q]}
+              </button>
+            )
+          })}
+        </div>
+        <div style={{
+          color: qColor, fontSize: 10, textAlign: 'center',
+          marginTop: 8, letterSpacing: 0.5, opacity: 0.8,
+        }}>
+          {QUALITY_DESC[quality]}
+        </div>
+      </div>
+
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 16, paddingTop: 14 }}>
+        <div style={{ color: '#444', fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>CONTROLS</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px' }}>
+          {[
+            ['WASD / ↑↓←→', 'Move'],
+            ['SHIFT', 'Sprint'],
+            ['E', 'Enter/Exit car'],
+            ['CLICK', 'Shoot'],
+            ['DRAG', 'Camera orbit'],
+            ['F5', 'Respawn'],
+          ].map(([key, desc]) => (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
+              <span style={{
+                background: 'rgba(255,255,255,0.08)', borderRadius: 3,
+                padding: '1px 5px', fontSize: 9, color: '#aaa',
+                border: '1px solid rgba(255,255,255,0.1)',
+                whiteSpace: 'nowrap',
+              }}>{key}</span>
+              <span style={{ color: '#555', fontSize: 10 }}>{desc}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main HUD ─────────────────────────────────────────────────────────────────
 export default function HUD() {
   const {
     health, money, wantedLevel, score, isGameOver, ammo, inVehicle,
     minimapDots, playerX, playerZ, fps, quality, setQuality, resetGame,
   } = useGameStore()
   const { currentUser, logout, getAllUsers } = useAuthStore()
-  const [showAdmin, setShowAdmin] = useState(false)
+  const [showAdmin, setShowAdmin]       = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   const mapSize  = 160
   const mapScale = mapSize / 220
@@ -39,6 +172,7 @@ export default function HUD() {
 
   const isAdmin  = currentUser?.role === 'admin'
   const username = currentUser?.username ?? ''
+  const qColor   = QUALITY_COLORS[quality]
 
   if (isGameOver) {
     return (
@@ -69,14 +203,28 @@ export default function HUD() {
     )
   }
 
-  const qColor = QUALITY_COLORS[quality]
-
   return (
     <>
+      {/* ── Settings panel overlay ─────────────────────────────────────────── */}
+      {showSettings && (
+        <>
+          <div
+            onClick={() => setShowSettings(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 1999, background: 'rgba(0,0,0,0.5)' }}
+          />
+          <SettingsPanel
+            quality={quality}
+            setQuality={setQuality}
+            fps={fps}
+            onClose={() => setShowSettings(false)}
+          />
+        </>
+      )}
+
       {/* ── Non-interactive HUD overlay ───────────────────────────────────── */}
       <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 100 }}>
 
-        {/* Bottom-right: Wanted + player badge (above FPS) */}
+        {/* Bottom-right: Wanted + player badge */}
         <div style={{ position: 'absolute', bottom: 56, right: 14, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
           <div style={{
             background: 'rgba(0,0,0,0.72)', color: '#ffcc00',
@@ -123,7 +271,7 @@ export default function HUD() {
           </div>
         </div>
 
-        {/* Bottom-left: Health + Ammo + hint */}
+        {/* Bottom-left: Health + Ammo */}
         <div style={{ position: 'absolute', bottom: 20, left: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ background: 'rgba(0,0,0,0.72)', padding: '8px 12px', borderRadius: 6, minWidth: 190 }}>
             <div style={{ color: '#888', fontSize: 10, fontFamily: 'monospace', marginBottom: 4, letterSpacing: 1 }}>HEALTH</div>
@@ -142,12 +290,6 @@ export default function HUD() {
             borderRadius: 6, fontSize: 14, fontFamily: 'monospace',
           }}>
             {inVehicle ? '🚗 IN VEHICLE — [E] EXIT' : `🔫 AMMO: ${ammo}`}
-          </div>
-          <div style={{
-            background: 'rgba(0,0,0,0.45)', color: '#333', padding: '3px 8px',
-            borderRadius: 4, fontSize: 10, fontFamily: 'monospace',
-          }}>
-            Drag canvas to orbit camera
           </div>
         </div>
 
@@ -181,10 +323,13 @@ export default function HUD() {
 
       </div>
 
-      {/* ── Interactive buttons ── */}
+      {/* ── Interactive buttons ─────────────────────────────────────────────── */}
 
-      {/* FPS counter + clickable Graphics quality button — bottom-right */}
-      <div style={{ position: 'fixed', bottom: 16, right: 14, zIndex: 300, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+      {/* FPS + quality display — bottom-right, above buttons */}
+      <div style={{
+        position: 'fixed', bottom: 16, right: 14, zIndex: 300,
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5,
+      }}>
         <div style={{
           background: 'rgba(0,0,0,0.72)', borderRadius: 6,
           padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 8,
@@ -194,26 +339,26 @@ export default function HUD() {
             {fps > 0 ? `${fps}` : '—'} FPS
           </span>
           <div style={{ width: 1, height: 14, background: '#333' }} />
-          <span style={{ color: qColor, letterSpacing: 1 }}>
-            GFX: {QUALITY_LABELS[quality]}
-          </span>
+          <span style={{ color: qColor, letterSpacing: 1 }}>GFX: {QUALITY_LABELS[quality]}</span>
         </div>
+
+        {/* ⚙ Settings button — visible to ALL players */}
         <button
           type="button"
-          onClick={e => { e.stopPropagation(); setQuality(NEXT_QUALITY[quality]) }}
+          onClick={e => { e.stopPropagation(); setShowSettings(v => !v) }}
           onPointerDown={e => e.stopPropagation()}
-          title="Cycle: Low → Medium → High"
           style={{
-            background: 'rgba(0,0,0,0.72)',
-            border: `2px solid ${qColor}`,
-            color: qColor,
-            padding: '4px 12px', borderRadius: 4,
-            fontSize: 11, fontFamily: 'monospace',
+            background: showSettings ? 'rgba(0,180,255,0.18)' : 'rgba(0,0,0,0.72)',
+            border: `2px solid ${showSettings ? '#00ccff' : 'rgba(0,180,255,0.35)'}`,
+            color: showSettings ? '#00ccff' : '#6699bb',
+            padding: '5px 14px', borderRadius: 6,
+            fontSize: 12, fontFamily: 'monospace',
             cursor: 'pointer', letterSpacing: 1,
             touchAction: 'manipulation',
+            transition: 'all 0.15s',
           }}
         >
-          ⚙ GFX: {QUALITY_LABELS[quality]} — tap to change
+          ⚙ SETTINGS
         </button>
       </div>
 
@@ -222,10 +367,12 @@ export default function HUD() {
         <button
           type="button"
           onClick={e => { e.stopPropagation(); logout() }}
+          onPointerDown={e => e.stopPropagation()}
           style={{
             background: 'rgba(255,255,255,0.06)', border: '1px solid #333',
             color: '#555', padding: '4px 12px', borderRadius: 4,
             fontSize: 11, fontFamily: 'monospace', cursor: 'pointer',
+            touchAction: 'manipulation',
           }}
         >
           LOG OUT
@@ -238,6 +385,7 @@ export default function HUD() {
           <button
             type="button"
             onClick={e => { e.stopPropagation(); setShowAdmin(v => !v) }}
+            onPointerDown={e => e.stopPropagation()}
             style={{
               background: 'rgba(80,50,0,0.9)', border: '1px solid rgba(255,200,0,0.5)',
               color: '#FFD700', padding: '6px 18px', borderRadius: 6,
