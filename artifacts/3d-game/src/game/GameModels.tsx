@@ -369,8 +369,11 @@ function AnimatedFBXHumanoidInner({ url, getAnimState, targetHeight = 1.85, disa
   targetHeight?: number
   disableAnimation?: boolean
 }) {
-  const fbx         = useLoader(FBXLoader, url)
-  const animSrcGltf = useLoader(GLTFLoader, ANIM_SOURCE)
+  // NOTE: Only load the FBX model itself — do NOT load soldier.glb here.
+  // FBX and GLB bone naming conventions differ, so retargeting soldier.glb
+  // clips onto FBX rigs silently fails. Loading both simultaneously also
+  // doubles the GPU memory pressure and crashes the WebGL context.
+  const fbx = useLoader(FBXLoader, url)
   const mixerRef    = useRef<THREE.AnimationMixer | null>(null)
   const actionsRef  = useRef<Record<string, THREE.AnimationAction>>({})
   const currentRef  = useRef<string>('')
@@ -390,12 +393,7 @@ function AnimatedFBXHumanoidInner({ url, getAnimState, targetHeight = 1.85, disa
   }, [fbx, targetHeight])
 
   useEffect(() => {
-    const ownClips = fbx.animations ?? []
-    const hasProper =
-      ownClips.some(c => /idle/i.test(c.name)) &&
-      ownClips.some(c => /walk/i.test(c.name)) &&
-      ownClips.some(c => /run/i.test(c.name))
-    const clips = hasProper ? ownClips : (animSrcGltf.animations ?? ownClips)
+    const clips = fbx.animations ?? []
     if (!clips.length) return
     const mixer = new THREE.AnimationMixer(clone)
     const actions: Record<string, THREE.AnimationAction> = {}
@@ -410,7 +408,7 @@ function AnimatedFBXHumanoidInner({ url, getAnimState, targetHeight = 1.85, disa
       mixerRef.current = null
       actionsRef.current = {}
     }
-  }, [clone, fbx.animations, animSrcGltf.animations])
+  }, [clone, fbx.animations])
 
   useFrame((_, delta) => {
     if (disableAnimation) return
