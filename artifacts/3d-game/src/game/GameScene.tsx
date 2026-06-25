@@ -24,7 +24,7 @@ export enum Controls {
 }
 
 // ─── Shared mutable game refs (fast, no React overhead) ────────────────────
-const sharedPlayerPos = new THREE.Vector3(5, 0.9, 5)
+const sharedPlayerPos = new THREE.Vector3(0, 0.9, 0)
 const sharedPlayerRot = { value: 0 }
 const sharedInVehicle = { value: false }
 const sharedVehicleId = { value: '' }
@@ -543,6 +543,7 @@ function Player({ onShoot }: PlayerProps) {
   const fireCooldown = useRef(0)
   const enterCooldown = useRef(0)
   const bodyRef = useRef<THREE.Mesh>(null!)
+  const pitchRef = useRef(0) // vertical look angle (first-person)
 
   const {
     takeDamage,
@@ -571,16 +572,22 @@ function Player({ onShoot }: PlayerProps) {
     fireCooldown.current = Math.max(0, fireCooldown.current - delta)
     enterCooldown.current = Math.max(0, enterCooldown.current - delta)
 
-    // ── Camera/player rotation from right-side drag (applied every frame, then cleared) ──
-    if (touchState.camDx !== 0) {
-      const CAM_SENSITIVITY = 0.007 // radians per pixel
+    // ── Camera/player rotation from right-side drag ──────────────────────────
+    const CAM_SENSITIVITY = 0.007
+    const PITCH_LIMIT = Math.PI / 2.5 // ~72° up/down
+    if (touchState.camDx !== 0 || touchState.camDy !== 0) {
       if (sharedInVehicle.value) {
         const vRef2 = vehicleRefs.get(sharedVehicleId.value)
         if (vRef2) vRef2.rot -= touchState.camDx * CAM_SENSITIVITY
       } else {
         rotRef.current.value -= touchState.camDx * CAM_SENSITIVITY
       }
+      pitchRef.current = Math.max(
+        -PITCH_LIMIT,
+        Math.min(PITCH_LIMIT, pitchRef.current - touchState.camDy * CAM_SENSITIVITY)
+      )
       touchState.camDx = 0
+      touchState.camDy = 0
     }
 
     if (sharedInVehicle.value) {
@@ -677,50 +684,61 @@ function Player({ onShoot }: PlayerProps) {
         }
       }
 
-      // Shoot
+      // Shoot — ray from eye in facing direction (accounts for pitch)
       if (controls.shoot && fireCooldown.current <= 0) {
         fireCooldown.current = 0.25
         if (useAmmo()) {
+          const pitch = pitchRef.current
+          const rot   = rotRef.current.value
           const dir = new THREE.Vector3(
-            Math.sin(rotRef.current.value),
-            0,
-            Math.cos(rotRef.current.value)
+            Math.sin(rot) * Math.cos(pitch),
+            Math.sin(pitch),
+            Math.cos(rot) * Math.cos(pitch)
           ).normalize()
-          const origin = posRef.current.clone().add(
-            new THREE.Vector3(Math.sin(rotRef.current.value) * 0.8, 1.0, Math.cos(rotRef.current.value) * 0.8)
+          const origin = new THREE.Vector3(
+            posRef.current.x,
+            posRef.current.y + 1.55, // eye height
+            posRef.current.z
           )
           onShoot(origin, dir)
         }
       }
     }
 
-    // Sync player group
+    // Sync player group (hidden — first-person)
     groupRef.current.position.copy(posRef.current)
     groupRef.current.rotation.y = rotRef.current.value
+    groupRef.current.visible = false
 
-    // Body bob animation while walking
-    const isMoving =
-      controls.forward || controls.back
-    if (bodyRef.current && isMoving && !sharedInVehicle.value) {
-      bodyRef.current.position.y = 0.85 + Math.sin(Date.now() * 0.012) * 0.05
+    // ── First-person camera ───────────────────────────────────────────────────
+    const pitch = pitchRef.current
+    if (sharedInVehicle.value) {
+      const vRef = vehicleRefs.get(sharedVehicleId.value)
+      if (vRef) {
+        const rot = vRef.rot
+        // Slightly ahead of centre — driver seat
+        const eyeX = vRef.pos.x + Math.sin(rot) * 0.6
+        const eyeY = 1.2 // seated eye height
+        const eyeZ = vRef.pos.z + Math.cos(rot) * 0.6
+        camera.position.set(eyeX, eyeY, eyeZ)
+        camera.lookAt(
+          eyeX + Math.sin(rot) * Math.cos(pitch) * 100,
+          eyeY + Math.sin(pitch) * 100,
+          eyeZ + Math.cos(rot) * Math.cos(pitch) * 100
+        )
+      }
+    } else {
+      const rot = rotRef.current.value
+      const eyeX = posRef.current.x
+      const eyeY = posRef.current.y + 1.55 // eye level
+      const eyeZ = posRef.current.z
+      camera.position.set(eyeX, eyeY, eyeZ)
+      camera.lookAt(
+        eyeX + Math.sin(rot) * Math.cos(pitch) * 100,
+        eyeY + Math.sin(pitch) * 100,
+        eyeZ + Math.cos(rot) * Math.cos(pitch) * 100
+      )
     }
-
-    // Camera follows player
-    const camRot = rotRef.current.value
-    const camDist = 12
-    const camHeight = sharedInVehicle.value ? 8 : 7
-    const targetCamX = posRef.current.x - Math.sin(camRot) * camDist
-    const targetCamZ = posRef.current.z - Math.cos(camRot) * camDist
-
-    camera.position.lerp(
-      new THREE.Vector3(targetCamX, posRef.current.y + camHeight, targetCamZ),
-      0.1
-    )
-    camera.lookAt(
-      posRef.current.x,
-      posRef.current.y + 1.5,
-      posRef.current.z
-    )
   })
 
   return (

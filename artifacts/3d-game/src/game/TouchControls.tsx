@@ -90,6 +90,7 @@ export default function TouchControls() {
   const camOverlayRef = useRef<HTMLDivElement>(null)
   const camTouchId    = useRef<number | null>(null)
   const camLastX      = useRef(0)
+  const camLastY      = useRef(0)
 
   useEffect(() => {
     const overlay = camOverlayRef.current
@@ -102,6 +103,7 @@ export default function TouchControls() {
         if (t.clientX > window.innerWidth / 2 && camTouchId.current === null) {
           camTouchId.current = t.identifier
           camLastX.current   = t.clientX
+          camLastY.current   = t.clientY
           break
         }
       }
@@ -113,7 +115,9 @@ export default function TouchControls() {
         const t = e.changedTouches[i]
         if (t.identifier === camTouchId.current) {
           touchState.camDx += t.clientX - camLastX.current
+          touchState.camDy += t.clientY - camLastY.current
           camLastX.current  = t.clientX
+          camLastY.current  = t.clientY
           break
         }
       }

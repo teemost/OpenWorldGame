@@ -13,5 +13,6 @@ export const touchState = {
   enter: false,
   run: false,
   // Right-side drag: accumulated pixel delta since last frame, consumed by Player
-  camDx: 0,
+  camDx: 0, // horizontal look (yaw)
+  camDy: 0, // vertical look (pitch)
 }
