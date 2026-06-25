@@ -442,20 +442,152 @@ function AnimatedFBXHumanoidInner({ url, getAnimState, targetHeight = 1.85, disa
   )
 }
 
+// ─── AnimatedFBXMultiAnimInner — FBX model + separate idle/walk/run FBX files ─
+// Called when the user has uploaded one or more dedicated animation files.
+// Always makes exactly 4 useLoader calls so hook count never changes.
+// When an animation URL is absent, falls back to the main model URL (cached).
+function AnimatedFBXMultiAnimInner({
+  url, idleUrl, walkUrl, runUrl,
+  getAnimState, targetHeight = 1.85, disableAnimation = false,
+}: {
+  url: string
+  idleUrl?: string; walkUrl?: string; runUrl?: string
+  getAnimState: () => AnimState
+  targetHeight?: number
+  disableAnimation?: boolean
+}) {
+  const mainFBX = useLoader(FBXLoader, url)
+  const idleFBX = useLoader(FBXLoader, idleUrl ?? url)
+  const walkFBX = useLoader(FBXLoader, walkUrl ?? url)
+  const runFBX  = useLoader(FBXLoader, runUrl  ?? url)
+
+  const mixerRef       = useRef<THREE.AnimationMixer | null>(null)
+  const actionsRef     = useRef<Record<string, THREE.AnimationAction>>({})
+  const currentRef     = useRef<string>('')
+  const getAnimStateRef = useRef(getAnimState)
+  useEffect(() => { getAnimStateRef.current = getAnimState }, [getAnimState])
+
+  const { clone, fit } = useMemo(() => {
+    const c = SkeletonUtils.clone(mainFBX) as THREE.Group
+    c.traverse(ch => {
+      const mesh = ch as THREE.Mesh
+      if (!mesh.isMesh) return
+      mesh.frustumCulled = false
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+    })
+    return { clone: c, fit: computeFit(c, targetHeight) }
+  }, [mainFBX, targetHeight])
+
+  useEffect(() => {
+    const mixer = new THREE.AnimationMixer(clone)
+    const actions: Record<string, THREE.AnimationAction> = {}
+
+    // Extract first clip from a dedicated animation FBX file and rename it.
+    // When no dedicated URL was given (fbx === mainFBX), search the model's own
+    // clips by name pattern instead — graceful degradation.
+    const addClip = (fbx: THREE.Group, dedicatedUrl: string | undefined, slotName: string) => {
+      const clips = fbx.animations ?? []
+      const clip = dedicatedUrl
+        ? clips[0]
+        : clips.find(c => new RegExp(slotName, 'i').test(c.name))
+      if (!clip) return
+      const renamed = clip.clone()
+      renamed.name = slotName
+      actions[slotName] = mixer.clipAction(renamed)
+    }
+
+    addClip(idleFBX, idleUrl, 'Idle')
+    addClip(walkFBX, walkUrl, 'Walk')
+    addClip(runFBX,  runUrl,  'Run')
+
+    // If no named clips were found at all, fall back to the raw main model clips
+    if (Object.keys(actions).length === 0) {
+      for (const clip of (mainFBX.animations ?? [])) {
+        actions[clip.name] = mixer.clipAction(clip)
+      }
+    }
+
+    actionsRef.current = actions
+    mixerRef.current   = mixer
+    const firstKey = Object.keys(actions).find(n => /idle/i.test(n)) ?? Object.keys(actions)[0]
+    if (firstKey) { actions[firstKey].play(); currentRef.current = firstKey }
+
+    return () => {
+      mixer.stopAllAction()
+      mixer.uncacheRoot(clone)
+      mixerRef.current = null
+      actionsRef.current = {}
+    }
+  }, [clone, mainFBX, idleFBX, walkFBX, runFBX, idleUrl, walkUrl, runUrl])
+
+  useFrame((_, delta) => {
+    if (disableAnimation) return
+    mixerRef.current?.update(delta)
+    const state   = getAnimStateRef.current()
+    const actions = actionsRef.current
+    const desired = state === 'Run'
+      ? Object.keys(actions).find(n => /run/i.test(n))
+      : state === 'Walk'
+        ? Object.keys(actions).find(n => /walk/i.test(n))
+        : state === 'Sit'
+          ? (Object.keys(actions).find(n => /sit/i.test(n)) ?? Object.keys(actions).find(n => /idle/i.test(n)))
+          : Object.keys(actions).find(n => /idle/i.test(n))
+    const target = desired ?? Object.keys(actions)[0]
+    if (target && target !== currentRef.current && actions[target]) {
+      const from = actions[currentRef.current]
+      if (from) from.fadeOut(0.25)
+      actions[target].reset().fadeIn(0.25).play()
+      currentRef.current = target
+    }
+  })
+
+  return (
+    <group position-y={fit.yOffset}>
+      <group rotation-x={fit.counterRotX}>
+        <group scale={fit.scale}>
+          <primitive object={clone} />
+        </group>
+      </group>
+    </group>
+  )
+}
+
 // ─── AnimatedCustomHumanoid — routes downloaded models through the animation blend system ──
 // Use this instead of CustomModel for character slots (player/NPC/police).
-// Applies proper computeFit scaling AND the idle/walk/run soldier.glb blend.
+// Applies proper computeFit scaling AND the idle/walk/run blend.
+// Pass animUrls to override animations with separately-uploaded FBX files.
 export interface AnimatedCustomHumanoidProps {
   url: string
   format: string
   getAnimState: () => AnimState
   targetHeight?: number
   disableAnimation?: boolean
+  animUrls?: { idle?: string; walk?: string; run?: string }
 }
 
-export function AnimatedCustomHumanoid({ url, format, getAnimState, targetHeight = 1.85, disableAnimation = false }: AnimatedCustomHumanoidProps) {
-  const fmt = format.toLowerCase()
+export function AnimatedCustomHumanoid({
+  url, format, getAnimState, targetHeight = 1.85, disableAnimation = false, animUrls,
+}: AnimatedCustomHumanoidProps) {
+  const fmt         = format.toLowerCase()
+  const hasAnimUrls = !!(animUrls && (animUrls.idle || animUrls.walk || animUrls.run))
+
   if (fmt === 'fbx') {
+    if (hasAnimUrls) {
+      return (
+        <Suspense fallback={<LoadingPlaceholder targetHeight={targetHeight} />}>
+          <AnimatedFBXMultiAnimInner
+            url={url}
+            idleUrl={animUrls!.idle}
+            walkUrl={animUrls!.walk}
+            runUrl={animUrls!.run}
+            getAnimState={getAnimState}
+            targetHeight={targetHeight}
+            disableAnimation={disableAnimation}
+          />
+        </Suspense>
+      )
+    }
     return (
       <Suspense fallback={<LoadingPlaceholder targetHeight={targetHeight} />}>
         <AnimatedFBXHumanoidInner url={url} getAnimState={getAnimState} targetHeight={targetHeight} disableAnimation={disableAnimation} />

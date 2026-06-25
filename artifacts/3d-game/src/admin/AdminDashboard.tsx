@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuthStore } from '../auth/useAuthStore'
-import { useModelStore, ModelCategory, DEFAULT_SETTINGS, modelBlobURLs } from '../store/useModelStore'
+import { useModelStore, ModelCategory, AnimClip, DEFAULT_SETTINGS, modelBlobURLs, animBlobURLs, HUMANOID_CATS, ANIM_CLIPS } from '../store/useModelStore'
 import { useGameStore } from '../store/useGameStore'
 
 const CATEGORIES: { key: ModelCategory; label: string; icon: string; desc: string }[] = [
@@ -159,6 +159,125 @@ function ModelUploadCard({ cat }: { cat: typeof CATEGORIES[0] }) {
       {error && (
         <div style={{ color: '#ff6666', fontSize: 12, marginTop: 8, padding: '6px 10px',
           background: 'rgba(255,0,0,0.1)', borderRadius: 4 }}>{error}</div>
+      )}
+      {(HUMANOID_CATS as ModelCategory[]).includes(cat.key) && (
+        <AnimUploadSection catKey={cat.key} />
+      )}
+    </div>
+  )
+}
+
+// ─── Per-clip animation upload slot ──────────────────────────────────────────
+const CLIP_LABELS: Record<AnimClip, { icon: string; label: string }> = {
+  idle: { icon: '🧍', label: 'Idle' },
+  walk: { icon: '🚶', label: 'Walk' },
+  run:  { icon: '🏃', label: 'Run'  },
+}
+
+function AnimClipSlot({ catKey, clip }: { catKey: ModelCategory; clip: AnimClip }) {
+  const { animations, uploadAnimation, removeAnimation, modelRevision } = useModelStore()
+  const storeKey = `${catKey}_${clip}`
+  const meta     = animations[storeKey]
+  const fileRef  = useRef<HTMLInputElement>(null)
+  const [dragging,  setDragging ] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [hasURL,    setHasURL   ] = useState(() => animBlobURLs.has(storeKey))
+
+  useEffect(() => { setHasURL(animBlobURLs.has(storeKey)) }, [modelRevision, storeKey])
+
+  const handleFile = async (file: File) => {
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+    if (!ACCEPTED_FORMATS.includes(ext)) return
+    setUploading(true)
+    try { await uploadAnimation(catKey, clip, file) }
+    finally { setUploading(false) }
+  }
+
+  const { icon, label } = CLIP_LABELS[clip]
+
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ color: '#777', fontSize: 11, marginBottom: 6, textAlign: 'center' }}>
+        {icon} {label}
+      </div>
+      {meta ? (
+        <div style={{
+          background: 'rgba(0,0,0,0.3)', borderRadius: 6, padding: '8px 10px',
+          border: `1px solid ${hasURL ? 'rgba(0,200,100,0.25)' : 'rgba(255,255,255,0.06)'}`,
+        }}>
+          <div style={{
+            color: hasURL ? '#00cc66' : '#888', fontSize: 11,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            marginBottom: 6, fontFamily: 'monospace',
+          }} title={meta.name}>{meta.name}</div>
+          <div style={{ color: '#555', fontSize: 10, marginBottom: 8 }}>{formatBytes(meta.size)}</div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button type="button" onClick={() => fileRef.current?.click()} style={{
+              flex: 1, background: 'rgba(255,100,0,0.1)', border: '1px solid rgba(255,100,0,0.2)',
+              color: '#ff6600', borderRadius: 4, padding: '3px 0', fontSize: 10, cursor: 'pointer',
+            }}>Replace</button>
+            <button type="button" onClick={() => removeAnimation(catKey, clip)} style={{
+              flex: 1, background: 'rgba(200,0,0,0.1)', border: '1px solid rgba(200,0,0,0.2)',
+              color: '#ff6666', borderRadius: 4, padding: '3px 0', fontSize: 10, cursor: 'pointer',
+            }}>Remove</button>
+          </div>
+        </div>
+      ) : (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
+          onClick={() => fileRef.current?.click()}
+          style={{
+            border: `2px dashed ${dragging ? 'rgba(255,100,0,0.6)' : 'rgba(255,255,255,0.1)'}`,
+            borderRadius: 6, padding: '14px 8px', textAlign: 'center', cursor: 'pointer',
+            background: dragging ? 'rgba(255,100,0,0.05)' : 'transparent', transition: 'all 0.15s',
+          }}
+        >
+          {uploading
+            ? <div style={{ color: '#ff6600', fontSize: 11 }}>⟳</div>
+            : <>
+                <div style={{ fontSize: 18, marginBottom: 4 }}>⬆️</div>
+                <div style={{ color: '#555', fontSize: 10 }}>FBX / GLB</div>
+              </>
+          }
+        </div>
+      )}
+      <input ref={fileRef} type="file" accept={ACCEPTED} style={{ display: 'none' }}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+    </div>
+  )
+}
+
+function AnimUploadSection({ catKey }: { catKey: ModelCategory }) {
+  const [open, setOpen] = useState(false)
+  void ANIM_CLIPS
+
+  return (
+    <div style={{ marginTop: 14, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', textAlign: 'left', background: 'none', border: 'none',
+          cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 8,
+        }}
+      >
+        <span style={{ color: '#555', fontSize: 11 }}>🎞️ Separate Animation Files</span>
+        <span style={{ color: '#555', fontSize: 11, marginLeft: 'auto' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ color: '#444', fontSize: 10, marginBottom: 10 }}>
+            Upload separate FBX files for each pose. Each file's first animation clip is used.
+            Works best with Mixamo exports (one clip per file).
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {ANIM_CLIPS.map(clip => (
+              <AnimClipSlot key={clip} catKey={catKey} clip={clip} />
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )

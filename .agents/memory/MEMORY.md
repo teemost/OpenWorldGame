@@ -1,3 +1,4 @@
 - [Skinned mesh frustum culling](skinned-mesh-frustum-culling.md) — set frustumCulled=false after SkeletonUtils.clone; bounding sphere collapses to origin on unattached skinned meshes, invisibly culling the character
 - [Fembot GLB root rotation](fembot-root-rotation.md) — fembot.glb has +90°X on its root "Character" node causing giant size; fix by detecting qx>0.5 and zeroing the quaternion in computeFit
 - [HUD z-index vs TouchControls](hud-zindex.md) — TouchControls has a full-screen fixed overlay at zIndex:400; any HUD interactive elements must be zIndex≥1000 to be clickable on mobile
+- [FBX animation multi-file pattern](fbx-multi-anim.md) — FBX + soldier.glb double-load causes GPU context loss; separate anim files use AnimatedFBXMultiAnimInner with 4 fixed useLoader calls (missing slots fall back to main model URL, which is cached)

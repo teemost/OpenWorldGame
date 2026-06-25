@@ -12,9 +12,21 @@ export type ModelCategory =
   | 'weapon'
   | 'ai_character'
 
+export type AnimClip = 'idle' | 'walk' | 'run'
+
 export interface ModelMeta {
   key: string
   category: ModelCategory
+  name: string
+  format: string
+  size: number
+  uploadedAt: string
+}
+
+export interface AnimMeta {
+  key: string
+  category: ModelCategory
+  clip: AnimClip
   name: string
   format: string
   size: number
@@ -138,17 +150,27 @@ export const DEFAULT_SETTINGS: GameSettings = {
 // In-memory blob URLs for current session (keyed by category)
 export const modelBlobURLs = new Map<ModelCategory, { url: string; format: string }>()
 
+// In-memory animation blob URLs — key: `${category}_${clip}` → url string
+export const animBlobURLs = new Map<string, string>()
+
 // Reactive version counter — increment to force game scene to reload models
 export const modelVersion = { value: 0 }
 
+// Categories that support separate animation file uploads (humanoids only)
+export const HUMANOID_CATS: ModelCategory[] = ['player', 'npc', 'police', 'swat']
+export const ANIM_CLIPS: AnimClip[] = ['idle', 'walk', 'run']
+
 interface ModelStore {
-  models: Record<ModelCategory, ModelMeta | null>
-  settings: GameSettings
+  models:     Record<ModelCategory, ModelMeta | null>
+  animations: Record<string, AnimMeta | null>   // key: `${category}_${clip}`
+  settings:   GameSettings
   modelRevision: number
   setSettings: (patch: Partial<GameSettings>) => void
   resetSettings: () => void
   uploadModel: (category: ModelCategory, file: File) => Promise<void>
   removeModel: (category: ModelCategory) => Promise<void>
+  uploadAnimation: (category: ModelCategory, clip: AnimClip, file: File) => Promise<void>
+  removeAnimation: (category: ModelCategory, clip: AnimClip) => Promise<void>
   loadAllModelURLs: () => Promise<void>
   getModelURL: (category: ModelCategory) => { url: string; format: string } | null
 }
@@ -159,6 +181,11 @@ const ALL_CATEGORIES: ModelCategory[] = [
 
 const makeEmptyModels = (): Record<ModelCategory, ModelMeta | null> =>
   Object.fromEntries(ALL_CATEGORIES.map(c => [c, null])) as Record<ModelCategory, ModelMeta | null>
+
+const makeEmptyAnimations = (): Record<string, AnimMeta | null> =>
+  Object.fromEntries(
+    HUMANOID_CATS.flatMap(cat => ANIM_CLIPS.map(clip => [`${cat}_${clip}`, null]))
+  )
 
 function getMime(format: string): string {
   switch (format) {
@@ -172,8 +199,9 @@ function getMime(format: string): string {
 export const useModelStore = create<ModelStore>()(
   persist(
     (set, get) => ({
-      models:       makeEmptyModels(),
-      settings:     { ...DEFAULT_SETTINGS },
+      models:        makeEmptyModels(),
+      animations:    makeEmptyAnimations(),
+      settings:      { ...DEFAULT_SETTINGS },
       modelRevision: 0,
 
       setSettings: (patch) =>
@@ -219,8 +247,50 @@ export const useModelStore = create<ModelStore>()(
         }))
       },
 
+      uploadAnimation: async (category, clip, file) => {
+        const format  = file.name.split('.').pop()?.toLowerCase() ?? 'fbx'
+        const dbKey   = `anim_${category}_${clip}`
+        const storeKey = `${category}_${clip}`
+        const buf     = await file.arrayBuffer()
+        await saveModelToDB(dbKey, buf)
+
+        // Revoke old blob URL
+        const oldUrl = animBlobURLs.get(storeKey)
+        if (oldUrl) URL.revokeObjectURL(oldUrl)
+
+        // Create new blob URL
+        const url = URL.createObjectURL(new Blob([buf], { type: getMime(format) }))
+        animBlobURLs.set(storeKey, url)
+        modelVersion.value++
+
+        const meta: AnimMeta = {
+          key: dbKey, category, clip, name: file.name, format, size: file.size,
+          uploadedAt: new Date().toISOString(),
+        }
+        set((s) => ({
+          animations: { ...s.animations, [storeKey]: meta },
+          modelRevision: s.modelRevision + 1,
+        }))
+      },
+
+      removeAnimation: async (category, clip) => {
+        const dbKey    = `anim_${category}_${clip}`
+        const storeKey = `${category}_${clip}`
+        await deleteModelFromDB(dbKey)
+        const oldUrl = animBlobURLs.get(storeKey)
+        if (oldUrl) URL.revokeObjectURL(oldUrl)
+        animBlobURLs.delete(storeKey)
+        modelVersion.value++
+        set((s) => ({
+          animations: { ...s.animations, [storeKey]: null },
+          modelRevision: s.modelRevision + 1,
+        }))
+      },
+
       loadAllModelURLs: async () => {
-        const { models } = get()
+        const { models, animations } = get()
+
+        // Load main model blob URLs
         for (const cat of ALL_CATEGORIES) {
           if (!models[cat]) continue
           if (modelBlobURLs.has(cat)) continue
@@ -231,6 +301,22 @@ export const useModelStore = create<ModelStore>()(
           const url = URL.createObjectURL(new Blob([buf], { type: getMime(fmt) }))
           modelBlobURLs.set(cat, { url, format: fmt })
         }
+
+        // Load animation blob URLs
+        for (const cat of HUMANOID_CATS) {
+          for (const clip of ANIM_CLIPS) {
+            const storeKey = `${cat}_${clip}`
+            if (!animations[storeKey]) continue
+            if (animBlobURLs.has(storeKey)) continue
+            const dbKey = `anim_${cat}_${clip}`
+            const buf   = await loadModelFromDB(dbKey)
+            if (!buf) continue
+            const fmt = animations[storeKey]!.format
+            const url = URL.createObjectURL(new Blob([buf], { type: getMime(fmt) }))
+            animBlobURLs.set(storeKey, url)
+          }
+        }
+
         modelVersion.value++
         set((s) => ({ modelRevision: s.modelRevision + 1 }))
       },
@@ -239,15 +325,14 @@ export const useModelStore = create<ModelStore>()(
     }),
     {
       name: 'owcc_model_store_v2',
-      partialize: (s) => ({ models: s.models, settings: s.settings }),
-      // Deep-merge settings so newly added fields are always backfilled from
-      // DEFAULT_SETTINGS even when an older version is cached in localStorage.
+      partialize: (s) => ({ models: s.models, settings: s.settings, animations: s.animations }),
       merge: (persisted: unknown, current) => {
         const p = persisted as Partial<typeof current>
         return {
           ...current,
           ...p,
-          settings: { ...DEFAULT_SETTINGS, ...(p.settings ?? {}) },
+          settings:   { ...DEFAULT_SETTINGS, ...(p.settings ?? {}) },
+          animations: { ...makeEmptyAnimations(), ...(p.animations ?? {}) },
         }
       },
     }

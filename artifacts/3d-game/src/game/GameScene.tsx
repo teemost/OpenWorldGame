@@ -4,7 +4,7 @@ import { useKeyboardControls, Html, Sky } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '../store/useGameStore'
 import { useAuthStore } from '../auth/useAuthStore'
-import { useModelStore, modelBlobURLs } from '../store/useModelStore'
+import { useModelStore, modelBlobURLs, animBlobURLs } from '../store/useModelStore'
 import { CustomModel, AnimatedHumanoid, AnimatedCustomHumanoid, VehicleGLBMesh } from './GameModels'
 import {
   CITY_BUILDINGS,
@@ -1132,6 +1132,11 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
           url={npcModel.url}
           format={npcModel.format}
           targetHeight={npcCustomHeight}
+          animUrls={{
+            idle: animBlobURLs.get('npc_idle'),
+            walk: animBlobURLs.get('npc_walk'),
+            run:  animBlobURLs.get('npc_run'),
+          }}
           getAnimState={() => {
             const s = nRef.state
             if (s === 'panicking' || s === 'fleeing') return 'Run' as const
@@ -1235,6 +1240,7 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
   const policeBuiltinHeight = useModelStore(s => s.settings.soldierModelScale)
 
   if (policeModel) {
+    const policeCat = isSwat ? 'swat' : 'police'
     return (
       <group ref={groupRef} position={[pRef.pos.x, 0, pRef.pos.z]}>
         {policeTag}
@@ -1242,6 +1248,11 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
           url={policeModel.url}
           format={policeModel.format}
           targetHeight={policeCustomHeight}
+          animUrls={{
+            idle: animBlobURLs.get(`${policeCat}_idle`),
+            walk: animBlobURLs.get(`${policeCat}_walk`),
+            run:  animBlobURLs.get(`${policeCat}_run`),
+          }}
           getAnimState={() => {
             const dist = pRef.pos.distanceTo(sharedPlayerPos)
             return dist > 5 ? 'Run' as const : 'Idle' as const
@@ -1561,6 +1572,11 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
           url={playerModel.url}
           format={playerModel.format}
           targetHeight={playerCustomHeight}
+          animUrls={{
+            idle: animBlobURLs.get('player_idle'),
+            walk: animBlobURLs.get('player_walk'),
+            run:  animBlobURLs.get('player_run'),
+          }}
           getAnimState={() => playerAnimState.value}
         />
       </group>
