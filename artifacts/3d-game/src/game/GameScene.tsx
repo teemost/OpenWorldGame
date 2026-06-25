@@ -689,17 +689,15 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       touchState.camDx = 0
       touchState.camDy = 0
     }
-    // Keyboard A/D orbits camera on desktop
-    if (kb.left)  sharedCamYaw.value += 1.6 * delta
-    if (kb.right) sharedCamYaw.value -= 1.6 * delta
 
     if (sharedInVehicle.value) {
       // ── In-vehicle ─────────────────────────────────────────────────────
       const vRef = vehicleRefs.get(sharedVehicleId.value)
       if (!vRef) return
 
-      const vLeft  = touchState.vehicleLeft
-      const vRight = touchState.vehicleRight
+      // A/D steers the vehicle on desktop; touch uses vehicleLeft/vehicleRight
+      const vLeft  = kb.left  || touchState.vehicleLeft
+      const vRight = kb.right || touchState.vehicleRight
       const turnSpd = 1.9 * delta
       if (vLeft)  vRef.rot += turnSpd
       if (vRight) vRef.rot -= turnSpd
@@ -732,6 +730,10 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
         sharedPlayerPos.copy(posRef.current)
       }
     } else {
+      // ── On-foot: A/D orbits camera ──────────────────────────────────────
+      if (kb.left)  sharedCamYaw.value += 1.6 * delta
+      if (kb.right) sharedCamYaw.value -= 1.6 * delta
+
       // ── On-foot: camera-relative movement ──────────────────────────────
       const camYaw = sharedCamYaw.value
       const speed  = controls.run ? 9.5 : 5.8

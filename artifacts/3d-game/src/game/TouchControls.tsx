@@ -20,12 +20,14 @@ export default function TouchControls() {
 
     const resetKnob = () => {
       if (knobRef.current) knobRef.current.style.transform = 'translate(-50%,-50%)'
-      touchState.forward    = false
-      touchState.back       = false
-      touchState.left       = false
-      touchState.right      = false
-      touchState.strafeLeft  = false
-      touchState.strafeRight = false
+      touchState.forward      = false
+      touchState.back         = false
+      touchState.left         = false
+      touchState.right        = false
+      touchState.strafeLeft   = false
+      touchState.strafeRight  = false
+      touchState.vehicleLeft  = false
+      touchState.vehicleRight = false
       joystickId.current = null
     }
 
