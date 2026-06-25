@@ -231,6 +231,44 @@ function Game() {
   )
 }
 
+// ─── Server restart countdown overlay ─────────────────────────────────────────
+function ServerRestartOverlay() {
+  const restartCountdown = useGameStore(s => s.restartCountdown)
+  const tickRestart      = useGameStore(s => s.tickRestart)
+
+  useEffect(() => {
+    if (restartCountdown === null) return
+    const id = setTimeout(tickRestart, 1000)
+    return () => clearTimeout(id)
+  }, [restartCountdown, tickRestart])
+
+  if (restartCountdown === null) return null
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'rgba(0,0,0,0.88)',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      fontFamily: 'monospace',
+    }}>
+      <div style={{ color: '#ff6600', fontSize: 13, letterSpacing: 4, marginBottom: 24 }}>
+        SERVER RESTARTING
+      </div>
+      <div style={{
+        fontSize: 96, fontWeight: 'bold', color: '#fff',
+        lineHeight: 1, textShadow: '0 0 40px rgba(255,100,0,0.8)',
+        transition: 'all 0.3s',
+      }}>
+        {restartCountdown}
+      </div>
+      <div style={{ color: '#555', fontSize: 13, marginTop: 28, letterSpacing: 2 }}>
+        RESETTING GAME WORLD…
+      </div>
+    </div>
+  )
+}
+
 // ─── Hash-based router ─────────────────────────────────────────────────────────
 function useHash() {
   const [hash, setHash] = useState(() => window.location.hash)
@@ -243,8 +281,9 @@ function useHash() {
 }
 
 export default function App() {
-  const currentUser = useAuthStore(s => s.currentUser)
-  const hash        = useHash()
+  const currentUser      = useAuthStore(s => s.currentUser)
+  const hash             = useHash()
+  const serverRestartKey = useGameStore(s => s.serverRestartKey)
   const [characterReady, setCharacterReady] = useState(false)
 
   if (!currentUser) return <AuthScreen />
@@ -257,5 +296,10 @@ export default function App() {
     return <CharacterSelect onReady={() => setCharacterReady(true)} />
   }
 
-  return <Game />
+  return (
+    <>
+      <Game key={serverRestartKey} />
+      <ServerRestartOverlay />
+    </>
+  )
 }

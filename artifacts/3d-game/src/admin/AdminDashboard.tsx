@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuthStore } from '../auth/useAuthStore'
 import { useModelStore, ModelCategory, DEFAULT_SETTINGS, modelBlobURLs } from '../store/useModelStore'
+import { useGameStore } from '../store/useGameStore'
 
 const CATEGORIES: { key: ModelCategory; label: string; icon: string; desc: string }[] = [
   { key: 'player',         label: 'Player Character',    icon: '🎮', desc: 'The main controllable player character model' },
@@ -385,9 +386,17 @@ function PlayersSection() {
 function OverviewSection() {
   const { models, settings } = useModelStore()
   const { getAllUsers, currentUser } = useAuthStore()
+  const triggerRestart = useGameStore(s => s.triggerRestart)
+  const [confirmRestart, setConfirmRestart] = useState(false)
   const users         = getAllUsers()
   const uploadedCount = Object.values(models).filter(Boolean).length
   const totalCats     = CATEGORIES.length
+
+  const handleRestart = () => {
+    triggerRestart()
+    setConfirmRestart(false)
+    window.location.hash = ''
+  }
 
   const StatCard = ({ label, value, color = '#ff6600', icon }: {
     label: string; value: string | number; color?: string; icon: string
@@ -446,6 +455,68 @@ function OverviewSection() {
             </span>
           </div>
         ))}
+      </div>
+
+      {/* ── Restart Server ─────────────────────────────────────────────── */}
+      <div style={{
+        background: confirmRestart ? 'rgba(200,0,0,0.12)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${confirmRestart ? 'rgba(200,0,0,0.4)' : 'rgba(255,255,255,0.07)'}`,
+        borderRadius: 12, padding: '18px 20px', marginBottom: 18,
+        transition: 'all 0.2s',
+      }}>
+        <div style={{ color: '#ff6600', fontSize: 12, letterSpacing: 2, marginBottom: 14, fontFamily: 'monospace' }}>
+          ── SERVER CONTROL
+        </div>
+        {!confirmRestart ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div>
+              <div style={{ color: '#ccc', fontSize: 13 }}>Restart Server</div>
+              <div style={{ color: '#555', fontSize: 11, marginTop: 3 }}>
+                Resets the entire game world — NPCs, vehicles, player stats, wanted level
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setConfirmRestart(true) }}
+              style={{
+                background: 'rgba(255,60,60,0.15)', border: '1px solid rgba(255,60,60,0.4)',
+                color: '#ff4444', padding: '8px 20px', borderRadius: 7,
+                fontSize: 12, cursor: 'pointer', fontFamily: 'monospace',
+                fontWeight: 'bold', letterSpacing: 1, flexShrink: 0, whiteSpace: 'nowrap',
+              }}
+            >⟳ RESTART</button>
+          </div>
+        ) : (
+          <div>
+            <div style={{ color: '#ff6666', fontSize: 13, marginBottom: 14, fontWeight: 'bold' }}>
+              ⚠️ Confirm server restart?
+            </div>
+            <div style={{ color: '#888', fontSize: 12, marginBottom: 16 }}>
+              This will immediately reset all NPCs, vehicles, player health, money, ammo and wanted level. You will be taken back to the game.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleRestart() }}
+                style={{
+                  background: 'rgba(200,0,0,0.3)', border: '1px solid rgba(255,60,60,0.5)',
+                  color: '#ff4444', padding: '8px 22px', borderRadius: 7,
+                  fontSize: 12, cursor: 'pointer', fontFamily: 'monospace',
+                  fontWeight: 'bold', letterSpacing: 1,
+                }}
+              >YES, RESTART</button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setConfirmRestart(false) }}
+                style={{
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#888', padding: '8px 22px', borderRadius: 7,
+                  fontSize: 12, cursor: 'pointer', fontFamily: 'monospace',
+                }}
+              >Cancel</button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{

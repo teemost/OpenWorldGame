@@ -23,6 +23,8 @@ interface GameStore {
   playerZ: number
   fps: number
   quality: GraphicsQuality
+  serverRestartKey: number
+  restartCountdown: number | null
 
   setHealth: (h: number) => void
   takeDamage: (amount: number) => void
@@ -42,6 +44,8 @@ interface GameStore {
   setQuality: (q: GraphicsQuality) => void
   resetGame: () => void
   initFromSettings: (health: number, money: number, ammo: number) => void
+  triggerRestart: () => void
+  tickRestart: () => void
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -58,6 +62,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   playerZ: 5,
   fps: 0,
   quality: 'medium',
+  serverRestartKey: 0,
+  restartCountdown: null,
 
   setHealth: (h) => set({ health: Math.max(0, Math.min(100, h)) }),
   takeDamage: (amount) =>
@@ -99,4 +105,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }),
   initFromSettings: (health, money, ammo) =>
     set({ health, money, ammo }),
+  triggerRestart: () => set({ restartCountdown: 3 }),
+  tickRestart: () => {
+    const { restartCountdown } = get()
+    if (restartCountdown === null) return
+    if (restartCountdown <= 1) {
+      set({
+        restartCountdown: null,
+        serverRestartKey: get().serverRestartKey + 1,
+        wantedLevel: 0,
+        score: 0,
+        timeOfDay: 10,
+        isGameOver: false,
+        inVehicle: false,
+      })
+    } else {
+      set({ restartCountdown: restartCountdown - 1 })
+    }
+  },
 }))
