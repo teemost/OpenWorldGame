@@ -14,22 +14,28 @@ const SkeletonUtils: { clone: (obj: THREE.Object3D) => THREE.Object3D } =
   _SkeletonUtilsMod
 
 // Compute scale + y-offset to fit targetHeight, grounded at y=0.
-// Reads raw geometry vertex positions so it works on skinned meshes that
-// haven't been attached to a live scene (bone world matrices not updated yet).
+// Forces updateMatrixWorld so root-node transforms (e.g. Mixamo Vanguard has
+// scale:0.01 + rotation:90°X on its "Character" root) are applied before we
+// measure the bounding box. Then measures geometry bounds in *world space*.
 function computeFit(obj: THREE.Object3D, targetHeight: number): { scale: number; yOffset: number } {
+  // Propagate all node transforms without needing a live scene
+  obj.updateMatrixWorld(true)
+
   let minY = Infinity, maxY = -Infinity
+  const tmpBox = new THREE.Box3()
   obj.traverse(child => {
     const mesh = child as THREE.Mesh
     if (!mesh.isMesh || !mesh.geometry) return
-    const pos = mesh.geometry.attributes.position
-    if (!pos) return
-    for (let i = 0; i < pos.count; i++) {
-      const y = pos.getY(i)
-      if (y < minY) minY = y
-      if (y > maxY) maxY = y
-    }
+    mesh.geometry.computeBoundingBox()
+    const bb = mesh.geometry.boundingBox
+    if (!bb) return
+    // Transform local geometry bbox → world space using the node's world matrix
+    tmpBox.copy(bb).applyMatrix4(mesh.matrixWorld)
+    if (tmpBox.min.y < minY) minY = tmpBox.min.y
+    if (tmpBox.max.y > maxY) maxY = tmpBox.max.y
   })
-  const modelHeight = isFinite(maxY) && isFinite(minY) ? maxY - minY : 0
+
+  const modelHeight = isFinite(minY) && isFinite(maxY) ? maxY - minY : 0
   if (modelHeight < 0.001) return { scale: 1, yOffset: 0 }
   const scale = targetHeight / modelHeight
   const yOffset = -minY * scale

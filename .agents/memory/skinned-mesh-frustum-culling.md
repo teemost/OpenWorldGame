@@ -1,25 +1,34 @@
 ---
-name: Skinned mesh frustum culling / invisible character
-description: Why soldier.glb (and any skinned mesh) renders invisible while a different GLB renders fine in the same component
+name: GLB character scaling and visibility bugs
+description: Two separate bugs that make animated GLB characters invisible — frustum culling + wrong computeFit axis
 ---
 
-## The Rule
-Always set `frustumCulled = false` on every mesh node after `SkeletonUtils.clone()`. Also clone materials before mutating them.
+## Bug 1: Skinned mesh frustum culling
+Set `mesh.frustumCulled = false` after SkeletonUtils.clone(). Skinned mesh bounding spheres collapse to origin before bones are updated, causing the GPU to cull the mesh even when it's on screen.
 
-## Why
-Three.js computes a skinned mesh's bounding sphere from its rest-pose bone world positions. When the clone is not yet attached to a live scene (i.e., useMemo runs before the first frame), bone world matrices haven't been updated, so they all collapse to the world origin. The bounding sphere radius comes back as ~0, and the GPU frustum-culler immediately discards the mesh as "offscreen" — even when it's right in front of the camera.
+## Bug 2: computeFit ignoring root-node transforms (the real cause of invisible males)
+The Vanguard/Mixamo soldier GLB has its geometry in **centimeter scale with Z-as-up** and a root "Character" node that applies `scale:0.01` + `rotation:90°X` to convert it to meter/Y-up space. Reading raw vertex Y positions gives the wrong axis (only -22 to +22, the chest depth), so computeFit produces a microscopic scale that compounds with the existing 0.01 node scale → character renders at ~0.01cm tall, completely invisible.
 
-Different GLB files hit this inconsistently: fembot (Michelle) has a skeleton layout that accidentally produces a non-zero bounding sphere in the unattached state; soldier.glb does not.
+**Fix:** Call `obj.updateMatrixWorld(true)` before measuring bounds, then use `mesh.geometry.computeBoundingBox()` + `bb.applyMatrix4(mesh.matrixWorld)` to get world-space extents that correctly include root-node scale/rotation.
 
-## How to Apply
-In the useMemo that clones a skinned GLTF:
+## Both fixes combined (required):
 ```tsx
-clone.traverse(c => {
-  const mesh = c as THREE.Mesh
-  if (!mesh.isMesh) return
-  mesh.frustumCulled = false        // ← must always do this
-  mesh.material = cloneMat(mesh.material)  // ← clone before tinting
-  ...
+// In computeFit:
+obj.updateMatrixWorld(true)
+obj.traverse(child => {
+  const mesh = child as THREE.Mesh
+  if (!mesh.isMesh || !mesh.geometry) return
+  mesh.geometry.computeBoundingBox()
+  const bb = mesh.geometry.boundingBox
+  if (!bb) return
+  tmpBox.copy(bb).applyMatrix4(mesh.matrixWorld)
+  // union min/max Y
 })
+
+// After cloning:
+mesh.frustumCulled = false
+mesh.material = cloneMat(mesh.material)  // clone before tinting
 ```
-Also applies to any `GLBMesh` helper or other place that clones and renders a GLTF skinned character.
+
+## Why fembot worked but soldier didn't
+fembot (Michelle) geometry is already in meter scale, Y-up, no root node transform. Raw Y positions give correct height. Soldier (Vanguard) geometry is cm-scale, Z-up, with a 0.01+90° root — raw Y positions are completely wrong.
