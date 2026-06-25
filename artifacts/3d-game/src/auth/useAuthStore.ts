@@ -12,6 +12,7 @@ export interface UserAccount {
   kills: number
   createdAt: string
   characterColor: string
+  pantColor: string
   skinTone: string
   characterModel: string
 }
@@ -28,6 +29,7 @@ const ADMIN: UserAccount = {
   kills: 0,
   createdAt: new Date().toISOString(),
   characterColor: '#FFD700',
+  pantColor: '#222222',
   skinTone: '#D4956A',
   characterModel: 'soldier',
 }
@@ -70,7 +72,7 @@ interface AuthStore {
   logout: () => void
   clearError: () => void
   updateStats: (score: number, money: number, kills: number) => void
-  updateCharacter: (characterColor: string, skinTone: string, characterModel?: string) => void
+  updateCharacter: (characterColor: string, pantColor: string, skinTone: string, characterModel?: string) => void
   getAllUsers: () => UserAccount[]
   kickUser: (id: string) => void
 }
@@ -132,6 +134,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       kills: 0,
       createdAt: new Date().toISOString(),
       characterColor: colors[Math.floor(Math.random() * colors.length)],
+      pantColor: '#222222',
       skinTone: '#D4956A',
       characterModel: 'soldier',
     }
@@ -148,10 +151,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   clearError: () => set({ error: null }),
 
-  updateCharacter: (characterColor, skinTone, characterModel) => {
+  updateCharacter: (characterColor, pantColor, skinTone, characterModel) => {
     const { currentUser } = get()
     if (!currentUser) return
-    const updated = { ...currentUser, characterColor, skinTone, ...(characterModel ? { characterModel } : {}) }
+    const updated = { ...currentUser, characterColor, pantColor, skinTone, ...(characterModel ? { characterModel } : {}) }
     if (currentUser.role !== 'admin') {
       const users = loadUsers().map(u => u.id === currentUser.id ? updated : u)
       saveUsers(users)

@@ -53,7 +53,8 @@ export default function CharacterSelect({ onReady }: Props) {
   const { modelRevision, models, loadAllModelURLs } = useModelStore()
 
   const [skin,   setSkin  ] = useState(currentUser?.skinTone      ?? '#D4956A')
-  const [outfit, setOutfit] = useState(currentUser?.characterColor ?? '#0055cc')
+  const [shirt,  setShirt ] = useState(currentUser?.characterColor ?? '#0055cc')
+  const [pants,  setPants ] = useState(currentUser?.pantColor      ?? '#222222')
   const [model,  setModel ] = useState(currentUser?.characterModel ?? 'soldier')
 
   // Load blob URLs from IndexedDB on mount — CharacterSelect renders before Game mounts,
@@ -101,7 +102,7 @@ export default function CharacterSelect({ onReady }: Props) {
     : null
 
   const handleEnter = () => {
-    updateCharacter(outfit, skin, model)
+    updateCharacter(shirt, pants, skin, model)
     onReady()
   }
 
@@ -217,8 +218,9 @@ export default function CharacterSelect({ onReady }: Props) {
               <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 2 }}>PREVIEW</div>
               <CharacterPreview3D
                 modelId={model}
-                colorTint={isCustomSelected ? null : outfit}
-                skinTone={isCustomSelected ? null : skin}
+                colorTint={shirt}
+                pantColor={pants}
+                skinTone={skin}
                 width={155}
                 height={210}
                 accentColor={selectedModelData?.accent ?? '#ff6600'}
@@ -231,44 +233,35 @@ export default function CharacterSelect({ onReady }: Props) {
             </div>
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {!isCustomSelected && (
-                <>
-                  <div>
-                    <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>SKIN TONE</div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {SKIN_TONES.map(s => (
-                        <button key={s.color} onClick={() => setSkin(s.color)} title={s.label}
-                          style={swatchStyle(skin === s.color, s.color, true)} />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>OUTFIT COLOR</div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {OUTFIT_COLORS.map(o => (
-                        <button key={o.color} onClick={() => setOutfit(o.color)} title={o.label}
-                          style={swatchStyle(outfit === o.color, o.color, false)} />
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {isCustomSelected && selectedModelData && (
-                <div style={{
-                  background: `rgba(${hexToRgb(selectedModelData.accent)},0.06)`,
-                  border: `1px solid rgba(${hexToRgb(selectedModelData.accent)},0.2)`,
-                  borderRadius: 10, padding: '16px',
-                  color: '#888', fontSize: 12, lineHeight: 1.6,
-                }}>
-                  <div style={{ color: selectedModelData.accent, fontWeight: 'bold', marginBottom: 8, fontSize: 11, letterSpacing: 1 }}>
-                    {selectedModelData.emoji} {selectedModelData.description.toUpperCase()}
-                  </div>
-                  This is a custom model uploaded by the admin.<br />
-                  Skin tone and outfit color don't apply to custom models.
+              <div>
+                <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>SKIN TONE</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {SKIN_TONES.map(s => (
+                    <button key={s.color} onClick={() => setSkin(s.color)} title={s.label}
+                      style={swatchStyle(skin === s.color, s.color, true)} />
+                  ))}
                 </div>
-              )}
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>SHIRT COLOR</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {OUTFIT_COLORS.map(o => (
+                    <button key={o.color} onClick={() => setShirt(o.color)} title={o.label}
+                      style={swatchStyle(shirt === o.color, o.color, false)} />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>PANT COLOR</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {OUTFIT_COLORS.map(o => (
+                    <button key={o.color} onClick={() => setPants(o.color)} title={o.label}
+                      style={swatchStyle(pants === o.color, o.color, false)} />
+                  ))}
+                </div>
+              </div>
 
               <button onClick={handleEnter} style={{
                 width: '100%', padding: '13px', borderRadius: 8, border: 'none',

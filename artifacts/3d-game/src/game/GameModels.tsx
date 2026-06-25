@@ -235,13 +235,15 @@ function LoadingPlaceholder({ targetHeight }: { targetHeight: number }) {
 // ─── Animated Humanoid — real GLB with per-frame animation blending ──────────
 type AnimState = 'Idle' | 'Walk' | 'Run' | 'Sit'
 
-const SKIN_MAT_RE = /skin|head|face|hair/i
+const SKIN_MAT_RE  = /skin|head|face|hair|neck|hand/i
+const PANTS_MAT_RE = /pant|leg|lower|boot|shoe|foot|trouser|jean/i
 
 interface AnimatedHumanoidProps {
   modelPath: string
   getAnimState: () => AnimState
   targetHeight?: number
   colorTint?: string | null
+  pantColor?: string | null
   skinTone?: string | null
   disableAnimation?: boolean
 }
@@ -251,7 +253,7 @@ interface AnimatedHumanoidProps {
 // idle/walk/run clips (mixamo bone names are shared across all Mixamo rigs).
 const ANIM_SOURCE = '/models/soldier.glb'
 
-function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, colorTint, skinTone, disableAnimation = false }: AnimatedHumanoidProps) {
+function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, colorTint, pantColor, skinTone, disableAnimation = false }: AnimatedHumanoidProps) {
   const gltf       = useLoader(GLTFLoader, modelPath)
   // Always preload the animation source (cached by useLoader — no extra network cost when modelPath === ANIM_SOURCE)
   const animSrcGltf = useLoader(GLTFLoader, ANIM_SOURCE)
@@ -284,18 +286,20 @@ function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, c
       } else if (mesh.material) {
         mesh.material = cloneMat(mesh.material)
       }
-      // ── Apply skin-tone / outfit-colour tints
+      // ── Apply skin-tone / shirt / pant colour tints
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
       mats.forEach(m => {
         if (!m || !('color' in m)) return
         const mat = m as THREE.MeshStandardMaterial
-        const isSkin = SKIN_MAT_RE.test(mat.name) || SKIN_MAT_RE.test(mesh.name)
-        if (isSkin && skinTone) mat.color.set(skinTone)
+        const isSkin  = SKIN_MAT_RE.test(mat.name)  || SKIN_MAT_RE.test(mesh.name)
+        const isPants = PANTS_MAT_RE.test(mat.name) || PANTS_MAT_RE.test(mesh.name)
+        if (isSkin && skinTone)        mat.color.set(skinTone)
+        else if (isPants && pantColor) mat.color.set(pantColor)
         else if (!isSkin && colorTint) mat.color.set(colorTint)
       })
     })
     return { scene: clone, fit: computeFit(clone, targetHeight) }
-  }, [gltf.scene, targetHeight, colorTint, skinTone])
+  }, [gltf.scene, targetHeight, colorTint, pantColor, skinTone])
 
   useEffect(() => {
     const ownClips = gltf.animations ?? []
@@ -363,11 +367,14 @@ export function AnimatedHumanoid(props: AnimatedHumanoidProps) {
 }
 
 // ─── Animated FBX Humanoid — FBX model with idle/walk/run blend ──────────────
-function AnimatedFBXHumanoidInner({ url, getAnimState, targetHeight = 1.85, disableAnimation = false }: {
+function AnimatedFBXHumanoidInner({ url, getAnimState, targetHeight = 1.85, disableAnimation = false, skinTone, shirtColor, pantColor }: {
   url: string
   getAnimState: () => AnimState
   targetHeight?: number
   disableAnimation?: boolean
+  skinTone?: string | null
+  shirtColor?: string | null
+  pantColor?: string | null
 }) {
   // NOTE: Only load the FBX model itself — do NOT load soldier.glb here.
   // FBX and GLB bone naming conventions differ, so retargeting soldier.glb
@@ -388,9 +395,22 @@ function AnimatedFBXHumanoidInner({ url, getAnimState, targetHeight = 1.85, disa
       mesh.frustumCulled = false
       mesh.castShadow = true
       mesh.receiveShadow = true
+      const cloneMat = (m: THREE.Material) => { const c2 = m.clone(); c2.name = m.name; return c2 }
+      if (Array.isArray(mesh.material)) mesh.material = mesh.material.map(cloneMat)
+      else if (mesh.material) mesh.material = cloneMat(mesh.material)
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      mats.forEach(m => {
+        if (!m || !('color' in m)) return
+        const mat = m as THREE.MeshStandardMaterial
+        const isSkin  = SKIN_MAT_RE.test(mat.name)  || SKIN_MAT_RE.test(mesh.name)
+        const isPants = PANTS_MAT_RE.test(mat.name) || PANTS_MAT_RE.test(mesh.name)
+        if (isSkin && skinTone)        mat.color.set(skinTone)
+        else if (isPants && pantColor) mat.color.set(pantColor)
+        else if (shirtColor)           mat.color.set(shirtColor)
+      })
     })
     return { clone: c, fit: computeFit(c, targetHeight) }
-  }, [fbx, targetHeight])
+  }, [fbx, targetHeight, skinTone, shirtColor, pantColor])
 
   useEffect(() => {
     const clips = fbx.animations ?? []
@@ -449,12 +469,16 @@ function AnimatedFBXHumanoidInner({ url, getAnimState, targetHeight = 1.85, disa
 function AnimatedFBXMultiAnimInner({
   url, idleUrl, walkUrl, runUrl,
   getAnimState, targetHeight = 1.85, disableAnimation = false,
+  skinTone, shirtColor, pantColor,
 }: {
   url: string
   idleUrl?: string; walkUrl?: string; runUrl?: string
   getAnimState: () => AnimState
   targetHeight?: number
   disableAnimation?: boolean
+  skinTone?: string | null
+  shirtColor?: string | null
+  pantColor?: string | null
 }) {
   const mainFBX = useLoader(FBXLoader, url)
   const idleFBX = useLoader(FBXLoader, idleUrl ?? url)
@@ -475,9 +499,22 @@ function AnimatedFBXMultiAnimInner({
       mesh.frustumCulled = false
       mesh.castShadow = true
       mesh.receiveShadow = true
+      const cloneMat = (m: THREE.Material) => { const c2 = m.clone(); c2.name = m.name; return c2 }
+      if (Array.isArray(mesh.material)) mesh.material = mesh.material.map(cloneMat)
+      else if (mesh.material) mesh.material = cloneMat(mesh.material)
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      mats.forEach(m => {
+        if (!m || !('color' in m)) return
+        const mat = m as THREE.MeshStandardMaterial
+        const isSkin  = SKIN_MAT_RE.test(mat.name)  || SKIN_MAT_RE.test(mesh.name)
+        const isPants = PANTS_MAT_RE.test(mat.name) || PANTS_MAT_RE.test(mesh.name)
+        if (isSkin && skinTone)        mat.color.set(skinTone)
+        else if (isPants && pantColor) mat.color.set(pantColor)
+        else if (shirtColor)           mat.color.set(shirtColor)
+      })
     })
     return { clone: c, fit: computeFit(c, targetHeight) }
-  }, [mainFBX, targetHeight])
+  }, [mainFBX, targetHeight, skinTone, shirtColor, pantColor])
 
   useEffect(() => {
     const mixer = new THREE.AnimationMixer(clone)
@@ -564,10 +601,14 @@ export interface AnimatedCustomHumanoidProps {
   targetHeight?: number
   disableAnimation?: boolean
   animUrls?: { idle?: string; walk?: string; run?: string }
+  skinTone?: string | null
+  shirtColor?: string | null
+  pantColor?: string | null
 }
 
 export function AnimatedCustomHumanoid({
   url, format, getAnimState, targetHeight = 1.85, disableAnimation = false, animUrls,
+  skinTone, shirtColor, pantColor,
 }: AnimatedCustomHumanoidProps) {
   const fmt         = format.toLowerCase()
   const hasAnimUrls = !!(animUrls && (animUrls.idle || animUrls.walk || animUrls.run))
@@ -584,20 +625,23 @@ export function AnimatedCustomHumanoid({
             getAnimState={getAnimState}
             targetHeight={targetHeight}
             disableAnimation={disableAnimation}
+            skinTone={skinTone}
+            shirtColor={shirtColor}
+            pantColor={pantColor}
           />
         </Suspense>
       )
     }
     return (
       <Suspense fallback={<LoadingPlaceholder targetHeight={targetHeight} />}>
-        <AnimatedFBXHumanoidInner url={url} getAnimState={getAnimState} targetHeight={targetHeight} disableAnimation={disableAnimation} />
+        <AnimatedFBXHumanoidInner url={url} getAnimState={getAnimState} targetHeight={targetHeight} disableAnimation={disableAnimation} skinTone={skinTone} shirtColor={shirtColor} pantColor={pantColor} />
       </Suspense>
     )
   }
   // GLB/GLTF (and unknown formats) — route through the existing GLB blend system
   return (
     <Suspense fallback={<LoadingPlaceholder targetHeight={targetHeight} />}>
-      <AnimatedHumanoidInner modelPath={url} getAnimState={getAnimState} targetHeight={targetHeight} disableAnimation={disableAnimation} />
+      <AnimatedHumanoidInner modelPath={url} getAnimState={getAnimState} targetHeight={targetHeight} disableAnimation={disableAnimation} colorTint={shirtColor} pantColor={pantColor} skinTone={skinTone} />
     </Suspense>
   )
 }

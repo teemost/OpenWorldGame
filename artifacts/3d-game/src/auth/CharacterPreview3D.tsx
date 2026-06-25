@@ -11,7 +11,8 @@ const SkeletonUtils: { clone: (obj: THREE.Object3D) => THREE.Object3D } =
   (_SkeletonUtilsMod as any).default ??
   _SkeletonUtilsMod
 
-const SKIN_MAT_RE = /skin|head|face|hair/i
+const SKIN_MAT_RE  = /skin|head|face|hair|neck|hand/i
+const PANTS_MAT_RE = /pant|leg|lower|boot|shoe|foot|trouser|jean/i
 
 export const CHARACTER_MODEL_PATHS: Record<string, string> = {
   soldier: '/models/soldier.glb',
@@ -111,7 +112,7 @@ function ModelMesh({ modelId, colorTint, skinTone }: ModelMeshProps) {
 }
 
 // ─── Custom GLB model preview ─────────────────────────────────────────────────
-function CustomGLBMesh({ url }: { url: string }) {
+function CustomGLBMesh({ url, skinTone, shirtColor, pantColor }: { url: string; skinTone?: string | null; shirtColor?: string | null; pantColor?: string | null }) {
   const gltf      = useLoader(GLTFLoader, url)
   const mixerRef  = useRef<THREE.AnimationMixer | null>(null)
   const spinRef   = useRef<THREE.Group>(null!)
@@ -123,9 +124,22 @@ function CustomGLBMesh({ url }: { url: string }) {
       if (!mesh.isMesh) return
       mesh.frustumCulled = false
       mesh.castShadow = true
+      const cloneMat = (m: THREE.Material) => { const c2 = m.clone(); c2.name = m.name; return c2 }
+      if (Array.isArray(mesh.material)) mesh.material = mesh.material.map(cloneMat)
+      else if (mesh.material) mesh.material = cloneMat(mesh.material)
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      mats.forEach(m => {
+        if (!m || !('color' in m)) return
+        const mat = m as THREE.MeshStandardMaterial
+        const isSkin  = SKIN_MAT_RE.test(mat.name)  || SKIN_MAT_RE.test(mesh.name)
+        const isPants = PANTS_MAT_RE.test(mat.name) || PANTS_MAT_RE.test(mesh.name)
+        if (isSkin && skinTone)        mat.color.set(skinTone)
+        else if (isPants && pantColor) mat.color.set(pantColor)
+        else if (shirtColor)           mat.color.set(shirtColor)
+      })
     })
     return { scene: clone, fit: computePreviewFit(clone, 1.85) }
-  }, [gltf.scene])
+  }, [gltf.scene, skinTone, shirtColor, pantColor])
 
   useEffect(() => {
     const clips = gltf.animations
@@ -152,7 +166,7 @@ function CustomGLBMesh({ url }: { url: string }) {
 }
 
 // ─── Custom FBX model preview ─────────────────────────────────────────────────
-function CustomFBXMesh({ url }: { url: string }) {
+function CustomFBXMesh({ url, skinTone, shirtColor, pantColor }: { url: string; skinTone?: string | null; shirtColor?: string | null; pantColor?: string | null }) {
   const fbx      = useLoader(FBXLoader, url)
   const mixerRef = useRef<THREE.AnimationMixer | null>(null)
   const spinRef  = useRef<THREE.Group>(null!)
@@ -164,9 +178,22 @@ function CustomFBXMesh({ url }: { url: string }) {
       if (!mesh.isMesh) return
       mesh.frustumCulled = false
       mesh.castShadow = true
+      const cloneMat = (m: THREE.Material) => { const c2 = m.clone(); c2.name = m.name; return c2 }
+      if (Array.isArray(mesh.material)) mesh.material = mesh.material.map(cloneMat)
+      else if (mesh.material) mesh.material = cloneMat(mesh.material)
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      mats.forEach(m => {
+        if (!m || !('color' in m)) return
+        const mat = m as THREE.MeshStandardMaterial
+        const isSkin  = SKIN_MAT_RE.test(mat.name)  || SKIN_MAT_RE.test(mesh.name)
+        const isPants = PANTS_MAT_RE.test(mat.name) || PANTS_MAT_RE.test(mesh.name)
+        if (isSkin && skinTone)        mat.color.set(skinTone)
+        else if (isPants && pantColor) mat.color.set(pantColor)
+        else if (shirtColor)           mat.color.set(shirtColor)
+      })
     })
     return { clone: c, fit: computePreviewFit(c, 1.85) }
-  }, [fbx])
+  }, [fbx, skinTone, shirtColor, pantColor])
 
   useEffect(() => {
     const clips = fbx.animations
@@ -208,6 +235,7 @@ function SpinningBox() {
 interface CharacterPreview3DProps {
   modelId: string
   colorTint?: string | null
+  pantColor?: string | null
   skinTone?: string | null
   width?: number
   height?: number
@@ -219,6 +247,7 @@ interface CharacterPreview3DProps {
 export default function CharacterPreview3D({
   modelId,
   colorTint = null,
+  pantColor = null,
   skinTone = null,
   width = 170,
   height = 220,
@@ -258,8 +287,8 @@ export default function CharacterPreview3D({
         <Suspense fallback={<SpinningBox />}>
           {isCustom
             ? isFbx
-              ? <CustomFBXMesh url={customUrl!} />
-              : <CustomGLBMesh url={customUrl!} />
+              ? <CustomFBXMesh url={customUrl!} skinTone={skinTone} shirtColor={colorTint} pantColor={pantColor} />
+              : <CustomGLBMesh url={customUrl!} skinTone={skinTone} shirtColor={colorTint} pantColor={pantColor} />
             : <ModelMesh modelId={modelId} colorTint={colorTint} skinTone={skinTone} />
           }
         </Suspense>

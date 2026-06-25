@@ -1571,6 +1571,9 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
             run:  animBlobURLs.get('player_run'),
           }}
           getAnimState={() => playerAnimState.value}
+          skinTone={currentUser?.skinTone ?? null}
+          shirtColor={currentUser?.characterColor ?? null}
+          pantColor={currentUser?.pantColor ?? null}
         />
       </group>
     )
