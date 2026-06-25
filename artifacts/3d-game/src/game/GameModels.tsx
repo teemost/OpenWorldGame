@@ -18,49 +18,61 @@ const SkeletonUtils: { clone: (obj: THREE.Object3D) => THREE.Object3D } =
 // scale:0.01 + rotation:90°X on its "Character" root) are applied before we
 // measure the bounding box. Then measures geometry bounds in *world space*.
 function computeFit(obj: THREE.Object3D, targetHeight: number): { scale: number; yOffset: number } {
-  // ── Normalise bad root rotations before measuring ───────────────────────────
-  // Some GLTF exports (e.g. Mixamo fembot) place a +90°X rotation on their
-  // root "Character" node. That maps the geometry's local Y axis (already Y-up
-  // in local space) to world Z, collapsing the world-space Y extent to nearly
-  // zero and producing a giant scale factor.
-  //
-  // Detection: qx ≈ +0.707, qy ≈ 0, qz ≈ 0, qw ≈ 0.707 → +90°X.
-  // We zero this rotation permanently so the geometry stands upright AND the
-  // Y-extent measurement is correct.
-  //
-  // Soldier-style models use –90°X (qx ≈ –0.707) which correctly brings their
-  // centimetre-scale Z-up geometry to world Y — those are intentional and left
-  // unchanged. The check `q.x > 0.5` therefore only fires for the +90°X case.
-  //
-  // The "Character" node is typically obj.children[0] in a GLTF scene wrapper;
-  // for FBX the root IS obj itself — so we check both.
-  const rootCandidate = obj.children.length > 0 ? obj.children[0] : obj
-  const q = rootCandidate.quaternion
-  if (q.x > 0.5 && Math.abs(q.y) < 0.1 && Math.abs(q.z) < 0.1 && q.w > 0.5) {
-    rootCandidate.quaternion.set(0, 0, 0, 1)
+  // Measure world-space Y bounds of all mesh geometries.
+  const tmpBox = new THREE.Box3()
+  const measureY = (): { min: number; max: number } => {
+    let mn = Infinity, mx = -Infinity
+    obj.traverse(child => {
+      const mesh = child as THREE.Mesh
+      if (!mesh.isMesh || !mesh.geometry) return
+      mesh.geometry.computeBoundingBox()
+      if (!mesh.geometry.boundingBox) return
+      tmpBox.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld)
+      if (tmpBox.min.y < mn) mn = tmpBox.min.y
+      if (tmpBox.max.y > mx) mx = tmpBox.max.y
+    })
+    return { min: mn, max: mx }
   }
 
+  // ── Pass 1: measure with ORIGINAL transforms ─────────────────────────────
   obj.updateMatrixWorld(true)
+  const origBounds = measureY()
+  const origH = (isFinite(origBounds.min) && isFinite(origBounds.max))
+    ? origBounds.max - origBounds.min : 0
 
-  let minY = Infinity, maxY = -Infinity
-  const tmpBox = new THREE.Box3()
-  obj.traverse(child => {
-    const mesh = child as THREE.Mesh
-    if (!mesh.isMesh || !mesh.geometry) return
-    mesh.geometry.computeBoundingBox()
-    const bb = mesh.geometry.boundingBox
-    if (!bb) return
-    // Transform local geometry bbox → world space using the node's world matrix
-    tmpBox.copy(bb).applyMatrix4(mesh.matrixWorld)
-    if (tmpBox.min.y < minY) minY = tmpBox.min.y
-    if (tmpBox.max.y > maxY) maxY = tmpBox.max.y
+  // ── Pass 2: zero every node's rotation, measure again ───────────────────
+  // This gives a rotation-agnostic Y-extent. If this is much larger than the
+  // original, the model had a "bad" root rotation (e.g. Mixamo fembot +90°X)
+  // that mapped the geometry's natural Y-up axis to world Z, collapsing world Y.
+  const savedQuats = new Map<THREE.Object3D, THREE.Quaternion>()
+  obj.traverse(node => {
+    savedQuats.set(node, node.quaternion.clone())
+    node.quaternion.set(0, 0, 0, 1)
   })
+  obj.updateMatrixWorld(true)
+  const zeroBounds = measureY()
+  const zeroH = (isFinite(zeroBounds.min) && isFinite(zeroBounds.max))
+    ? zeroBounds.max - zeroBounds.min : 0
 
-  if (!isFinite(minY) || !isFinite(maxY)) return { scale: 1, yOffset: 0 }
-  const modelHeight = maxY - minY
-  if (modelHeight < 0.001) return { scale: 1, yOffset: 0 }
-  const scale = targetHeight / modelHeight
-  const yOffset = -minY * scale
+  // ── Decide which measurement (and orientation) to use ────────────────────
+  // If zeroing rotations reveals a height more than 2× the original, the model
+  // was lying flat due to a bad export rotation → keep rotations zeroed.
+  // Otherwise the original rotation is correct (e.g. soldier –90°X that maps
+  // centimetre-scale Z geometry to world Y) → restore it.
+  const useZeroed = zeroH > origH * 2
+
+  if (!useZeroed) {
+    savedQuats.forEach((q, node) => node.quaternion.copy(q))
+    obj.updateMatrixWorld(true)
+  }
+  // if useZeroed: all rotations remain at identity — model now stands Y-up ✓
+
+  const finalMin = useZeroed ? zeroBounds.min : origBounds.min
+  const modelH   = useZeroed ? zeroH          : origH
+
+  if (modelH < 0.001) return { scale: 1, yOffset: 0 }
+  const scale   = targetHeight / modelH
+  const yOffset = -finalMin * scale
   return { scale, yOffset }
 }
 
