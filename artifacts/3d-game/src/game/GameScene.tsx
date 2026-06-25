@@ -1656,7 +1656,7 @@ function DynamicLighting({ timeOfDay }: { timeOfDay: number }) {
           intensity={dirIntensity}
           color={dirColor}
           castShadow
-          shadow-mapSize={[1024, 1024]}
+          shadow-mapSize={[512, 512]}
           shadow-camera-near={1} shadow-camera-far={200}
           shadow-camera-left={-90} shadow-camera-right={90}
           shadow-camera-top={90}  shadow-camera-bottom={-90}
@@ -1674,30 +1674,14 @@ function DynamicLighting({ timeOfDay }: { timeOfDay: number }) {
         />
       )}
 
-      {/* City-wide ambient glow at night — warm neon atmosphere */}
+      {/* City-wide ambient glow at night — keep to 3 lights max to spare mobile GPU */}
       {(isEvening || isNight || isDusk) && <>
         {/* Central city uplight */}
         <pointLight position={[0, 18, 0]}  intensity={isNight?55:35}  color="#ffcc88" distance={220} decay={1.4}/>
-        {/* District fills — 4 quadrants */}
-        <pointLight position={[-55,-2,-55]} intensity={isNight?38:22}  color="#ff9944" distance={140} decay={1.6}/>
-        <pointLight position={[ 55,-2,-55]} intensity={isNight?38:22}  color="#44aaff" distance={140} decay={1.6}/>
-        <pointLight position={[-55,-2, 55]} intensity={isNight?38:22}  color="#ff6688" distance={140} decay={1.6}/>
-        <pointLight position={[ 55,-2, 55]} intensity={isNight?38:22}  color="#88ff88" distance={140} decay={1.6}/>
-        {/* Moonlight fill pools */}
-        <pointLight position={[0, 30, 0]}  intensity={isNight?22:10}   color="#c8d8ff" distance={280} decay={1.0}/>
-        <pointLight position={[0,  5, 0]}  intensity={isNight?12:6}    color="#aaccff" distance={120} decay={1.8}/>
-        {/* Distant glow columns */}
-        <pointLight position={[-80,10,-80]} intensity={isNight?20:10}  color="#ffaa55" distance={100} decay={2}/>
-        <pointLight position={[ 80,10, 80]} intensity={isNight?20:10}  color="#55aaff" distance={100} decay={2}/>
-        <pointLight position={[-80,10, 80]} intensity={isNight?20:10}  color="#ff55aa" distance={100} decay={2}/>
-        <pointLight position={[ 80,10,-80]} intensity={isNight?20:10}  color="#aaff55" distance={100} decay={2}/>
-      </>}
-
-      {/* Low-lying road glow at dusk/evening */}
-      {(isDusk || isEvening) && <>
-        <pointLight position={[0, 2, 0]}   intensity={18} color="#ff9955" distance={90} decay={2}/>
-        <pointLight position={[40, 2, 0]}  intensity={12} color="#ffaa66" distance={70} decay={2}/>
-        <pointLight position={[-40, 2, 0]} intensity={12} color="#ffaa66" distance={70} decay={2}/>
+        {/* Moonlight fill */}
+        <pointLight position={[0, 30, 0]}  intensity={isNight?22:10}  color="#c8d8ff" distance={280} decay={1.0}/>
+        {/* Road-level neon atmosphere */}
+        <pointLight position={[0, 2, 0]}   intensity={isNight?18:10}  color="#ff9955" distance={90}  decay={2}/>
       </>}
 
       <fog attach="fog" args={[fogColor, fogNear, fogFar]}/>

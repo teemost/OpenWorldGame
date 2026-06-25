@@ -1,4 +1,5 @@
 import { Canvas, useThree } from '@react-three/fiber'
+import * as THREE from 'three'
 import { KeyboardControls } from '@react-three/drei'
 import { Component, ReactNode, useState, useEffect, useRef } from 'react'
 import GameScene, { Controls } from './game/GameScene'
@@ -37,7 +38,7 @@ function QualityApplier() {
   useEffect(() => {
     gl.setPixelRatio(PIXEL_RATIO[quality])
     gl.shadowMap.enabled = quality !== 'low'
-    // Force shadow map refresh
+    gl.shadowMap.type = THREE.PCFShadowMap
     gl.shadowMap.needsUpdate = true
   }, [quality, gl])
 
@@ -191,11 +192,23 @@ function Game() {
           <ErrorBoundary fallback={<NoWebGLFallback />}>
             <KeyboardControls map={keyMap}>
               <Canvas
-                shadows
                 camera={{ position: [0, 3, 5], fov: 68, near: 0.3, far: 500 }}
-                gl={{ antialias: false, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: false, stencil: false }}
+                gl={{ antialias: false, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: false, stencil: false, depth: true, alpha: false }}
                 style={{ width: '100%', height: '100%' }}
                 performance={{ min: 0.5 }}
+                onCreated={({ gl }) => {
+                  gl.shadowMap.enabled = true
+                  gl.shadowMap.type = THREE.PCFShadowMap
+                  const canvas = gl.domElement
+                  canvas.addEventListener('webglcontextlost', (e) => {
+                    e.preventDefault()
+                  })
+                  canvas.addEventListener('webglcontextrestored', () => {
+                    gl.shadowMap.enabled = true
+                    gl.shadowMap.type = THREE.PCFShadowMap
+                    gl.setPixelRatio(window.devicePixelRatio)
+                  })
+                }}
               >
                 <QualityApplier />
                 <GameScene />
