@@ -21,6 +21,44 @@ const OUTFIT_COLORS = [
   { label: 'White',  color: '#cccccc' },
 ]
 
+const CHARACTER_MODELS = [
+  {
+    id: 'soldier',
+    label: 'Soldier',
+    emoji: '🪖',
+    description: 'Combat ready',
+    accent: '#4a8f3f',
+  },
+  {
+    id: 'fembot',
+    label: 'Fembot',
+    emoji: '🤖',
+    description: 'Cyber enforcer',
+    accent: '#7a3fbf',
+  },
+  {
+    id: 'michelle',
+    label: 'Michelle',
+    emoji: '💃',
+    description: 'Street dancer',
+    accent: '#bf3f6a',
+  },
+  {
+    id: 'xbot',
+    label: 'X-Bot',
+    emoji: '🦾',
+    description: 'Mechanized',
+    accent: '#3f6abf',
+  },
+  {
+    id: 'robot',
+    label: 'Robot',
+    emoji: '🤖',
+    description: 'Expressive AI',
+    accent: '#bf8f3f',
+  },
+]
+
 interface Props {
   onReady: () => void
 }
@@ -29,9 +67,10 @@ export default function CharacterSelect({ onReady }: Props) {
   const { currentUser, updateCharacter } = useAuthStore()
   const [skin, setSkin]     = useState(currentUser?.skinTone    ?? '#D4956A')
   const [outfit, setOutfit] = useState(currentUser?.characterColor ?? '#0055cc')
+  const [model, setModel]   = useState(currentUser?.characterModel ?? 'soldier')
 
   const handleEnter = () => {
-    updateCharacter(outfit, skin)
+    updateCharacter(outfit, skin, model)
     onReady()
   }
 
@@ -47,12 +86,15 @@ export default function CharacterSelect({ onReady }: Props) {
     transform: selected ? 'scale(1.2)' : 'scale(1)',
   })
 
+  const selectedModelData = CHARACTER_MODELS.find(m => m.id === model) ?? CHARACTER_MODELS[0]
+
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
       background: 'linear-gradient(160deg, #06060f 0%, #0e0e22 50%, #060610 100%)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontFamily: 'monospace',
+      overflowY: 'auto',
     }}>
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', opacity: 0.12, pointerEvents: 'none' }}>
         {[...Array(18)].map((_, i) => (
@@ -66,7 +108,7 @@ export default function CharacterSelect({ onReady }: Props) {
         ))}
       </div>
 
-      <div style={{ position: 'relative', width: '100%', maxWidth: 540, margin: '0 16px' }}>
+      <div style={{ position: 'relative', width: '100%', maxWidth: 580, margin: '16px', paddingBottom: 8 }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{ fontSize: 11, color: '#ff6600', letterSpacing: 6, marginBottom: 4 }}>OPEN WORLD CRIME CITY</div>
           <div style={{ fontSize: 26, fontWeight: 'bold', color: '#fff', letterSpacing: 3, textShadow: '0 0 30px rgba(255,100,0,0.5)' }}>
@@ -78,69 +120,104 @@ export default function CharacterSelect({ onReady }: Props) {
         <div style={{
           background: 'rgba(255,255,255,0.04)',
           border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 16, padding: '28px 24px',
+          borderRadius: 16, padding: '24px',
           backdropFilter: 'blur(12px)',
           boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
-          display: 'flex', gap: 28, alignItems: 'flex-start',
+          display: 'flex', flexDirection: 'column', gap: 24,
         }}>
-          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 2 }}>PREVIEW</div>
-            <svg width="110" height="170" viewBox="0 0 110 170">
-              <ellipse cx="55" cy="22" rx="15" ry="17" fill={skin} stroke="#222" strokeWidth="1.5" />
-              <ellipse cx="55" cy="9"  rx="14" ry="9"  fill="#1a0e08" />
-              <rect x="48" y="37" width="14" height="8" fill={skin} />
-              <path d="M32 46 Q29 64 30 86 L80 86 Q81 64 78 46 Q67 53 55 53 Q43 53 32 46Z" fill={outfit} stroke="#111" strokeWidth="1" />
-              <path d="M32 48 Q21 59 20 78 Q22 82 26 81 Q30 62 37 54Z" fill={outfit} stroke="#111" strokeWidth="1" />
-              <ellipse cx="22" cy="83" rx="5.5" ry="6.5" fill={skin} />
-              <path d="M78 48 Q89 59 90 78 Q88 82 84 81 Q80 62 73 54Z" fill={outfit} stroke="#111" strokeWidth="1" />
-              <ellipse cx="88" cy="83" rx="5.5" ry="6.5" fill={skin} />
-              <rect x="29" y="83" width="52" height="7" fill="#1a1a1a" rx="2" />
-              <path d="M37 90 Q35 115 34 140 Q38 142 43 141 Q44 116 48 91Z" fill="#1e2040" stroke="#111" strokeWidth="1" />
-              <path d="M73 90 Q75 115 76 140 Q72 142 67 141 Q66 116 62 91Z" fill="#1e2040" stroke="#111" strokeWidth="1" />
-              <ellipse cx="38"  cy="142" rx="10" ry="5" fill="#111" />
-              <ellipse cx="72"  cy="142" rx="10" ry="5" fill="#111" />
-              <circle cx="48" cy="21" r="2.5" fill="#111" />
-              <circle cx="62" cy="21" r="2.5" fill="#111" />
-              <circle cx="49" cy="20" r="1"   fill="#fff" />
-              <circle cx="63" cy="20" r="1"   fill="#fff" />
-              <path d="M49 30 Q55 33 61 30" stroke="#aa7755" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-            </svg>
-            <div style={{ fontSize: 12, color: '#ff6600', fontWeight: 'bold', letterSpacing: 1 }}>
-              {(currentUser?.username ?? 'PLAYER').toUpperCase()}
+
+          {/* ── Character model picker ── */}
+          <div>
+            <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>SELECT CHARACTER</div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {CHARACTER_MODELS.map(ch => {
+                const sel = model === ch.id
+                return (
+                  <button
+                    key={ch.id}
+                    onClick={() => setModel(ch.id)}
+                    style={{
+                      flex: '1 1 80px',
+                      minWidth: 80,
+                      padding: '10px 6px',
+                      borderRadius: 10,
+                      border: sel ? `2px solid ${ch.accent}` : '2px solid rgba(255,255,255,0.08)',
+                      background: sel ? `rgba(${hexToRgb(ch.accent)},0.18)` : 'rgba(255,255,255,0.04)',
+                      cursor: 'pointer',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                      boxShadow: sel ? `0 0 18px ${ch.accent}55` : 'none',
+                      transition: 'all 0.18s',
+                      transform: sel ? 'scale(1.06)' : 'scale(1)',
+                    }}
+                  >
+                    <span style={{ fontSize: 26 }}>{ch.emoji}</span>
+                    <span style={{ fontSize: 10, fontWeight: 'bold', color: sel ? '#fff' : '#aaa', letterSpacing: 1 }}>
+                      {ch.label.toUpperCase()}
+                    </span>
+                    <span style={{ fontSize: 9, color: sel ? ch.accent : '#555', letterSpacing: 0.5 }}>
+                      {ch.description}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 22 }}>
-            <div>
-              <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>SKIN TONE</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {SKIN_TONES.map(s => (
-                  <button key={s.color} onClick={() => setSkin(s.color)} title={s.label}
-                    style={swatchStyle(skin === s.color, s.color, true)} />
-                ))}
+          {/* ── Preview + colour pickers side by side ── */}
+          <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+
+            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 2 }}>PREVIEW</div>
+              <div style={{
+                width: 110, height: 170,
+                borderRadius: 10,
+                background: `rgba(${hexToRgb(selectedModelData.accent)},0.12)`,
+                border: `1px solid ${selectedModelData.accent}44`,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                gap: 6,
+              }}>
+                <span style={{ fontSize: 50 }}>{selectedModelData.emoji}</span>
+                <span style={{ fontSize: 9, color: selectedModelData.accent, letterSpacing: 1 }}>
+                  {selectedModelData.label.toUpperCase()}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#ff6600', fontWeight: 'bold', letterSpacing: 1 }}>
+                {(currentUser?.username ?? 'PLAYER').toUpperCase()}
               </div>
             </div>
 
-            <div>
-              <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>OUTFIT COLOR</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {OUTFIT_COLORS.map(o => (
-                  <button key={o.color} onClick={() => setOutfit(o.color)} title={o.label}
-                    style={swatchStyle(outfit === o.color, o.color, false)} />
-                ))}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div>
+                <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>SKIN TONE</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {SKIN_TONES.map(s => (
+                    <button key={s.color} onClick={() => setSkin(s.color)} title={s.label}
+                      style={swatchStyle(skin === s.color, s.color, true)} />
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <button onClick={handleEnter} style={{
-              width: '100%', padding: '13px', borderRadius: 8, border: 'none',
-              background: 'linear-gradient(135deg, #ff6600, #ff3300)',
-              color: '#fff', fontSize: 16, fontFamily: 'monospace', fontWeight: 'bold',
-              cursor: 'pointer', letterSpacing: 2, marginTop: 8,
-              boxShadow: '0 4px 20px rgba(255,80,0,0.35)',
-              transition: 'opacity 0.15s',
-            }}>
-              ENTER CITY
-            </button>
+              <div>
+                <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>OUTFIT COLOR</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {OUTFIT_COLORS.map(o => (
+                    <button key={o.color} onClick={() => setOutfit(o.color)} title={o.label}
+                      style={swatchStyle(outfit === o.color, o.color, false)} />
+                  ))}
+                </div>
+              </div>
+
+              <button onClick={handleEnter} style={{
+                width: '100%', padding: '13px', borderRadius: 8, border: 'none',
+                background: 'linear-gradient(135deg, #ff6600, #ff3300)',
+                color: '#fff', fontSize: 16, fontFamily: 'monospace', fontWeight: 'bold',
+                cursor: 'pointer', letterSpacing: 2, marginTop: 4,
+                boxShadow: '0 4px 20px rgba(255,80,0,0.35)',
+                transition: 'opacity 0.15s',
+              }}>
+                ENTER CITY
+              </button>
+            </div>
           </div>
         </div>
 
@@ -150,4 +227,11 @@ export default function CharacterSelect({ onReady }: Props) {
       </div>
     </div>
   )
+}
+
+function hexToRgb(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `${r},${g},${b}`
 }

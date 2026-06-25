@@ -1507,6 +1507,16 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
     </Html>
   )
 
+  const CHARACTER_MODEL_PATHS: Record<string, string> = {
+    soldier:  '/models/soldier.glb',
+    fembot:   '/models/fembot.glb',
+    michelle: '/models/michelle.glb',
+    xbot:     '/models/xbot.glb',
+    robot:    '/models/robot.glb',
+  }
+
+  const selectedModelPath = CHARACTER_MODEL_PATHS[currentUser?.characterModel ?? 'soldier'] ?? '/models/soldier.glb'
+
   if (playerModel) {
     return (
       <group ref={groupRef} position={[sharedPlayerPos.x,sharedPlayerPos.y,sharedPlayerPos.z]}>
@@ -1516,17 +1526,15 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
     )
   }
 
-  const playerUser = useAuthStore(s => s.currentUser)
-
   return (
     <group ref={groupRef} position={[sharedPlayerPos.x,sharedPlayerPos.y,sharedPlayerPos.z]}>
       {nameTag}
       <AnimatedHumanoid
-        modelPath='/models/soldier.glb'
+        modelPath={selectedModelPath}
         getAnimState={() => playerAnimState.value}
         targetHeight={1.85}
-        colorTint={playerUser?.characterColor ?? null}
-        skinTone={playerUser?.skinTone ?? null}
+        colorTint={currentUser?.characterColor ?? null}
+        skinTone={currentUser?.skinTone ?? null}
       />
     </group>
   )
