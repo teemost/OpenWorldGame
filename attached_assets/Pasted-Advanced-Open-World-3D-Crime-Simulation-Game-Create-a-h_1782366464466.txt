@@ -1,0 +1,131 @@
+Advanced Open-World 3D Crime Simulation Game
+
+Create a highly immersive, next-generation open-world 3D action-adventure game inspired by modern urban life. The game should feature a massive seamless city with realistic traffic systems, pedestrians, dynamic weather, day/night cycles, and a living economy.
+
+World Design
+	•	A huge open-world map containing:
+	•	Downtown skyscrapers
+	•	Residential neighborhoods
+	•	Industrial zones
+	•	Airports
+	•	Beaches
+	•	Forests
+	•	Mountains
+	•	Deserts
+	•	Small rural towns
+	•	No loading screens between regions.
+	•	Interactive interiors including shops, restaurants, apartments, hotels, police stations, hospitals, and nightclubs.
+
+Character System
+	•	Fully customizable player character:
+	•	Gender selection
+	•	Facial customization
+	•	Hairstyles
+	•	Tattoos
+	•	Clothing system
+	•	Body shape modification
+	•	Character progression:
+	•	Strength
+	•	Stamina
+	•	Driving skill
+	•	Shooting accuracy
+	•	Hacking skill
+	•	Business management
+
+Vehicle System
+	•	100+ drivable vehicles:
+	•	Sports cars
+	•	SUVs
+	•	Trucks
+	•	Motorcycles
+	•	Boats
+	•	Helicopters
+	•	Private jets
+	•	Realistic vehicle damage.
+	•	Fuel system.
+	•	Vehicle customization:
+	•	Paint jobs
+	•	Engine upgrades
+	•	Suspension tuning
+	•	Custom wheels
+	•	Neon lighting
+
+AI & NPCs
+	•	Thousands of unique NPCs with daily schedules.
+	•	NPCs react realistically to:
+	•	Crimes
+	•	Weather
+	•	Traffic accidents
+	•	Gunshots
+	•	Dynamic police system:
+	•	Patrol units
+	•	SWAT teams
+	•	Roadblocks
+	•	Helicopter pursuit
+	•	Investigation mechanics
+
+Combat System
+	•	Third-person shooter mechanics.
+	•	Cover system.
+	•	Melee combat.
+	•	Stealth takedowns.
+	•	Advanced enemy AI.
+	•	Weapon customization.
+
+Economy & Businesses
+	•	Buy houses and apartments.
+	•	Own businesses:
+	•	Restaurants
+	•	Nightclubs
+	•	Car dealerships
+	•	Logistics companies
+	•	Dynamic stock market.
+	•	Property management.
+
+Missions
+	•	Main story campaign.
+	•	Side missions.
+	•	Random world events.
+	•	Racing events.
+	•	Delivery jobs.
+	•	Security contracts.
+	•	Detective investigations.
+
+Multiplayer
+	•	Persistent online world.
+	•	Up to 100 players per server.
+	•	Voice chat.
+	•	Player-owned properties.
+	•	Player-created organizations.
+	•	Cooperative missions.
+	•	Competitive events.
+
+Graphics
+	•	Ultra-realistic graphics.
+	•	PBR materials.
+	•	Ray-traced reflections.
+	•	Volumetric clouds.
+	•	Realistic water physics.
+	•	Dynamic shadows.
+	•	Advanced character animations.
+
+Additional Features
+	•	Smart phone system.
+	•	Social media simulation.
+	•	Banking app.
+	•	GPS navigation.
+	•	Realistic weather disasters.
+	•	Character relationships.
+	•	Pet system.
+	•	Underground economy.
+	•	Dynamic events affecting the city.
+
+Technical Requirements
+	•	Built in Godot 4.
+	•	Open-world streaming system.
+	•	Optimized for low-end and high-end PCs.
+	•	Multiplayer networking architecture.
+	•	Save/load system.
+	•	Modular code structure using GDScript and C#.
+
+Goal: Create a realistic, living city where every NPC, vehicle, business, and event interacts dynamically, giving players complete freedom to explore, build wealth, complete missions, and shape their own criminal or legitimate career path in a persistent open world.
