@@ -193,18 +193,33 @@ function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, c
     const clone = SkeletonUtils.clone(gltf.scene) as THREE.Object3D
     clone.traverse(c => {
       const mesh = c as THREE.Mesh
-      if (mesh.isMesh) {
-        mesh.castShadow = true
-        mesh.receiveShadow = true
-        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-        mats.forEach(m => {
-          if (!m || !('color' in m)) return
-          const mat = m as THREE.MeshStandardMaterial
-          const isSkin = SKIN_MAT_RE.test(mat.name) || SKIN_MAT_RE.test(mesh.name)
-          if (isSkin && skinTone) mat.color.set(skinTone)
-          else if (!isSkin && colorTint) mat.color.set(colorTint)
-        })
+      if (!mesh.isMesh) return
+      // ── Critical: skinned-mesh bounding spheres are computed from rest-pose
+      // bone positions which collapse to world origin, causing the GPU to cull
+      // the mesh as "offscreen" even when it's right in front of the camera.
+      mesh.frustumCulled = false
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+      // ── Clone materials so we don't mutate the shared GLTF-cache material
+      const cloneMat = (m: THREE.Material) => {
+        const c2 = m.clone()
+        c2.name = m.name
+        return c2
       }
+      if (Array.isArray(mesh.material)) {
+        mesh.material = mesh.material.map(cloneMat)
+      } else if (mesh.material) {
+        mesh.material = cloneMat(mesh.material)
+      }
+      // ── Apply skin-tone / outfit-colour tints
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      mats.forEach(m => {
+        if (!m || !('color' in m)) return
+        const mat = m as THREE.MeshStandardMaterial
+        const isSkin = SKIN_MAT_RE.test(mat.name) || SKIN_MAT_RE.test(mesh.name)
+        if (isSkin && skinTone) mat.color.set(skinTone)
+        else if (!isSkin && colorTint) mat.color.set(colorTint)
+      })
     })
     return { scene: clone, fit: computeFit(clone, targetHeight) }
   }, [gltf.scene, targetHeight, colorTint, skinTone])

@@ -1,0 +1,1 @@
+- [Skinned mesh frustum culling](skinned-mesh-frustum-culling.md) — set frustumCulled=false after SkeletonUtils.clone; bounding sphere collapses to origin on unattached skinned meshes, invisibly culling the character
