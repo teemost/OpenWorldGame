@@ -1331,7 +1331,15 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
   const playerColor = currentUser?.characterColor ?? '#ff6600'
   const isAdmin     = currentUser?.role === 'admin'
   const { modelRevision } = useModelStore()
-  const playerModel = (currentUser?.characterModel ?? '') === 'custom' ? modelBlobURLs.get('player') : undefined
+  const playerModel = (() => {
+    const cm = currentUser?.characterModel ?? ''
+    if (cm === 'custom') return modelBlobURLs.get('player')
+    if (cm.startsWith('custom_')) {
+      const cat = cm.slice('custom_'.length) as import('../store/useModelStore').ModelCategory
+      return modelBlobURLs.get(cat)
+    }
+    return undefined
+  })()
 
   void modelRevision // subscribe to model store updates
 

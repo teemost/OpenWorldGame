@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from './useAuthStore'
 import CharacterPreview3D from './CharacterPreview3D'
-import { useModelStore, modelBlobURLs } from '../store/useModelStore'
+import { useModelStore, modelBlobURLs, ModelCategory } from '../store/useModelStore'
 
 const SKIN_TONES = [
   { label: 'Fair',   color: '#FDDBB4' },
@@ -31,49 +31,88 @@ const BUILTIN_CHARACTER_MODELS = [
   { id: 'robot',    label: 'Robot',    emoji: '🤖', description: 'Expressive AI',  accent: '#bf8f3f' },
 ]
 
+const CATEGORY_META: Record<ModelCategory, { emoji: string; label: string; accent: string }> = {
+  player:         { emoji: '🎮', label: 'Player Upload',    accent: '#ff6600' },
+  npc:            { emoji: '🚶', label: 'NPC Upload',       accent: '#44aaff' },
+  police:         { emoji: '👮', label: 'Police Upload',    accent: '#4488ff' },
+  swat:           { emoji: '🪖', label: 'SWAT Upload',      accent: '#66aaaa' },
+  ai_character:   { emoji: '🤖', label: 'AI Upload',        accent: '#aa44ff' },
+  vehicle:        { emoji: '🚗', label: 'Vehicle Upload',   accent: '#ffaa00' },
+  police_vehicle: { emoji: '🚔', label: 'Police Car Upload',accent: '#4466cc' },
+  weapon:         { emoji: '🔫', label: 'Weapon Upload',    accent: '#cc4444' },
+}
+
+/** Extract the ModelCategory from a custom model id like 'custom_player' */
+function categoryFromId(modelId: string): ModelCategory | null {
+  if (!modelId.startsWith('custom_')) return null
+  return modelId.slice('custom_'.length) as ModelCategory
+}
+
 interface Props {
   onReady: () => void
 }
 
 export default function CharacterSelect({ onReady }: Props) {
   const { currentUser, updateCharacter } = useAuthStore()
-  const { modelRevision } = useModelStore()
+  const { modelRevision, models } = useModelStore()
 
   const [skin,   setSkin  ] = useState(currentUser?.skinTone      ?? '#D4956A')
   const [outfit, setOutfit] = useState(currentUser?.characterColor ?? '#0055cc')
   const [model,  setModel ] = useState(currentUser?.characterModel ?? 'soldier')
 
-  // Re-read custom model blob URL whenever the store is updated (admin uploads/removes)
-  const [customEntry, setCustomEntry] = useState<{ url: string; format: string } | null>(
-    () => modelBlobURLs.get('player') ?? null
-  )
+  // Build the list of admin-uploaded models from the store
+  const [uploadedModels, setUploadedModels] = useState<
+    { id: string; label: string; emoji: string; description: string; accent: string; url: string; format: string }[]
+  >([])
+
   useEffect(() => {
-    const entry = modelBlobURLs.get('player') ?? null
-    setCustomEntry(entry)
-    // If the current selection was 'custom' but the model was removed, fall back to soldier
-    if (!entry && model === 'custom') setModel('soldier')
+    const entries: typeof uploadedModels = []
+    for (const [cat, meta] of Object.entries(models) as [ModelCategory, typeof models[ModelCategory]][]) {
+      if (!meta) continue
+      const blobEntry = modelBlobURLs.get(cat)
+      if (!blobEntry) continue
+      const catMeta = CATEGORY_META[cat]
+      const shortName = meta.name.replace(/\.[^.]+$/, '') // strip extension
+      entries.push({
+        id:          `custom_${cat}`,
+        label:       shortName.length > 10 ? shortName.slice(0, 10) + '…' : shortName,
+        emoji:       catMeta.emoji,
+        description: catMeta.label,
+        accent:      catMeta.accent,
+        url:         blobEntry.url,
+        format:      blobEntry.format,
+      })
+    }
+    setUploadedModels(entries)
+
+    // If the selected custom model was removed, fall back to soldier
+    if (model.startsWith('custom_')) {
+      const cat = categoryFromId(model)
+      if (!cat || !modelBlobURLs.has(cat)) {
+        setModel('soldier')
+      }
+    }
   }, [modelRevision]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Get the blob entry for the currently selected model (if it's a custom one)
+  const selectedCustomCat = categoryFromId(model)
+  const selectedCustomEntry = selectedCustomCat
+    ? (modelBlobURLs.get(selectedCustomCat) ?? null)
+    : null
 
   const handleEnter = () => {
     updateCharacter(outfit, skin, model)
     onReady()
   }
 
-  // Full list: built-ins + custom if uploaded
+  // Full list: built-ins + all admin uploads
   const allModels = [
     ...BUILTIN_CHARACTER_MODELS,
-    ...(customEntry
-      ? [{
-          id: 'custom',
-          label: 'Custom',
-          emoji: '⭐',
-          description: 'Admin model',
-          accent: '#ff6600',
-        }]
-      : []),
+    ...uploadedModels,
   ]
 
   const selectedModelData = allModels.find(m => m.id === model) ?? allModels[0]
+  const isCustomSelected  = model.startsWith('custom_')
 
   const swatchStyle = (selected: boolean, color: string, round: boolean): React.CSSProperties => ({
     width: 34, height: 34,
@@ -150,7 +189,7 @@ export default function CharacterSelect({ onReady }: Props) {
                       position: 'relative',
                     }}
                   >
-                    {ch.id === 'custom' && (
+                    {ch.id.startsWith('custom_') && (
                       <div style={{
                         position: 'absolute', top: -6, right: -6,
                         background: '#ff6600', color: '#fff',
@@ -178,13 +217,13 @@ export default function CharacterSelect({ onReady }: Props) {
               <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 2 }}>PREVIEW</div>
               <CharacterPreview3D
                 modelId={model}
-                colorTint={model === 'custom' ? null : outfit}
-                skinTone={model === 'custom' ? null : skin}
+                colorTint={isCustomSelected ? null : outfit}
+                skinTone={isCustomSelected ? null : skin}
                 width={155}
                 height={210}
-                accentColor={selectedModelData.accent}
-                customUrl={customEntry?.url}
-                customFormat={customEntry?.format}
+                accentColor={selectedModelData?.accent ?? '#ff6600'}
+                customUrl={selectedCustomEntry?.url}
+                customFormat={selectedCustomEntry?.format}
               />
               <div style={{ fontSize: 12, color: '#ff6600', fontWeight: 'bold', letterSpacing: 1 }}>
                 {(currentUser?.username ?? 'PLAYER').toUpperCase()}
@@ -192,7 +231,7 @@ export default function CharacterSelect({ onReady }: Props) {
             </div>
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {model !== 'custom' && (
+              {!isCustomSelected && (
                 <>
                   <div>
                     <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>SKIN TONE</div>
@@ -216,17 +255,17 @@ export default function CharacterSelect({ onReady }: Props) {
                 </>
               )}
 
-              {model === 'custom' && (
+              {isCustomSelected && selectedModelData && (
                 <div style={{
-                  background: 'rgba(255,100,0,0.06)',
-                  border: '1px solid rgba(255,100,0,0.2)',
+                  background: `rgba(${hexToRgb(selectedModelData.accent)},0.06)`,
+                  border: `1px solid rgba(${hexToRgb(selectedModelData.accent)},0.2)`,
                   borderRadius: 10, padding: '16px',
                   color: '#888', fontSize: 12, lineHeight: 1.6,
                 }}>
-                  <div style={{ color: '#ff6600', fontWeight: 'bold', marginBottom: 8, fontSize: 11, letterSpacing: 1 }}>
-                    ⭐ CUSTOM CHARACTER
+                  <div style={{ color: selectedModelData.accent, fontWeight: 'bold', marginBottom: 8, fontSize: 11, letterSpacing: 1 }}>
+                    {selectedModelData.emoji} {selectedModelData.description.toUpperCase()}
                   </div>
-                  This is the character model uploaded by the admin.
+                  This is a custom model uploaded by the admin.<br />
                   Skin tone and outfit color don't apply to custom models.
                 </div>
               )}
@@ -235,7 +274,7 @@ export default function CharacterSelect({ onReady }: Props) {
                 width: '100%', padding: '13px', borderRadius: 8, border: 'none',
                 background: 'linear-gradient(135deg, #ff6600, #ff3300)',
                 color: '#fff', fontSize: 16, fontFamily: 'monospace', fontWeight: 'bold',
-                cursor: 'pointer', letterSpacing: 2, marginTop: model === 'custom' ? 'auto' : 4,
+                cursor: 'pointer', letterSpacing: 2, marginTop: isCustomSelected ? 'auto' : 4,
                 boxShadow: '0 4px 20px rgba(255,80,0,0.35)',
                 transition: 'opacity 0.15s',
               }}>

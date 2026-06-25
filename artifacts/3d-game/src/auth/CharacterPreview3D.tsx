@@ -230,7 +230,7 @@ export default function CharacterPreview3D({
   customUrl,
   customFormat,
 }: CharacterPreview3DProps) {
-  const isCustom  = modelId === 'custom' && !!customUrl
+  const isCustom  = (modelId === 'custom' || modelId.startsWith('custom_')) && !!customUrl
   const isFbx     = (customFormat ?? '').toLowerCase() === 'fbx'
 
   return (
