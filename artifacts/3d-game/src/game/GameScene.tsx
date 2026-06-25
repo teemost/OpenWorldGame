@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { useGameStore } from '../store/useGameStore'
 import { useAuthStore } from '../auth/useAuthStore'
 import { useModelStore, modelBlobURLs } from '../store/useModelStore'
-import { CustomModel, AnimatedHumanoid, VehicleGLBMesh } from './GameModels'
+import { CustomModel, AnimatedHumanoid, AnimatedCustomHumanoid, VehicleGLBMesh } from './GameModels'
 import {
   CITY_BUILDINGS,
   INITIAL_VEHICLES,
@@ -1128,7 +1128,17 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
     return (
       <group ref={groupRef} position={[nRef.pos.x, 0, nRef.pos.z]}>
         {npcTag}
-        <CustomModel url={npcModel.url} format={npcModel.format} targetHeight={npcCustomHeight} />
+        <AnimatedCustomHumanoid
+          url={npcModel.url}
+          format={npcModel.format}
+          targetHeight={npcCustomHeight}
+          getAnimState={() => {
+            const s = nRef.state
+            if (s === 'panicking' || s === 'fleeing') return 'Run' as const
+            if (s === 'walking') return 'Walk' as const
+            return 'Idle' as const
+          }}
+        />
       </group>
     )
   }
@@ -1228,7 +1238,15 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
     return (
       <group ref={groupRef} position={[pRef.pos.x, 0, pRef.pos.z]}>
         {policeTag}
-        <CustomModel url={policeModel.url} format={policeModel.format} targetHeight={policeCustomHeight} />
+        <AnimatedCustomHumanoid
+          url={policeModel.url}
+          format={policeModel.format}
+          targetHeight={policeCustomHeight}
+          getAnimState={() => {
+            const dist = pRef.pos.distanceTo(sharedPlayerPos)
+            return dist > 5 ? 'Run' as const : 'Idle' as const
+          }}
+        />
       </group>
     )
   }
@@ -1539,7 +1557,12 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
     return (
       <group ref={groupRef} position={[sharedPlayerPos.x,sharedPlayerPos.y,sharedPlayerPos.z]}>
         {nameTag}
-        <CustomModel url={playerModel.url} format={playerModel.format} targetHeight={playerCustomHeight} />
+        <AnimatedCustomHumanoid
+          url={playerModel.url}
+          format={playerModel.format}
+          targetHeight={playerCustomHeight}
+          getAnimState={() => playerAnimState.value}
+        />
       </group>
     )
   }

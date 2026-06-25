@@ -362,6 +362,116 @@ export function AnimatedHumanoid(props: AnimatedHumanoidProps) {
   )
 }
 
+// ─── Animated FBX Humanoid — FBX model with idle/walk/run blend ──────────────
+function AnimatedFBXHumanoidInner({ url, getAnimState, targetHeight = 1.85, disableAnimation = false }: {
+  url: string
+  getAnimState: () => AnimState
+  targetHeight?: number
+  disableAnimation?: boolean
+}) {
+  const fbx         = useLoader(FBXLoader, url)
+  const animSrcGltf = useLoader(GLTFLoader, ANIM_SOURCE)
+  const mixerRef    = useRef<THREE.AnimationMixer | null>(null)
+  const actionsRef  = useRef<Record<string, THREE.AnimationAction>>({})
+  const currentRef  = useRef<string>('')
+  const getAnimStateRef = useRef(getAnimState)
+  useEffect(() => { getAnimStateRef.current = getAnimState }, [getAnimState])
+
+  const { clone, fit } = useMemo(() => {
+    const c = SkeletonUtils.clone(fbx) as THREE.Group
+    c.traverse(ch => {
+      const mesh = ch as THREE.Mesh
+      if (!mesh.isMesh) return
+      mesh.frustumCulled = false
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+    })
+    return { clone: c, fit: computeFit(c, targetHeight) }
+  }, [fbx, targetHeight])
+
+  useEffect(() => {
+    const ownClips = fbx.animations ?? []
+    const hasProper =
+      ownClips.some(c => /idle/i.test(c.name)) &&
+      ownClips.some(c => /walk/i.test(c.name)) &&
+      ownClips.some(c => /run/i.test(c.name))
+    const clips = hasProper ? ownClips : (animSrcGltf.animations ?? ownClips)
+    if (!clips.length) return
+    const mixer = new THREE.AnimationMixer(clone)
+    const actions: Record<string, THREE.AnimationAction> = {}
+    for (const clip of clips) actions[clip.name] = mixer.clipAction(clip)
+    actionsRef.current = actions
+    mixerRef.current = mixer
+    const idleKey = Object.keys(actions).find(n => /idle/i.test(n)) ?? Object.keys(actions)[0]
+    if (idleKey) { actions[idleKey].play(); currentRef.current = idleKey }
+    return () => {
+      mixer.stopAllAction()
+      mixer.uncacheRoot(clone)
+      mixerRef.current = null
+      actionsRef.current = {}
+    }
+  }, [clone, fbx.animations, animSrcGltf.animations])
+
+  useFrame((_, delta) => {
+    if (disableAnimation) return
+    mixerRef.current?.update(delta)
+    const state = getAnimStateRef.current()
+    const actions = actionsRef.current
+    const desired = state === 'Run'
+      ? Object.keys(actions).find(n => /run/i.test(n))
+      : state === 'Walk'
+        ? Object.keys(actions).find(n => /walk/i.test(n))
+        : state === 'Sit'
+          ? (Object.keys(actions).find(n => /sit/i.test(n)) ?? Object.keys(actions).find(n => /idle/i.test(n)))
+          : Object.keys(actions).find(n => /idle/i.test(n))
+    const target = desired ?? Object.keys(actions)[0]
+    if (target && target !== currentRef.current && actions[target]) {
+      const from = actions[currentRef.current]
+      if (from) from.fadeOut(0.25)
+      actions[target].reset().fadeIn(0.25).play()
+      currentRef.current = target
+    }
+  })
+
+  return (
+    <group position-y={fit.yOffset}>
+      <group rotation-x={fit.counterRotX}>
+        <group scale={fit.scale}>
+          <primitive object={clone} />
+        </group>
+      </group>
+    </group>
+  )
+}
+
+// ─── AnimatedCustomHumanoid — routes downloaded models through the animation blend system ──
+// Use this instead of CustomModel for character slots (player/NPC/police).
+// Applies proper computeFit scaling AND the idle/walk/run soldier.glb blend.
+export interface AnimatedCustomHumanoidProps {
+  url: string
+  format: string
+  getAnimState: () => AnimState
+  targetHeight?: number
+  disableAnimation?: boolean
+}
+
+export function AnimatedCustomHumanoid({ url, format, getAnimState, targetHeight = 1.85, disableAnimation = false }: AnimatedCustomHumanoidProps) {
+  const fmt = format.toLowerCase()
+  if (fmt === 'fbx') {
+    return (
+      <Suspense fallback={<LoadingPlaceholder targetHeight={targetHeight} />}>
+        <AnimatedFBXHumanoidInner url={url} getAnimState={getAnimState} targetHeight={targetHeight} disableAnimation={disableAnimation} />
+      </Suspense>
+    )
+  }
+  // GLB/GLTF (and unknown formats) — route through the existing GLB blend system
+  return (
+    <Suspense fallback={<LoadingPlaceholder targetHeight={targetHeight} />}>
+      <AnimatedHumanoidInner modelPath={url} getAnimState={getAnimState} targetHeight={targetHeight} disableAnimation={disableAnimation} />
+    </Suspense>
+  )
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 interface CustomModelProps {
   url: string
