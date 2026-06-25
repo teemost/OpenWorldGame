@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { useKeyboardControls, Html } from '@react-three/drei'
+import { useKeyboardControls, Html, Sky } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '../store/useGameStore'
 import { useAuthStore } from '../auth/useAuthStore'
@@ -83,17 +83,25 @@ INITIAL_NPCS.forEach((n, i) => npcRefs.set(n.id, {
 function Tree({ x, z }: { x: number; z: number }) {
   return (
     <group position={[x, 0, z]}>
+      {/* Bark */}
       <mesh position={[0, 0.9, 0]} castShadow>
-        <cylinderGeometry args={[0.18, 0.26, 1.8, 7]} />
-        <meshStandardMaterial color="#5a3a1a" />
+        <cylinderGeometry args={[0.16, 0.24, 1.8, 8]} />
+        <meshStandardMaterial color="#4a3018" roughness={0.98} metalness={0.0}/>
       </mesh>
+      {/* Lower canopy */}
       <mesh position={[0, 2.8, 0]} castShadow>
-        <sphereGeometry args={[1.3, 9, 7]} />
-        <meshStandardMaterial color="#2d6a2d" />
+        <sphereGeometry args={[1.35, 10, 8]} />
+        <meshStandardMaterial color="#1e5c1e" roughness={0.97} metalness={0.0}/>
       </mesh>
-      <mesh position={[0, 3.9, 0]} castShadow>
-        <sphereGeometry args={[0.9, 8, 6]} />
-        <meshStandardMaterial color="#256025" />
+      {/* Mid canopy — slightly brighter */}
+      <mesh position={[0.2, 3.6, 0.1]} castShadow>
+        <sphereGeometry args={[0.95, 9, 7]} />
+        <meshStandardMaterial color="#267a26" roughness={0.96} metalness={0.0}/>
+      </mesh>
+      {/* Top canopy */}
+      <mesh position={[-0.1, 4.2, -0.1]} castShadow>
+        <sphereGeometry args={[0.65, 8, 6]} />
+        <meshStandardMaterial color="#1e6a1e" roughness={0.97} metalness={0.0}/>
       </mesh>
     </group>
   )
@@ -120,111 +128,157 @@ function StreetBench({ x, z, rot = 0 }: { x: number; z: number; rot?: number }) 
   )
 }
 
+// Shared realistic materials (defined once, reused across meshes)
+const ROAD_MAT    = <meshStandardMaterial color="#212121" roughness={0.97} metalness={0.02}/>
+const SIDEWALK_MAT= <meshStandardMaterial color="#8a8070" roughness={0.93} metalness={0.0}/>
+const GRASS_MAT   = <meshStandardMaterial color="#2e5c16" roughness={0.98} metalness={0.0}/>
+const PARK_MAT    = <meshStandardMaterial color="#3b6e1a" roughness={0.97} metalness={0.0}/>
+const LAMP_MAT    = <meshStandardMaterial color="#7a8090" roughness={0.5} metalness={0.7}/>
+
 function City() {
   return (
     <group>
-      {/* Ground */}
+      {/* Base ground — dark earth/grass */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
         <planeGeometry args={[300, 300]} />
-        <meshStandardMaterial color="#2d4020" />
+        {GRASS_MAT}
       </mesh>
-      {/* Park grass zones */}
+      {/* Park grass zones — slightly brighter */}
       {[[-60,-60],[60,-60],[-60,60],[60,60]].map(([px,pz],i)=>(
         <mesh key={`park${i}`} rotation={[-Math.PI/2,0,0]} position={[px,-0.01,pz]} receiveShadow>
           <planeGeometry args={[26,26]} />
-          <meshStandardMaterial color="#3a6020" />
+          {PARK_MAT}
         </mesh>
       ))}
       {/* Road tarmac - vertical */}
       {[-80,-40,0,40,80].map(x=>(
-        <mesh key={`vr${x}`} rotation={[-Math.PI/2,0,0]} position={[x,0,0]}>
+        <mesh key={`vr${x}`} rotation={[-Math.PI/2,0,0]} position={[x,0,0]} receiveShadow>
           <planeGeometry args={[13,300]} />
-          <meshStandardMaterial color="#1e1e1e" />
+          {ROAD_MAT}
         </mesh>
       ))}
       {/* Road tarmac - horizontal */}
       {[-80,-40,0,40,80].map(z=>(
-        <mesh key={`hr${z}`} rotation={[-Math.PI/2,0,0]} position={[0,0.001,z]}>
+        <mesh key={`hr${z}`} rotation={[-Math.PI/2,0,0]} position={[0,0.001,z]} receiveShadow>
           <planeGeometry args={[300,13]} />
-          <meshStandardMaterial color="#1e1e1e" />
+          {ROAD_MAT}
         </mesh>
       ))}
-      {/* Center dashed lines V */}
+      {/* Center lane lines V */}
       {[-80,-40,0,40,80].map(x=>(
         <mesh key={`cl${x}`} rotation={[-Math.PI/2,0,0]} position={[x,0.003,0]}>
-          <planeGeometry args={[0.25,300]} />
-          <meshStandardMaterial color="#ffee00" />
+          <planeGeometry args={[0.22,300]} />
+          <meshStandardMaterial color="#f0d020" roughness={0.85}/>
         </mesh>
       ))}
-      {/* Center dashed lines H */}
+      {/* Center lane lines H */}
       {[-80,-40,0,40,80].map(z=>(
         <mesh key={`clh${z}`} rotation={[-Math.PI/2,0,0]} position={[0,0.003,z]}>
-          <planeGeometry args={[300,0.25]} />
-          <meshStandardMaterial color="#ffee00" />
+          <planeGeometry args={[300,0.22]} />
+          <meshStandardMaterial color="#f0d020" roughness={0.85}/>
         </mesh>
       ))}
-      {/* Sidewalks V */}
+      {/* Sidewalks V — raised concrete curb */}
       {[-80,-40,0,40,80].map(x=>[-1,1].map(s=>(
-        <mesh key={`swv${x}${s}`} rotation={[-Math.PI/2,0,0]} position={[x+s*8.5,0.02,0]}>
+        <mesh key={`swv${x}${s}`} rotation={[-Math.PI/2,0,0]} position={[x+s*8.5,0.02,0]} receiveShadow>
           <planeGeometry args={[3,300]} />
-          <meshStandardMaterial color="#6a6a6a" />
+          {SIDEWALK_MAT}
         </mesh>
       )))}
       {/* Sidewalks H */}
       {[-80,-40,0,40,80].map(z=>[-1,1].map(s=>(
-        <mesh key={`swh${z}${s}`} rotation={[-Math.PI/2,0,0]} position={[0,0.025,z+s*8.5]}>
+        <mesh key={`swh${z}${s}`} rotation={[-Math.PI/2,0,0]} position={[0,0.025,z+s*8.5]} receiveShadow>
           <planeGeometry args={[300,3]} />
-          <meshStandardMaterial color="#6a6a6a" />
+          {SIDEWALK_MAT}
         </mesh>
       )))}
       {/* Buildings */}
-      {CITY_BUILDINGS.map(b=>(
-        <group key={b.id} position={[b.x,0,b.z]}>
-          <mesh position={[0,b.height/2,0]} castShadow receiveShadow>
-            <boxGeometry args={[b.width,b.height,b.depth]} />
-            <meshStandardMaterial color={b.color} />
-          </mesh>
-          <mesh position={[0,b.height+0.4,0]}>
-            <boxGeometry args={[b.width+0.4,0.8,b.depth+0.4]} />
-            <meshStandardMaterial color="#111" />
-          </mesh>
-          {/* Antenna */}
-          {b.height>30&&(
-            <mesh position={[0,b.height+2,0]}>
-              <cylinderGeometry args={[0.06,0.06,4,5]}/>
-              <meshStandardMaterial color="#888"/>
+      {CITY_BUILDINGS.map(b=>{
+        const isGlass  = b.height > 35
+        const isBrick  = b.height < 18
+        const wallCol  = b.color
+        const roofCol  = '#1a1a1a'
+        return (
+          <group key={b.id} position={[b.x,0,b.z]}>
+            {/* Main facade */}
+            <mesh position={[0,b.height/2,0]} castShadow receiveShadow>
+              <boxGeometry args={[b.width,b.height,b.depth]} />
+              <meshStandardMaterial
+                color={wallCol}
+                roughness={isBrick ? 0.92 : isGlass ? 0.08 : 0.75}
+                metalness={isGlass ? 0.5 : isBrick ? 0.0 : 0.1}
+              />
             </mesh>
-          )}
-          {/* Windows */}
-          {b.height>20&&Array.from({length:Math.floor(b.height/5)},(_,i)=>(
-            <mesh key={i} position={[0,3+i*5,b.depth/2+0.06]}>
-              <planeGeometry args={[b.width-2,2.2]}/>
-              <meshStandardMaterial color="#aaccff" emissive="#1133aa" emissiveIntensity={0.4}/>
+            {/* Roof parapet */}
+            <mesh position={[0,b.height+0.3,0]}>
+              <boxGeometry args={[b.width+0.5,0.6,b.depth+0.5]} />
+              <meshStandardMaterial color={roofCol} roughness={0.95}/>
             </mesh>
-          ))}
-          {/* Side windows */}
-          {b.height>20&&Array.from({length:Math.floor(b.height/5)},(_,i)=>(
-            <mesh key={`sw${i}`} position={[b.width/2+0.06,3+i*5,0]}>
-              <planeGeometry args={[b.depth-2,2.2]}/>
-              <meshStandardMaterial color="#aaccff" emissive="#1133aa" emissiveIntensity={0.3}/>
-            </mesh>
-          ))}
-        </group>
-      ))}
-      {/* Street lamps */}
+            {/* Rooftop AC/vent boxes */}
+            {b.height > 15 && [-0.8,0.8].map((ox,ri) => (
+              <mesh key={ri} position={[ox*b.width*0.25, b.height+0.75, 0]}>
+                <boxGeometry args={[1.2,0.9,1.2]}/>
+                <meshStandardMaterial color="#555" roughness={0.85}/>
+              </mesh>
+            ))}
+            {/* Antenna */}
+            {b.height>30&&(
+              <mesh position={[0,b.height+2.2,0]}>
+                <cylinderGeometry args={[0.05,0.07,4.5,5]}/>
+                <meshStandardMaterial color="#aaa" metalness={0.7} roughness={0.3}/>
+              </mesh>
+            )}
+            {/* Window strips — front */}
+            {b.height>15&&Array.from({length:Math.floor(b.height/5)},(_,i)=>(
+              <mesh key={i} position={[0,3.5+i*5,b.depth/2+0.04]}>
+                <planeGeometry args={[b.width-1.5,2.4]}/>
+                <meshStandardMaterial
+                  color="#7ab8e8"
+                  emissive="#0a2255"
+                  emissiveIntensity={isGlass ? 0.25 : 0.5}
+                  roughness={0.05}
+                  metalness={0.15}
+                />
+              </mesh>
+            ))}
+            {/* Window strips — side */}
+            {b.height>15&&Array.from({length:Math.floor(b.height/5)},(_,i)=>(
+              <mesh key={`sw${i}`} position={[b.width/2+0.04,3.5+i*5,0]}>
+                <planeGeometry args={[b.depth-1.5,2.4]}/>
+                <meshStandardMaterial
+                  color="#7ab8e8"
+                  emissive="#0a2255"
+                  emissiveIntensity={0.4}
+                  roughness={0.05}
+                  metalness={0.15}
+                />
+              </mesh>
+            ))}
+          </group>
+        )
+      })}
+      {/* Street lamps — metal pole + warm bulb */}
       {[-80,-40,0,40,80].map(x=>[-60,-20,20,60].map(z=>(
         <group key={`lamp${x}${z}`} position={[x+7.5,0,z]}>
-          <mesh position={[0,3,0]}>
-            <cylinderGeometry args={[0.08,0.12,6,6]}/>
-            <meshStandardMaterial color="#999"/>
+          {/* Pole */}
+          <mesh position={[0,3.2,0]} castShadow>
+            <cylinderGeometry args={[0.07,0.13,6.4,8]}/>
+            {LAMP_MAT}
           </mesh>
-          <mesh position={[0.6,5.8,0]}>
-            <cylinderGeometry args={[0.04,0.04,1.2,6]} rotation={[0,0,Math.PI/2]}/>
-            <meshStandardMaterial color="#999"/>
+          {/* Arm */}
+          <mesh position={[0.55,6.0,0]} rotation={[0,0,Math.PI/2]}>
+            <cylinderGeometry args={[0.04,0.04,1.1,6]}/>
+            {LAMP_MAT}
           </mesh>
-          <mesh position={[1.1,5.7,0]}>
-            <sphereGeometry args={[0.3,8,6]}/>
-            <meshStandardMaterial color="#ffffaa" emissive="#ffee66" emissiveIntensity={2}/>
+          {/* Housing */}
+          <mesh position={[1.05,5.9,0]}>
+            <boxGeometry args={[0.55,0.25,0.3]}/>
+            <meshStandardMaterial color="#555" roughness={0.6} metalness={0.5}/>
+          </mesh>
+          {/* Bulb glow */}
+          <mesh position={[1.05,5.75,0]}>
+            <sphereGeometry args={[0.18,8,6]}/>
+            <meshStandardMaterial color="#ffe8aa" emissive="#ffdd66" emissiveIntensity={3}/>
           </mesh>
         </group>
       )))}
@@ -950,54 +1004,74 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
   return (
     <group ref={groupRef} position={[sharedPlayerPos.x,sharedPlayerPos.y,sharedPlayerPos.z]}>
       {nameTag}
-      {/* Torso */}
+      {/* Torso — fabric roughness */}
       <mesh position={[0,0.98,0]} castShadow>
         <boxGeometry args={[0.58,0.88,0.4]}/>
-        <meshStandardMaterial color={playerColor} roughness={0.8}/>
+        <meshStandardMaterial color={playerColor} roughness={0.9} metalness={0.0}/>
       </mesh>
-      {/* Head */}
+      {/* Jacket zipper detail */}
+      <mesh position={[0,0.94,0.21]}>
+        <boxGeometry args={[0.06,0.72,0.02]}/>
+        <meshStandardMaterial color="#555" roughness={0.4} metalness={0.6}/>
+      </mesh>
+      {/* Head — skin SSS approximation */}
       <mesh position={[0,1.68,0]} castShadow>
         <boxGeometry args={[0.44,0.44,0.42]}/>
-        <meshStandardMaterial color={skinTone}/>
+        <meshStandardMaterial color={skinTone} roughness={0.72} metalness={0.0}/>
       </mesh>
+      {/* Eyebrows */}
+      {[-0.1,0.1].map((ex,i)=>(
+        <mesh key={i} position={[ex,1.78,0.22]}>
+          <boxGeometry args={[0.08,0.03,0.02]}/>
+          <meshStandardMaterial color="#2a1a0a" roughness={1.0}/>
+        </mesh>
+      ))}
       {/* Hair */}
-      <mesh position={[0,1.9,0]}>
-        <boxGeometry args={[0.46,0.12,0.44]}/>
-        <meshStandardMaterial color={isAdmin?'#FFD700':'#222'}/>
+      <mesh position={[0,1.92,0]}>
+        <boxGeometry args={[0.46,0.1,0.44]}/>
+        <meshStandardMaterial color={isAdmin?'#FFD700':'#1a1008'} roughness={0.95}/>
       </mesh>
       {/* Neck */}
       <mesh position={[0,1.45,0]}>
-        <cylinderGeometry args={[0.1,0.1,0.22,7]}/>
-        <meshStandardMaterial color={skinTone}/>
+        <cylinderGeometry args={[0.1,0.1,0.22,8]}/>
+        <meshStandardMaterial color={skinTone} roughness={0.72}/>
       </mesh>
-      {/* Arms */}
+      {/* Arms — fabric + skin forearms */}
       {[-0.4,0.4].map((ax,i)=>(
         <group key={i}>
-          <mesh position={[ax,0.98,0]} rotation={[0,0,ax<0?0.28:-0.28]}>
-            <boxGeometry args={[0.17,0.72,0.17]}/>
-            <meshStandardMaterial color={playerColor} roughness={0.8}/>
+          {/* Upper arm / sleeve */}
+          <mesh position={[ax,1.02,0]} rotation={[0,0,ax<0?0.28:-0.28]}>
+            <boxGeometry args={[0.17,0.48,0.17]}/>
+            <meshStandardMaterial color={playerColor} roughness={0.9}/>
           </mesh>
-          <mesh position={[ax*1.1,0.6,0]}>
-            <boxGeometry args={[0.15,0.35,0.15]}/>
-            <meshStandardMaterial color={skinTone}/>
+          {/* Forearm */}
+          <mesh position={[ax*1.08,0.64,0]}>
+            <boxGeometry args={[0.15,0.36,0.15]}/>
+            <meshStandardMaterial color={skinTone} roughness={0.72}/>
           </mesh>
         </group>
       ))}
-      {/* Gun in right hand */}
-      <mesh position={[0.46,0.72,0.28]} rotation={[-0.4,0,0.3]}>
-        <boxGeometry args={[0.09,0.12,0.38]}/>
-        <meshStandardMaterial color="#222" metalness={0.8} roughness={0.3}/>
+      {/* Gun — dark metal */}
+      <mesh position={[0.47,0.7,0.3]} rotation={[-0.4,0,0.3]}>
+        <boxGeometry args={[0.08,0.13,0.4]}/>
+        <meshStandardMaterial color="#1a1a1a" metalness={0.85} roughness={0.2}/>
       </mesh>
-      {/* Legs */}
+      {/* Gun barrel */}
+      <mesh position={[0.47,0.7,0.53]} rotation={[-0.4,0,0.3]}>
+        <cylinderGeometry args={[0.025,0.025,0.12,6]} rotation={[Math.PI/2,0,0]}/>
+        <meshStandardMaterial color="#111" metalness={0.9} roughness={0.15}/>
+      </mesh>
+      {/* Legs — dark jeans */}
       {[-0.16,0.16].map((lx,i)=>(
         <group key={i}>
-          <mesh position={[lx,0.38,0]}>
+          <mesh position={[lx,0.4,0]}>
             <boxGeometry args={[0.22,0.54,0.22]}/>
-            <meshStandardMaterial color="#1a2a4a" roughness={0.9}/>
+            <meshStandardMaterial color="#1a2a4a" roughness={0.92} metalness={0.0}/>
           </mesh>
-          <mesh position={[lx,0.08,0.03]}>
-            <boxGeometry args={[0.22,0.18,0.32]}/>
-            <meshStandardMaterial color="#111"/>
+          {/* Shoes */}
+          <mesh position={[lx,0.08,0.04]}>
+            <boxGeometry args={[0.22,0.17,0.33]}/>
+            <meshStandardMaterial color="#0d0d0d" roughness={0.7} metalness={0.05}/>
           </mesh>
         </group>
       ))}
@@ -1011,24 +1085,52 @@ function DynamicLighting({ timeOfDay }: { timeOfDay: number }) {
   const isDawn = timeOfDay >= 6 && timeOfDay < 9
   const isDusk = timeOfDay >= 17 && timeOfDay <= 20
 
-  let ambInt = isDay ? 0.65 : 0.12
-  let ambCol = '#ffffff', dirInt = isDay ? 1.3 : 0.0, dirCol = '#ffffff'
-  let skyColor = '#87ceeb'
-  if (isDawn || isDusk) { ambCol='#ffaa66'; dirCol='#ff8844'; ambInt=0.45; skyColor=isDawn?'#ff9944':'#ff6622' }
-  else if (!isDay) skyColor='#0a0a2a'
+  // Normalise daytime 0→1→0 (peaks at 1pm)
+  const t        = Math.max(0, Math.min(1, (timeOfDay - 6) / 14))
+  const elevation = Math.sin(t * Math.PI)                  // 0 at horizon, 1 at noon
+  const azimuth   = 0.15 + t * 0.7                         // 0.15 to 0.85
+
+  // Sun world position (used for dir-light too)
+  const sunX = Math.cos(azimuth * Math.PI * 2) * 80
+  const sunY = elevation * 90 + 5
+  const sunZ = Math.sin(azimuth * Math.PI * 2) * 80
+
+  const dirIntensity = isDay ? elevation * 1.6 + 0.3 : 0
+  const dirColor     = isDawn ? '#ffaa55' : isDusk ? '#ff7733' : '#fff8f0'
+  const hemiSky      = isDawn ? '#ffcc88' : isDusk ? '#ff9966' : isDay ? '#b0d4ff' : '#1a2a44'
+  const hemiGround   = isDay ? '#3a5a28' : '#0e1a08'
+  const fogColor     = isDay ? (isDawn ? '#ffcc99' : isDusk ? '#ff9966' : '#c6e0f5') : '#06060f'
 
   return (
     <>
-      <color attach="background" args={[skyColor]}/>
-      <ambientLight intensity={ambInt} color={ambCol}/>
-      <directionalLight position={[50,80,50]} intensity={dirInt} color={dirCol}
-        castShadow shadow-mapSize={[1024,1024]}
-        shadow-camera-near={1} shadow-camera-far={180}
+      {isDay ? (
+        <Sky
+          distance={450000}
+          sunPosition={[sunX, sunY, sunZ]}
+          turbidity={isDawn || isDusk ? 9 : 3}
+          rayleigh={isDawn || isDusk ? 4 : 0.8}
+          mieCoefficient={0.006}
+          mieDirectionalG={0.82}
+        />
+      ) : (
+        <color attach="background" args={['#06060f']}/>
+      )}
+      {/* Sky / ground hemisphere for soft fill */}
+      <hemisphereLight args={[hemiSky as THREE.ColorRepresentation, hemiGround as THREE.ColorRepresentation, isDay ? 0.75 : 0.2]}/>
+      <directionalLight
+        position={[sunX, sunY, sunZ]}
+        intensity={dirIntensity}
+        color={dirColor}
+        castShadow
+        shadow-mapSize={[1024,1024]}
+        shadow-camera-near={1} shadow-camera-far={200}
         shadow-camera-left={-90} shadow-camera-right={90}
-        shadow-camera-top={90} shadow-camera-bottom={-90}
+        shadow-camera-top={90}  shadow-camera-bottom={-90}
+        shadow-bias={-0.0005}
       />
-      {!isDay && <pointLight position={[0,8,0]} intensity={0.9} color="#ffee88" distance={45}/>}
-      <fog attach="fog" args={[skyColor,65,200]}/>
+      {/* Night street glow */}
+      {!isDay && <pointLight position={[0,8,0]} intensity={1.2} color="#ffee88" distance={55} decay={2}/>}
+      <fog attach="fog" args={[fogColor, 70, 210]}/>
     </>
   )
 }
