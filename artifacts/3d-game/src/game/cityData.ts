@@ -24,6 +24,7 @@ export interface NPCInitData {
   z: number
   color: string
   speed: number
+  gender: 'male' | 'female'
 }
 
 // Pre-calculated city buildings (no Math.random in render)
@@ -113,32 +114,33 @@ export const INITIAL_VEHICLES: VehicleInitData[] = [
 ]
 
 // Pre-calculated NPC positions (diverse spread across the city)
+// gender alternates: odd indices are female, even are male
 export const INITIAL_NPCS: NPCInitData[] = [
-  { id: 'npc0', x: -65, z: -65, color: '#cc8844', speed: 1.5 },
-  { id: 'npc1', x: -65, z: -35, color: '#aa4488', speed: 1.8 },
-  { id: 'npc2', x: -65, z: 0, color: '#44aa88', speed: 2.0 },
-  { id: 'npc3', x: -65, z: 35, color: '#8844aa', speed: 1.6 },
-  { id: 'npc4', x: -65, z: 65, color: '#44aacc', speed: 1.9 },
-  { id: 'npc5', x: -35, z: -65, color: '#cc4444', speed: 2.1 },
-  { id: 'npc6', x: -35, z: -30, color: '#44cc88', speed: 1.7 },
-  { id: 'npc7', x: -35, z: 30, color: '#8844cc', speed: 1.5 },
-  { id: 'npc8', x: -35, z: 65, color: '#cc8888', speed: 1.8 },
-  { id: 'npc9', x: 0, z: -65, color: '#88cc44', speed: 2.0 },
-  { id: 'npc10', x: 0, z: -30, color: '#4488cc', speed: 1.6 },
-  { id: 'npc11', x: 0, z: 30, color: '#cc4488', speed: 1.9 },
-  { id: 'npc12', x: 0, z: 65, color: '#88aacc', speed: 1.7 },
-  { id: 'npc13', x: 35, z: -65, color: '#ccaa88', speed: 2.2 },
-  { id: 'npc14', x: 35, z: -30, color: '#88ccaa', speed: 1.5 },
-  { id: 'npc15', x: 35, z: 30, color: '#aa88cc', speed: 1.8 },
-  { id: 'npc16', x: 35, z: 65, color: '#cc88aa', speed: 1.6 },
-  { id: 'npc17', x: 65, z: -65, color: '#44ccaa', speed: 2.0 },
-  { id: 'npc18', x: 65, z: -35, color: '#aacc44', speed: 1.7 },
-  { id: 'npc19', x: 65, z: 0, color: '#cc44aa', speed: 1.9 },
-  { id: 'npc20', x: 65, z: 35, color: '#aa44cc', speed: 1.5 },
-  { id: 'npc21', x: 65, z: 65, color: '#44aacc', speed: 2.1 },
-  { id: 'npc22', x: -30, z: 0, color: '#cc8844', speed: 1.6 },
-  { id: 'npc23', x: 30, z: 0, color: '#44cc44', speed: 1.8 },
-  { id: 'npc24', x: 0, z: 0, color: '#cc4444', speed: 2.0 },
+  { id: 'npc0',  x: -65, z: -65, color: '#cc8844', speed: 1.5, gender: 'male'   },
+  { id: 'npc1',  x: -65, z: -35, color: '#aa4488', speed: 1.8, gender: 'female' },
+  { id: 'npc2',  x: -65, z: 0,   color: '#44aa88', speed: 2.0, gender: 'male'   },
+  { id: 'npc3',  x: -65, z: 35,  color: '#8844aa', speed: 1.6, gender: 'female' },
+  { id: 'npc4',  x: -65, z: 65,  color: '#44aacc', speed: 1.9, gender: 'male'   },
+  { id: 'npc5',  x: -35, z: -65, color: '#cc4444', speed: 2.1, gender: 'female' },
+  { id: 'npc6',  x: -35, z: -30, color: '#44cc88', speed: 1.7, gender: 'male'   },
+  { id: 'npc7',  x: -35, z: 30,  color: '#8844cc', speed: 1.5, gender: 'female' },
+  { id: 'npc8',  x: -35, z: 65,  color: '#cc8888', speed: 1.8, gender: 'male'   },
+  { id: 'npc9',  x: 0,   z: -65, color: '#88cc44', speed: 2.0, gender: 'female' },
+  { id: 'npc10', x: 0,   z: -30, color: '#4488cc', speed: 1.6, gender: 'male'   },
+  { id: 'npc11', x: 0,   z: 30,  color: '#cc4488', speed: 1.9, gender: 'female' },
+  { id: 'npc12', x: 0,   z: 65,  color: '#88aacc', speed: 1.7, gender: 'male'   },
+  { id: 'npc13', x: 35,  z: -65, color: '#ccaa88', speed: 2.2, gender: 'female' },
+  { id: 'npc14', x: 35,  z: -30, color: '#88ccaa', speed: 1.5, gender: 'male'   },
+  { id: 'npc15', x: 35,  z: 30,  color: '#aa88cc', speed: 1.8, gender: 'female' },
+  { id: 'npc16', x: 35,  z: 65,  color: '#cc88aa', speed: 1.6, gender: 'male'   },
+  { id: 'npc17', x: 65,  z: -65, color: '#44ccaa', speed: 2.0, gender: 'female' },
+  { id: 'npc18', x: 65,  z: -35, color: '#aacc44', speed: 1.7, gender: 'male'   },
+  { id: 'npc19', x: 65,  z: 0,   color: '#cc44aa', speed: 1.9, gender: 'female' },
+  { id: 'npc20', x: 65,  z: 35,  color: '#aa44cc', speed: 1.5, gender: 'male'   },
+  { id: 'npc21', x: 65,  z: 65,  color: '#44aacc', speed: 2.1, gender: 'female' },
+  { id: 'npc22', x: -30, z: 0,   color: '#cc8844', speed: 1.6, gender: 'male'   },
+  { id: 'npc23', x: 30,  z: 0,   color: '#44cc44', speed: 1.8, gender: 'female' },
+  { id: 'npc24', x: 0,   z: 0,   color: '#cc4444', speed: 2.0, gender: 'male'   },
 ]
 
 // Collision detection against buildings

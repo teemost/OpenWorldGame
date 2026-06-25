@@ -35,6 +35,8 @@ const sharedCamYaw   = { value: Math.PI }   // camera starts behind player
 const sharedCamPitch = { value: 0.25 }
 
 // ─── NPC / Police names ───────────────────────────────────────────────────────
+const NPC_MALE_NAMES   = ['Marcus','Luis','Devon','Rico','Andre','Jerome','Bobby','Darius','Tank','Malik','Trevor','Slice','Ricky','Cleo','Ray']
+const NPC_FEMALE_NAMES = ['Tanya','Carla','Keisha','Mia','Priya','Lena','Yolanda','Sandra','Nina','Donna','Eva','Brenda','Jasmine','Cece','Rosa']
 const NPC_NAMES = [
   'Marcus','Luis','Tanya','Devon','Carla','Rico','Keisha','Andre',
   'Mia','Jerome','Priya','Bobby','Lena','Darius','Yolanda','Tank',
@@ -366,8 +368,12 @@ function Vehicle({ vehicleId }: { vehicleId: string }) {
 function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
   const groupRef = useRef<THREE.Group>(null!)
   const nRef = npcRefs.get(npcId)!
-  const npcName = NPC_NAMES[npcIndex % NPC_NAMES.length]
-  const npcColor = INITIAL_NPCS.find(n => n.id === npcId)?.color ?? '#888'
+  const npcData = INITIAL_NPCS.find(n => n.id === npcId)
+  const isFemale = npcData?.gender === 'female'
+  const npcName = isFemale
+    ? NPC_FEMALE_NAMES[npcIndex % NPC_FEMALE_NAMES.length]
+    : NPC_MALE_NAMES[npcIndex % NPC_MALE_NAMES.length]
+  const npcColor = npcData?.color ?? '#888'
   const { modelRevision } = useModelStore()
   const npcModel = modelBlobURLs.get('npc')
   void modelRevision
@@ -454,6 +460,15 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
       <group ref={groupRef} position={[nRef.pos.x, 0, nRef.pos.z]}>
         {npcTag}
         <CustomModel url={npcModel.url} format={npcModel.format} scale={1} />
+      </group>
+    )
+  }
+
+  if (isFemale) {
+    return (
+      <group ref={groupRef} position={[nRef.pos.x, 0, nRef.pos.z]}>
+        {npcTag}
+        <CustomModel url="/lena.fbx" format="fbx" scale={0.011} />
       </group>
     )
   }
