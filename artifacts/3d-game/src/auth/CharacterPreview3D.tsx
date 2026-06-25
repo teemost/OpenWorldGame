@@ -2,6 +2,7 @@ import { Suspense, useEffect, useRef, useMemo } from 'react'
 import { Canvas, useFrame, useLoader } from '@react-three/fiber'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
 import * as _SkeletonUtilsMod from 'three/examples/jsm/utils/SkeletonUtils.js'
 
 const SkeletonUtils: { clone: (obj: THREE.Object3D) => THREE.Object3D } =
@@ -46,6 +47,7 @@ function computePreviewFit(obj: THREE.Object3D, targetHeight: number) {
   return { scale, yOffset: -minY * scale, counterRotX: 0 }
 }
 
+// ─── Built-in GLB model mesh ──────────────────────────────────────────────────
 interface ModelMeshProps {
   modelId: string
   colorTint: string | null
@@ -112,6 +114,89 @@ function ModelMesh({ modelId, colorTint, skinTone }: ModelMeshProps) {
   )
 }
 
+// ─── Custom GLB model preview ─────────────────────────────────────────────────
+function CustomGLBMesh({ url }: { url: string }) {
+  const gltf      = useLoader(GLTFLoader, url)
+  const mixerRef  = useRef<THREE.AnimationMixer | null>(null)
+  const spinRef   = useRef<THREE.Group>(null!)
+
+  const { scene, fit } = useMemo(() => {
+    const clone = SkeletonUtils.clone(gltf.scene) as THREE.Object3D
+    clone.traverse(c => {
+      const mesh = c as THREE.Mesh
+      if (!mesh.isMesh) return
+      mesh.frustumCulled = false
+      mesh.castShadow = true
+    })
+    return { scene: clone, fit: computePreviewFit(clone, 1.85) }
+  }, [gltf.scene])
+
+  useEffect(() => {
+    const clips = gltf.animations
+    if (!clips?.length) return
+    const mixer = new THREE.AnimationMixer(scene)
+    const clip = clips.find(c => /idle/i.test(c.name)) ?? clips[0]
+    mixer.clipAction(clip).reset().setLoop(THREE.LoopRepeat, Infinity).play()
+    mixerRef.current = mixer
+    return () => { mixer.stopAllAction(); mixer.uncacheRoot(scene); mixerRef.current = null }
+  }, [scene, gltf.animations])
+
+  useFrame((_, delta) => {
+    mixerRef.current?.update(delta)
+    if (spinRef.current) spinRef.current.rotation.y += delta * 0.65
+  })
+
+  return (
+    <group ref={spinRef} position={[0, fit.yOffset, 0]}>
+      <group rotation-x={fit.counterRotX}>
+        <primitive object={scene} scale={fit.scale} />
+      </group>
+    </group>
+  )
+}
+
+// ─── Custom FBX model preview ─────────────────────────────────────────────────
+function CustomFBXMesh({ url }: { url: string }) {
+  const fbx      = useLoader(FBXLoader, url)
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null)
+  const spinRef  = useRef<THREE.Group>(null!)
+
+  const { clone, fit } = useMemo(() => {
+    const c = SkeletonUtils.clone(fbx) as THREE.Group
+    c.traverse(ch => {
+      const mesh = ch as THREE.Mesh
+      if (!mesh.isMesh) return
+      mesh.frustumCulled = false
+      mesh.castShadow = true
+    })
+    return { clone: c, fit: computePreviewFit(c, 1.85) }
+  }, [fbx])
+
+  useEffect(() => {
+    const clips = fbx.animations
+    if (!clips?.length) return
+    const mixer = new THREE.AnimationMixer(clone)
+    const clip = clips.find(c => /idle/i.test(c.name)) ?? clips[0]
+    mixer.clipAction(clip).reset().setLoop(THREE.LoopRepeat, Infinity).play()
+    mixerRef.current = mixer
+    return () => { mixer.stopAllAction(); mixer.uncacheRoot(clone); mixerRef.current = null }
+  }, [clone, fbx.animations])
+
+  useFrame((_, delta) => {
+    mixerRef.current?.update(delta)
+    if (spinRef.current) spinRef.current.rotation.y += delta * 0.65
+  })
+
+  return (
+    <group ref={spinRef} position={[0, fit.yOffset, 0]}>
+      <group rotation-x={fit.counterRotX}>
+        <primitive object={clone} scale={fit.scale} />
+      </group>
+    </group>
+  )
+}
+
+// ─── Loader fallback ──────────────────────────────────────────────────────────
 function SpinningBox() {
   const ref = useRef<THREE.Mesh>(null!)
   useFrame((_, delta) => { if (ref.current) ref.current.rotation.y += delta * 0.8 })
@@ -123,6 +208,7 @@ function SpinningBox() {
   )
 }
 
+// ─── Props ────────────────────────────────────────────────────────────────────
 interface CharacterPreview3DProps {
   modelId: string
   colorTint?: string | null
@@ -130,6 +216,8 @@ interface CharacterPreview3DProps {
   width?: number
   height?: number
   accentColor?: string
+  customUrl?: string
+  customFormat?: string
 }
 
 export default function CharacterPreview3D({
@@ -139,7 +227,12 @@ export default function CharacterPreview3D({
   width = 170,
   height = 220,
   accentColor = '#ff6600',
+  customUrl,
+  customFormat,
 }: CharacterPreview3DProps) {
+  const isCustom  = modelId === 'custom' && !!customUrl
+  const isFbx     = (customFormat ?? '').toLowerCase() === 'fbx'
+
   return (
     <div style={{
       width, height,
@@ -167,7 +260,12 @@ export default function CharacterPreview3D({
         </mesh>
 
         <Suspense fallback={<SpinningBox />}>
-          <ModelMesh modelId={modelId} colorTint={colorTint} skinTone={skinTone} />
+          {isCustom
+            ? isFbx
+              ? <CustomFBXMesh url={customUrl!} />
+              : <CustomGLBMesh url={customUrl!} />
+            : <ModelMesh modelId={modelId} colorTint={colorTint} skinTone={skinTone} />
+          }
         </Suspense>
       </Canvas>
 

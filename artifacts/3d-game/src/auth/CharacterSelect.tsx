@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthStore } from './useAuthStore'
 import CharacterPreview3D from './CharacterPreview3D'
+import { useModelStore, modelBlobURLs } from '../store/useModelStore'
 
 const SKIN_TONES = [
   { label: 'Fair',   color: '#FDDBB4' },
@@ -22,42 +23,12 @@ const OUTFIT_COLORS = [
   { label: 'White',  color: '#cccccc' },
 ]
 
-const CHARACTER_MODELS = [
-  {
-    id: 'soldier',
-    label: 'Soldier',
-    emoji: '🪖',
-    description: 'Combat ready',
-    accent: '#4a8f3f',
-  },
-  {
-    id: 'fembot',
-    label: 'Fembot',
-    emoji: '🤖',
-    description: 'Cyber enforcer',
-    accent: '#7a3fbf',
-  },
-  {
-    id: 'michelle',
-    label: 'Michelle',
-    emoji: '💃',
-    description: 'Street dancer',
-    accent: '#bf3f6a',
-  },
-  {
-    id: 'xbot',
-    label: 'X-Bot',
-    emoji: '🦾',
-    description: 'Mechanized',
-    accent: '#3f6abf',
-  },
-  {
-    id: 'robot',
-    label: 'Robot',
-    emoji: '🤖',
-    description: 'Expressive AI',
-    accent: '#bf8f3f',
-  },
+const BUILTIN_CHARACTER_MODELS = [
+  { id: 'soldier',  label: 'Soldier',  emoji: '🪖', description: 'Combat ready',   accent: '#4a8f3f' },
+  { id: 'fembot',   label: 'Fembot',   emoji: '🤖', description: 'Cyber enforcer', accent: '#7a3fbf' },
+  { id: 'michelle', label: 'Michelle', emoji: '💃', description: 'Street dancer',  accent: '#bf3f6a' },
+  { id: 'xbot',     label: 'X-Bot',    emoji: '🦾', description: 'Mechanized',     accent: '#3f6abf' },
+  { id: 'robot',    label: 'Robot',    emoji: '🤖', description: 'Expressive AI',  accent: '#bf8f3f' },
 ]
 
 interface Props {
@@ -66,14 +37,43 @@ interface Props {
 
 export default function CharacterSelect({ onReady }: Props) {
   const { currentUser, updateCharacter } = useAuthStore()
-  const [skin, setSkin]     = useState(currentUser?.skinTone    ?? '#D4956A')
+  const { modelRevision } = useModelStore()
+
+  const [skin,   setSkin  ] = useState(currentUser?.skinTone      ?? '#D4956A')
   const [outfit, setOutfit] = useState(currentUser?.characterColor ?? '#0055cc')
-  const [model, setModel]   = useState(currentUser?.characterModel ?? 'soldier')
+  const [model,  setModel ] = useState(currentUser?.characterModel ?? 'soldier')
+
+  // Re-read custom model blob URL whenever the store is updated (admin uploads/removes)
+  const [customEntry, setCustomEntry] = useState<{ url: string; format: string } | null>(
+    () => modelBlobURLs.get('player') ?? null
+  )
+  useEffect(() => {
+    const entry = modelBlobURLs.get('player') ?? null
+    setCustomEntry(entry)
+    // If the current selection was 'custom' but the model was removed, fall back to soldier
+    if (!entry && model === 'custom') setModel('soldier')
+  }, [modelRevision]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEnter = () => {
     updateCharacter(outfit, skin, model)
     onReady()
   }
+
+  // Full list: built-ins + custom if uploaded
+  const allModels = [
+    ...BUILTIN_CHARACTER_MODELS,
+    ...(customEntry
+      ? [{
+          id: 'custom',
+          label: 'Custom',
+          emoji: '⭐',
+          description: 'Admin model',
+          accent: '#ff6600',
+        }]
+      : []),
+  ]
+
+  const selectedModelData = allModels.find(m => m.id === model) ?? allModels[0]
 
   const swatchStyle = (selected: boolean, color: string, round: boolean): React.CSSProperties => ({
     width: 34, height: 34,
@@ -86,8 +86,6 @@ export default function CharacterSelect({ onReady }: Props) {
     transition: 'all 0.15s',
     transform: selected ? 'scale(1.2)' : 'scale(1)',
   })
-
-  const selectedModelData = CHARACTER_MODELS.find(m => m.id === model) ?? CHARACTER_MODELS[0]
 
   return (
     <div style={{
@@ -131,7 +129,7 @@ export default function CharacterSelect({ onReady }: Props) {
           <div>
             <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>SELECT CHARACTER</div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {CHARACTER_MODELS.map(ch => {
+              {allModels.map(ch => {
                 const sel = model === ch.id
                 return (
                   <button
@@ -149,8 +147,17 @@ export default function CharacterSelect({ onReady }: Props) {
                       boxShadow: sel ? `0 0 18px ${ch.accent}55` : 'none',
                       transition: 'all 0.18s',
                       transform: sel ? 'scale(1.06)' : 'scale(1)',
+                      position: 'relative',
                     }}
                   >
+                    {ch.id === 'custom' && (
+                      <div style={{
+                        position: 'absolute', top: -6, right: -6,
+                        background: '#ff6600', color: '#fff',
+                        fontSize: 8, fontWeight: 'bold', letterSpacing: 0.5,
+                        padding: '2px 5px', borderRadius: 8,
+                      }}>NEW</div>
+                    )}
                     <span style={{ fontSize: 26 }}>{ch.emoji}</span>
                     <span style={{ fontSize: 10, fontWeight: 'bold', color: sel ? '#fff' : '#aaa', letterSpacing: 1 }}>
                       {ch.label.toUpperCase()}
@@ -171,11 +178,13 @@ export default function CharacterSelect({ onReady }: Props) {
               <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 2 }}>PREVIEW</div>
               <CharacterPreview3D
                 modelId={model}
-                colorTint={outfit}
-                skinTone={skin}
+                colorTint={model === 'custom' ? null : outfit}
+                skinTone={model === 'custom' ? null : skin}
                 width={155}
                 height={210}
                 accentColor={selectedModelData.accent}
+                customUrl={customEntry?.url}
+                customFormat={customEntry?.format}
               />
               <div style={{ fontSize: 12, color: '#ff6600', fontWeight: 'bold', letterSpacing: 1 }}>
                 {(currentUser?.username ?? 'PLAYER').toUpperCase()}
@@ -183,31 +192,50 @@ export default function CharacterSelect({ onReady }: Props) {
             </div>
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div>
-                <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>SKIN TONE</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {SKIN_TONES.map(s => (
-                    <button key={s.color} onClick={() => setSkin(s.color)} title={s.label}
-                      style={swatchStyle(skin === s.color, s.color, true)} />
-                  ))}
-                </div>
-              </div>
+              {model !== 'custom' && (
+                <>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>SKIN TONE</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {SKIN_TONES.map(s => (
+                        <button key={s.color} onClick={() => setSkin(s.color)} title={s.label}
+                          style={swatchStyle(skin === s.color, s.color, true)} />
+                      ))}
+                    </div>
+                  </div>
 
-              <div>
-                <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>OUTFIT COLOR</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {OUTFIT_COLORS.map(o => (
-                    <button key={o.color} onClick={() => setOutfit(o.color)} title={o.label}
-                      style={swatchStyle(outfit === o.color, o.color, false)} />
-                  ))}
+                  <div>
+                    <div style={{ fontSize: 11, color: '#888', letterSpacing: 2, marginBottom: 12 }}>OUTFIT COLOR</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {OUTFIT_COLORS.map(o => (
+                        <button key={o.color} onClick={() => setOutfit(o.color)} title={o.label}
+                          style={swatchStyle(outfit === o.color, o.color, false)} />
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {model === 'custom' && (
+                <div style={{
+                  background: 'rgba(255,100,0,0.06)',
+                  border: '1px solid rgba(255,100,0,0.2)',
+                  borderRadius: 10, padding: '16px',
+                  color: '#888', fontSize: 12, lineHeight: 1.6,
+                }}>
+                  <div style={{ color: '#ff6600', fontWeight: 'bold', marginBottom: 8, fontSize: 11, letterSpacing: 1 }}>
+                    ⭐ CUSTOM CHARACTER
+                  </div>
+                  This is the character model uploaded by the admin.
+                  Skin tone and outfit color don't apply to custom models.
                 </div>
-              </div>
+              )}
 
               <button onClick={handleEnter} style={{
                 width: '100%', padding: '13px', borderRadius: 8, border: 'none',
                 background: 'linear-gradient(135deg, #ff6600, #ff3300)',
                 color: '#fff', fontSize: 16, fontFamily: 'monospace', fontWeight: 'bold',
-                cursor: 'pointer', letterSpacing: 2, marginTop: 4,
+                cursor: 'pointer', letterSpacing: 2, marginTop: model === 'custom' ? 'auto' : 4,
                 boxShadow: '0 4px 20px rgba(255,80,0,0.35)',
                 transition: 'opacity 0.15s',
               }}>

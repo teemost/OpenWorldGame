@@ -1331,7 +1331,7 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
   const playerColor = currentUser?.characterColor ?? '#ff6600'
   const isAdmin     = currentUser?.role === 'admin'
   const { modelRevision } = useModelStore()
-  const playerModel = modelBlobURLs.get('player')
+  const playerModel = (currentUser?.characterModel ?? '') === 'custom' ? modelBlobURLs.get('player') : undefined
 
   void modelRevision // subscribe to model store updates
 
