@@ -158,6 +158,94 @@ function LoadingPlaceholder({ targetHeight }: { targetHeight: number }) {
   )
 }
 
+// ─── Animated Humanoid — real GLB with per-frame animation blending ──────────
+type AnimState = 'Idle' | 'Walk' | 'Run'
+
+interface AnimatedHumanoidProps {
+  modelPath: string
+  getAnimState: () => AnimState
+  targetHeight?: number
+  colorTint?: string | null
+}
+
+function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, colorTint }: AnimatedHumanoidProps) {
+  const gltf = useLoader(GLTFLoader, modelPath)
+  const groupRef = useRef<THREE.Group>(null!)
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null)
+  const actionsRef = useRef<Record<string, THREE.AnimationAction>>({})
+  const currentRef = useRef<string>('')
+  const getAnimStateRef = useRef(getAnimState)
+  useEffect(() => { getAnimStateRef.current = getAnimState }, [getAnimState])
+
+  const { scene, fit } = useMemo(() => {
+    const clone = SkeletonUtils.clone(gltf.scene) as THREE.Object3D
+    clone.traverse(c => {
+      const mesh = c as THREE.Mesh
+      if (mesh.isMesh) {
+        mesh.castShadow = true
+        mesh.receiveShadow = true
+        if (colorTint) {
+          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+          mats.forEach(m => {
+            if (m && 'color' in m) (m as THREE.MeshStandardMaterial).color.set(colorTint)
+          })
+        }
+      }
+    })
+    return { scene: clone, fit: computeFit(clone, targetHeight) }
+  }, [gltf.scene, targetHeight, colorTint])
+
+  useEffect(() => {
+    const clips = gltf.animations
+    if (!clips?.length) return
+    const mixer = new THREE.AnimationMixer(scene)
+    const actions: Record<string, THREE.AnimationAction> = {}
+    for (const clip of clips) actions[clip.name] = mixer.clipAction(clip)
+    actionsRef.current = actions
+    mixerRef.current = mixer
+    const idleKey = Object.keys(actions).find(n => /idle/i.test(n)) ?? Object.keys(actions)[0]
+    if (idleKey) { actions[idleKey].play(); currentRef.current = idleKey }
+    return () => {
+      mixer.stopAllAction()
+      mixer.uncacheRoot(scene)
+      mixerRef.current = null
+      actionsRef.current = {}
+    }
+  }, [scene, gltf.animations])
+
+  useFrame((_, delta) => {
+    mixerRef.current?.update(delta)
+    const state = getAnimStateRef.current()
+    const actions = actionsRef.current
+    const desired = state === 'Run'
+      ? Object.keys(actions).find(n => /run/i.test(n))
+      : state === 'Walk'
+        ? Object.keys(actions).find(n => /walk/i.test(n))
+        : Object.keys(actions).find(n => /idle/i.test(n))
+    const target = desired ?? Object.keys(actions)[0]
+    if (target && target !== currentRef.current && actions[target]) {
+      const from = actions[currentRef.current]
+      if (from) from.fadeOut(0.25)
+      actions[target].reset().fadeIn(0.25).play()
+      currentRef.current = target
+    }
+  })
+
+  return (
+    <group ref={groupRef}>
+      <primitive object={scene} scale={fit.scale} position-y={fit.yOffset} />
+    </group>
+  )
+}
+
+export function AnimatedHumanoid(props: AnimatedHumanoidProps) {
+  return (
+    <Suspense fallback={<LoadingPlaceholder targetHeight={props.targetHeight ?? 1.85} />}>
+      <AnimatedHumanoidInner {...props} />
+    </Suspense>
+  )
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 interface CustomModelProps {
   url: string

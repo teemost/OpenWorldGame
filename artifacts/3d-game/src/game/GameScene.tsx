@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { useGameStore } from '../store/useGameStore'
 import { useAuthStore } from '../auth/useAuthStore'
 import { useModelStore, modelBlobURLs } from '../store/useModelStore'
-import { CustomModel } from './GameModels'
+import { CustomModel, AnimatedHumanoid } from './GameModels'
 import {
   CITY_BUILDINGS,
   INITIAL_VEHICLES,
@@ -33,6 +33,7 @@ const sharedVehicleId = { value: '' }
 const sharedWantedLevel = { value: 0 }
 const sharedCamYaw   = { value: Math.PI }   // camera starts behind player
 const sharedCamPitch = { value: 0.25 }
+const playerAnimState = { value: 'Idle' as 'Idle' | 'Walk' | 'Run' }
 
 // ─── NPC / Police names ───────────────────────────────────────────────────────
 const NPC_MALE_NAMES   = ['Marcus','Luis','Devon','Rico','Andre','Jerome','Bobby','Darius','Tank','Malik','Trevor','Slice','Ricky','Cleo','Ray']
@@ -529,179 +530,16 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
   return (
     <group ref={groupRef} position={[nRef.pos.x, 0, nRef.pos.z]}>
       {npcTag}
-      {isFemale ? (
-        <>
-          {/* Hair bow left */}
-          <mesh position={[-0.13, 2.1, 0.04]} rotation={[0, 0, -0.4]}>
-            <torusGeometry args={[0.065, 0.028, 8, 12, Math.PI]}/>
-            <meshStandardMaterial color="#cc2244" roughness={0.8}/>
-          </mesh>
-          {/* Hair bow right */}
-          <mesh position={[0.13, 2.1, 0.04]} rotation={[0, 0, 0.4]}>
-            <torusGeometry args={[0.065, 0.028, 8, 12, Math.PI]}/>
-            <meshStandardMaterial color="#cc2244" roughness={0.8}/>
-          </mesh>
-          {/* Hair dome */}
-          <mesh position={[0, 1.96, -0.02]}>
-            <sphereGeometry args={[0.232, 16, 10, 0, Math.PI*2, 0, Math.PI*0.6]}/>
-            <meshStandardMaterial color={`hsl(${(npcIndex*31+200)%360},42%,17%)`} roughness={0.95}/>
-          </mesh>
-          {/* Head */}
-          <mesh position={[0, 1.77, 0]} castShadow>
-            <sphereGeometry args={[0.22, 16, 13]}/>
-            <meshStandardMaterial color={skin} roughness={0.72}/>
-          </mesh>
-          {/* Eyes */}
-          {[-0.08, 0.08].map((ex, i) => (
-            <mesh key={i} position={[ex, 1.795, 0.2]}>
-              <sphereGeometry args={[0.034, 8, 6]}/>
-              <meshStandardMaterial color="#1a0800"/>
-            </mesh>
-          ))}
-          {/* Neck */}
-          <mesh position={[0, 1.56, 0]}>
-            <cylinderGeometry args={[0.068, 0.09, 0.18, 10]}/>
-            <meshStandardMaterial color={skin} roughness={0.72}/>
-          </mesh>
-          {/* Torso */}
-          <mesh position={[0, 1.19, 0]} castShadow>
-            <cylinderGeometry args={[0.185, 0.205, 0.54, 12]}/>
-            <meshStandardMaterial color={shirtColor} roughness={0.9}/>
-          </mesh>
-          {/* Hips/pants */}
-          <mesh position={[0, 0.84, 0]}>
-            <cylinderGeometry args={[0.205, 0.195, 0.38, 12]}/>
-            <meshStandardMaterial color={pantsColor} roughness={0.9}/>
-          </mesh>
-          {/* Arms */}
-          {[-1, 1].map((s, i) => (
-            <group key={i}>
-              <mesh position={[s*0.275, 1.43, 0]}>
-                <sphereGeometry args={[0.088, 10, 8]}/>
-                <meshStandardMaterial color={shirtColor} roughness={0.9}/>
-              </mesh>
-              <mesh position={[s*0.305, 1.255, 0]} rotation={[0, 0, s*0.18]}>
-                <cylinderGeometry args={[0.068, 0.058, 0.34, 10]}/>
-                <meshStandardMaterial color={shirtColor} roughness={0.9}/>
-              </mesh>
-              <mesh position={[s*0.33, 1.08, 0]}>
-                <sphereGeometry args={[0.058, 8, 6]}/>
-                <meshStandardMaterial color={skin} roughness={0.72}/>
-              </mesh>
-              <mesh position={[s*0.35, 0.93, 0]}>
-                <cylinderGeometry args={[0.052, 0.045, 0.28, 10]}/>
-                <meshStandardMaterial color={skin} roughness={0.72}/>
-              </mesh>
-              <mesh position={[s*0.36, 0.79, 0]}>
-                <sphereGeometry args={[0.058, 8, 6]}/>
-                <meshStandardMaterial color={skin} roughness={0.72}/>
-              </mesh>
-            </group>
-          ))}
-          {/* Legs */}
-          {[-1, 1].map((s, i) => (
-            <group key={i}>
-              <mesh position={[s*0.108, 0.545, 0]}>
-                <cylinderGeometry args={[0.088, 0.078, 0.4, 10]}/>
-                <meshStandardMaterial color={pantsColor} roughness={0.92}/>
-              </mesh>
-              <mesh position={[s*0.115, 0.335, 0]}>
-                <sphereGeometry args={[0.078, 8, 6]}/>
-                <meshStandardMaterial color={pantsColor} roughness={0.92}/>
-              </mesh>
-              <mesh position={[s*0.115, 0.175, 0]}>
-                <cylinderGeometry args={[0.068, 0.056, 0.26, 10]}/>
-                <meshStandardMaterial color={skin} roughness={0.72}/>
-              </mesh>
-              <mesh position={[s*0.115, 0.05, 0.05]} scale={[1, 0.48, 1.32]}>
-                <sphereGeometry args={[0.088, 10, 6]}/>
-                <meshStandardMaterial color="#c8a040" roughness={0.7}/>
-              </mesh>
-            </group>
-          ))}
-        </>
-      ) : (
-        <>
-          {/* Hair dome */}
-          <mesh position={[0, 1.95, -0.01]}>
-            <sphereGeometry args={[0.225, 16, 10, 0, Math.PI*2, 0, Math.PI*0.55]}/>
-            <meshStandardMaterial color={`hsl(${(npcIndex*23)%360},30%,20%)`} roughness={0.95}/>
-          </mesh>
-          {/* Head */}
-          <mesh position={[0, 1.75, 0]} castShadow>
-            <sphereGeometry args={[0.22, 16, 13]}/>
-            <meshStandardMaterial color={skin} roughness={0.72}/>
-          </mesh>
-          {/* Eyes */}
-          {[-0.08, 0.08].map((ex, i) => (
-            <mesh key={i} position={[ex, 1.77, 0.2]}>
-              <sphereGeometry args={[0.034, 8, 6]}/>
-              <meshStandardMaterial color="#1a0800"/>
-            </mesh>
-          ))}
-          {/* Neck */}
-          <mesh position={[0, 1.54, 0]}>
-            <cylinderGeometry args={[0.08, 0.1, 0.18, 10]}/>
-            <meshStandardMaterial color={skin} roughness={0.72}/>
-          </mesh>
-          {/* Torso */}
-          <mesh position={[0, 1.12, 0]} castShadow>
-            <cylinderGeometry args={[0.215, 0.235, 0.58, 12]}/>
-            <meshStandardMaterial color={shirtColor} roughness={0.9}/>
-          </mesh>
-          {/* Hips */}
-          <mesh position={[0, 0.79, 0]}>
-            <cylinderGeometry args={[0.208, 0.198, 0.3, 12]}/>
-            <meshStandardMaterial color={pantsColor} roughness={0.92}/>
-          </mesh>
-          {/* Arms */}
-          {[-1, 1].map((s, i) => (
-            <group key={i}>
-              <mesh position={[s*0.298, 1.41, 0]}>
-                <sphereGeometry args={[0.098, 10, 8]}/>
-                <meshStandardMaterial color={shirtColor} roughness={0.9}/>
-              </mesh>
-              <mesh position={[s*0.334, 1.215, 0]} rotation={[0, 0, s*0.2]}>
-                <cylinderGeometry args={[0.078, 0.068, 0.38, 10]}/>
-                <meshStandardMaterial color={shirtColor} roughness={0.9}/>
-              </mesh>
-              <mesh position={[s*0.368, 1.018, 0]}>
-                <sphereGeometry args={[0.068, 8, 6]}/>
-                <meshStandardMaterial color={skin} roughness={0.72}/>
-              </mesh>
-              <mesh position={[s*0.39, 0.845, 0]}>
-                <cylinderGeometry args={[0.058, 0.052, 0.3, 10]}/>
-                <meshStandardMaterial color={skin} roughness={0.72}/>
-              </mesh>
-              <mesh position={[s*0.4, 0.695, 0]}>
-                <sphereGeometry args={[0.063, 8, 6]}/>
-                <meshStandardMaterial color={skin} roughness={0.72}/>
-              </mesh>
-            </group>
-          ))}
-          {/* Legs */}
-          {[-1, 1].map((s, i) => (
-            <group key={i}>
-              <mesh position={[s*0.118, 0.535, 0]}>
-                <cylinderGeometry args={[0.098, 0.088, 0.42, 10]}/>
-                <meshStandardMaterial color={pantsColor} roughness={0.92}/>
-              </mesh>
-              <mesh position={[s*0.125, 0.318, 0]}>
-                <sphereGeometry args={[0.088, 8, 6]}/>
-                <meshStandardMaterial color={pantsColor} roughness={0.92}/>
-              </mesh>
-              <mesh position={[s*0.125, 0.155, 0]}>
-                <cylinderGeometry args={[0.078, 0.063, 0.28, 10]}/>
-                <meshStandardMaterial color={pantsColor} roughness={0.92}/>
-              </mesh>
-              <mesh position={[s*0.125, 0.05, 0.04]} scale={[1, 0.5, 1.3]}>
-                <sphereGeometry args={[0.098, 10, 6]}/>
-                <meshStandardMaterial color="#222" roughness={0.7}/>
-              </mesh>
-            </group>
-          ))}
-        </>
-      )}
+      <AnimatedHumanoid
+        modelPath={isFemale ? '/models/fembot.glb' : '/models/soldier.glb'}
+        getAnimState={() => {
+          const s = nRef.state
+          if (s === 'panicking' || s === 'fleeing') return 'Run' as const
+          if (s === 'walking') return 'Walk' as const
+          return 'Idle' as const
+        }}
+        targetHeight={1.82}
+      />
     </group>
   )
 }
@@ -788,106 +626,14 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
   return (
     <group ref={groupRef} position={[pRef.pos.x, 0, pRef.pos.z]}>
       {policeTag}
-      {/* Helmet */}
-      <mesh position={[0, 1.98, 0]}>
-        <sphereGeometry args={[0.235, 16, 10, 0, Math.PI*2, 0, Math.PI*0.68]}/>
-        <meshStandardMaterial color={hatColor}/>
-      </mesh>
-      {/* Visor (SWAT) */}
-      {isSwat && (
-        <mesh position={[0, 1.815, 0.2]}>
-          <boxGeometry args={[0.42, 0.22, 0.05]}/>
-          <meshStandardMaterial color="#2a2a2a" transparent opacity={0.55}/>
-        </mesh>
-      )}
-      {/* Head */}
-      <mesh position={[0, 1.76, 0]} castShadow>
-        <sphereGeometry args={[0.222, 16, 13]}/>
-        <meshStandardMaterial color="#ddb080" roughness={0.72}/>
-      </mesh>
-      {/* Eyes */}
-      {[-0.08, 0.08].map((ex, i) => (
-        <mesh key={i} position={[ex, 1.775, 0.205]}>
-          <sphereGeometry args={[0.032, 8, 6]}/>
-          <meshStandardMaterial color="#1a0800"/>
-        </mesh>
-      ))}
-      {/* Neck */}
-      <mesh position={[0, 1.555, 0]}>
-        <cylinderGeometry args={[0.08, 0.1, 0.18, 10]}/>
-        <meshStandardMaterial color="#ddb080"/>
-      </mesh>
-      {/* Torso / uniform */}
-      <mesh position={[0, 1.13, 0]} castShadow>
-        <cylinderGeometry args={[0.225, 0.248, 0.62, 12]}/>
-        <meshStandardMaterial color={uniformColor}/>
-      </mesh>
-      {/* Chest armor plate */}
-      <mesh position={[0, 1.14, 0.225]}>
-        <boxGeometry args={[0.36, 0.44, 0.06]}/>
-        <meshStandardMaterial color={isSwat ? '#1a1a1a' : '#2244cc'} roughness={0.4}/>
-      </mesh>
-      {/* Badge */}
-      <mesh position={[0, 1.2, 0.262]}>
-        <boxGeometry args={[0.11, 0.08, 0.02]}/>
-        <meshStandardMaterial color="#ffcc00" emissive="#aa8800" emissiveIntensity={0.5}/>
-      </mesh>
-      {/* Hips */}
-      <mesh position={[0, 0.8, 0]}>
-        <cylinderGeometry args={[0.222, 0.212, 0.32, 12]}/>
-        <meshStandardMaterial color={uniformColor}/>
-      </mesh>
-      {/* Arms */}
-      {[-1, 1].map((s, i) => (
-        <group key={i}>
-          <mesh position={[s*0.305, 1.425, 0]}>
-            <sphereGeometry args={[0.098, 10, 8]}/>
-            <meshStandardMaterial color={uniformColor}/>
-          </mesh>
-          <mesh position={[s*0.342, 1.225, 0]} rotation={[0, 0, s*0.2]}>
-            <cylinderGeometry args={[0.082, 0.072, 0.4, 10]}/>
-            <meshStandardMaterial color={uniformColor}/>
-          </mesh>
-          <mesh position={[s*0.378, 1.022, 0]}>
-            <sphereGeometry args={[0.072, 8, 6]}/>
-            <meshStandardMaterial color={uniformColor}/>
-          </mesh>
-          <mesh position={[s*0.398, 0.845, 0]}>
-            <cylinderGeometry args={[0.062, 0.056, 0.3, 10]}/>
-            <meshStandardMaterial color="#ddb080" roughness={0.72}/>
-          </mesh>
-          <mesh position={[s*0.408, 0.695, 0]}>
-            <sphereGeometry args={[0.066, 8, 6]}/>
-            <meshStandardMaterial color="#ddb080" roughness={0.72}/>
-          </mesh>
-        </group>
-      ))}
-      {/* Gun */}
-      <mesh position={[0.44, 0.8, 0.28]} rotation={[-0.4, 0, 0.3]}>
-        <boxGeometry args={[0.08, 0.12, 0.38]}/>
-        <meshStandardMaterial color="#111" metalness={0.85} roughness={0.2}/>
-      </mesh>
-      {/* Legs */}
-      {[-1, 1].map((s, i) => (
-        <group key={i}>
-          <mesh position={[s*0.12, 0.535, 0]}>
-            <cylinderGeometry args={[0.1, 0.09, 0.42, 10]}/>
-            <meshStandardMaterial color={uniformColor}/>
-          </mesh>
-          <mesh position={[s*0.128, 0.318, 0]}>
-            <sphereGeometry args={[0.09, 8, 6]}/>
-            <meshStandardMaterial color={uniformColor}/>
-          </mesh>
-          <mesh position={[s*0.128, 0.155, 0]}>
-            <cylinderGeometry args={[0.08, 0.065, 0.28, 10]}/>
-            <meshStandardMaterial color={uniformColor}/>
-          </mesh>
-          <mesh position={[s*0.128, 0.05, 0.04]} scale={[1, 0.5, 1.32]}>
-            <sphereGeometry args={[0.098, 10, 6]}/>
-            <meshStandardMaterial color="#111" roughness={0.7}/>
-          </mesh>
-        </group>
-      ))}
+      <AnimatedHumanoid
+        modelPath='/models/soldier.glb'
+        getAnimState={() => {
+          const dist = pRef.pos.distanceTo(sharedPlayerPos)
+          return dist > 5 ? 'Run' as const : 'Idle' as const
+        }}
+        targetHeight={1.88}
+      />
     </group>
   )
 }
@@ -1045,6 +791,7 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       if (controls.back)          { moveX -= fwdX * 0.6; moveZ -= fwdZ * 0.6 }
       if (touchState.strafeLeft)  { moveX -= strX;       moveZ -= strZ       }
       if (touchState.strafeRight) { moveX += strX;       moveZ += strZ       }
+      playerAnimState.value = (Math.abs(moveX) > 0.01 || Math.abs(moveZ) > 0.01) ? (controls.run ? 'Run' : 'Walk') : 'Idle'
 
       let newX = posRef.current.x + moveX * speed * delta
       let newZ = posRef.current.z + moveZ * speed * delta
@@ -1161,114 +908,11 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
   return (
     <group ref={groupRef} position={[sharedPlayerPos.x,sharedPlayerPos.y,sharedPlayerPos.z]}>
       {nameTag}
-      {/* Hair dome */}
-      <mesh position={[0, 1.97, -0.01]}>
-        <sphereGeometry args={[0.238, 16, 10, 0, Math.PI*2, 0, Math.PI*0.57]}/>
-        <meshStandardMaterial color={isAdmin ? '#FFD700' : '#1a1008'} roughness={0.95}/>
-      </mesh>
-      {/* Head */}
-      <mesh position={[0, 1.76, 0]} castShadow>
-        <sphereGeometry args={[0.228, 16, 13]}/>
-        <meshStandardMaterial color={skinTone} roughness={0.72}/>
-      </mesh>
-      {/* Eyes */}
-      {[-0.085, 0.085].map((ex, i) => (
-        <mesh key={i} position={[ex, 1.78, 0.208]}>
-          <sphereGeometry args={[0.033, 8, 6]}/>
-          <meshStandardMaterial color="#1a0800"/>
-        </mesh>
-      ))}
-      {/* Eyebrows */}
-      {[-0.088, 0.088].map((ex, i) => (
-        <mesh key={i} position={[ex, 1.808, 0.215]}>
-          <boxGeometry args={[0.068, 0.022, 0.018]}/>
-          <meshStandardMaterial color="#2a1a0a" roughness={1.0}/>
-        </mesh>
-      ))}
-      {/* Neck */}
-      <mesh position={[0, 1.555, 0]}>
-        <cylinderGeometry args={[0.082, 0.1, 0.19, 10]}/>
-        <meshStandardMaterial color={skinTone} roughness={0.72}/>
-      </mesh>
-      {/* Torso */}
-      <mesh position={[0, 1.13, 0]} castShadow>
-        <cylinderGeometry args={[0.228, 0.248, 0.62, 12]}/>
-        <meshStandardMaterial color={playerColor} roughness={0.9}/>
-      </mesh>
-      {/* Jacket zipper strip */}
-      <mesh position={[0, 1.12, 0.248]}>
-        <boxGeometry args={[0.045, 0.52, 0.018]}/>
-        <meshStandardMaterial color="#444" roughness={0.4} metalness={0.6}/>
-      </mesh>
-      {/* Hips / jeans */}
-      <mesh position={[0, 0.8, 0]}>
-        <cylinderGeometry args={[0.232, 0.222, 0.32, 12]}/>
-        <meshStandardMaterial color="#1a2a4a" roughness={0.92}/>
-      </mesh>
-      {/* Arms */}
-      {[-1, 1].map((s, i) => (
-        <group key={i}>
-          {/* Shoulder */}
-          <mesh position={[s*0.308, 1.43, 0]}>
-            <sphereGeometry args={[0.102, 10, 8]}/>
-            <meshStandardMaterial color={playerColor} roughness={0.9}/>
-          </mesh>
-          {/* Upper arm */}
-          <mesh position={[s*0.346, 1.228, 0]} rotation={[0, 0, s*0.2]}>
-            <cylinderGeometry args={[0.082, 0.072, 0.4, 10]}/>
-            <meshStandardMaterial color={playerColor} roughness={0.9}/>
-          </mesh>
-          {/* Elbow */}
-          <mesh position={[s*0.382, 1.022, 0]}>
-            <sphereGeometry args={[0.072, 8, 6]}/>
-            <meshStandardMaterial color={skinTone} roughness={0.72}/>
-          </mesh>
-          {/* Forearm */}
-          <mesh position={[s*0.402, 0.848, 0]}>
-            <cylinderGeometry args={[0.062, 0.055, 0.3, 10]}/>
-            <meshStandardMaterial color={skinTone} roughness={0.72}/>
-          </mesh>
-          {/* Hand */}
-          <mesh position={[s*0.412, 0.698, 0]}>
-            <sphereGeometry args={[0.066, 8, 6]}/>
-            <meshStandardMaterial color={skinTone} roughness={0.72}/>
-          </mesh>
-        </group>
-      ))}
-      {/* Gun — right hand */}
-      <mesh position={[0.46, 0.72, 0.29]} rotation={[-0.38, 0, 0.28]}>
-        <boxGeometry args={[0.08, 0.13, 0.38]}/>
-        <meshStandardMaterial color="#1a1a1a" metalness={0.85} roughness={0.2}/>
-      </mesh>
-      <mesh position={[0.46, 0.72, 0.51]} rotation={[-0.38, 0, 0.28]}>
-        <cylinderGeometry args={[0.024, 0.024, 0.11, 6]}/>
-        <meshStandardMaterial color="#111" metalness={0.9} roughness={0.15}/>
-      </mesh>
-      {/* Legs */}
-      {[-1, 1].map((s, i) => (
-        <group key={i}>
-          {/* Thigh */}
-          <mesh position={[s*0.122, 0.535, 0]}>
-            <cylinderGeometry args={[0.1, 0.09, 0.42, 10]}/>
-            <meshStandardMaterial color="#1a2a4a" roughness={0.92}/>
-          </mesh>
-          {/* Knee */}
-          <mesh position={[s*0.13, 0.318, 0]}>
-            <sphereGeometry args={[0.09, 8, 6]}/>
-            <meshStandardMaterial color="#1a2a4a" roughness={0.92}/>
-          </mesh>
-          {/* Calf */}
-          <mesh position={[s*0.13, 0.155, 0]}>
-            <cylinderGeometry args={[0.08, 0.065, 0.28, 10]}/>
-            <meshStandardMaterial color="#1a2a4a" roughness={0.92}/>
-          </mesh>
-          {/* Shoe */}
-          <mesh position={[s*0.13, 0.052, 0.048]} scale={[1, 0.5, 1.35]}>
-            <sphereGeometry args={[0.1, 10, 6]}/>
-            <meshStandardMaterial color="#0d0d0d" roughness={0.7} metalness={0.05}/>
-          </mesh>
-        </group>
-      ))}
+      <AnimatedHumanoid
+        modelPath='/models/soldier.glb'
+        getAnimState={() => playerAnimState.value}
+        targetHeight={1.85}
+      />
     </group>
   )
 }
