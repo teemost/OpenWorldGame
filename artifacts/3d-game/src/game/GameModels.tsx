@@ -96,8 +96,10 @@ function GLBMesh({ url, targetHeight }: { url: string; targetHeight: number }) {
   useFrame((_, delta) => { mixerRef.current?.update(delta) })
 
   return (
-    <group ref={groupRef}>
-      <primitive object={scene} scale={fit.scale} position-y={fit.yOffset} />
+    <group ref={groupRef} position-y={fit.yOffset}>
+      <group scale={fit.scale}>
+        <primitive object={scene} />
+      </group>
     </group>
   )
 }
@@ -211,7 +213,13 @@ function FBXMesh({ url, targetHeight }: { url: string; targetHeight: number }) {
 
   useFrame((_, delta) => { mixerRef.current?.update(delta) })
 
-  return <primitive object={clone} scale={fit.scale} position-y={fit.yOffset} />
+  return (
+    <group position-y={fit.yOffset}>
+      <group scale={fit.scale}>
+        <primitive object={clone} />
+      </group>
+    </group>
+  )
 }
 
 // ─── Fallback placeholder while model loads ───────────────────────────────────
@@ -238,12 +246,19 @@ interface AnimatedHumanoidProps {
   disableAnimation?: boolean
 }
 
+// Canonical animation source — soldier.glb has idle/walk/run Mixamo clips with
+// standard bone naming. We retarget these to any model that lacks its own
+// idle/walk/run clips (mixamo bone names are shared across all Mixamo rigs).
+const ANIM_SOURCE = '/models/soldier.glb'
+
 function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, colorTint, skinTone, disableAnimation = false }: AnimatedHumanoidProps) {
-  const gltf = useLoader(GLTFLoader, modelPath)
-  const groupRef = useRef<THREE.Group>(null!)
-  const mixerRef = useRef<THREE.AnimationMixer | null>(null)
-  const actionsRef = useRef<Record<string, THREE.AnimationAction>>({})
-  const currentRef = useRef<string>('')
+  const gltf       = useLoader(GLTFLoader, modelPath)
+  // Always preload the animation source (cached by useLoader — no extra network cost when modelPath === ANIM_SOURCE)
+  const animSrcGltf = useLoader(GLTFLoader, ANIM_SOURCE)
+  const groupRef    = useRef<THREE.Group>(null!)
+  const mixerRef    = useRef<THREE.AnimationMixer | null>(null)
+  const actionsRef  = useRef<Record<string, THREE.AnimationAction>>({})
+  const currentRef  = useRef<string>('')
   const getAnimStateRef = useRef(getAnimState)
   useEffect(() => { getAnimStateRef.current = getAnimState }, [getAnimState])
 
@@ -283,8 +298,15 @@ function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, c
   }, [gltf.scene, targetHeight, colorTint, skinTone])
 
   useEffect(() => {
-    const clips = gltf.animations
-    if (!clips?.length) return
+    const ownClips = gltf.animations ?? []
+    // Use own clips only if they contain the full idle/walk/run set.
+    // Otherwise fall back to soldier.glb clips (retargeted via shared Mixamo bone names).
+    const hasProper =
+      ownClips.some(c => /idle/i.test(c.name)) &&
+      ownClips.some(c => /walk/i.test(c.name)) &&
+      ownClips.some(c => /run/i.test(c.name))
+    const clips = hasProper ? ownClips : (animSrcGltf.animations ?? ownClips)
+    if (!clips.length) return
     const mixer = new THREE.AnimationMixer(scene)
     const actions: Record<string, THREE.AnimationAction> = {}
     for (const clip of clips) actions[clip.name] = mixer.clipAction(clip)
@@ -298,7 +320,7 @@ function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, c
       mixerRef.current = null
       actionsRef.current = {}
     }
-  }, [scene, gltf.animations])
+  }, [scene, gltf.animations, animSrcGltf.animations])
 
   useFrame((_, delta) => {
     if (disableAnimation) return
@@ -324,7 +346,9 @@ function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, c
   return (
     <group ref={groupRef} position-y={fit.yOffset}>
       <group rotation-x={fit.counterRotX}>
-        <primitive object={scene} scale={fit.scale} />
+        <group scale={fit.scale}>
+          <primitive object={scene} />
+        </group>
       </group>
     </group>
   )
