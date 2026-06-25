@@ -151,17 +151,18 @@ export default function HUD() {
           </div>
         </div>
 
-        {/* Bottom-right: Minimap */}
+        {/* Top-right: Circular Minimap */}
         <div style={{
-          position: 'absolute', bottom: 20, right: 14, width: mapSize, height: mapSize,
-          background: 'rgba(0,0,0,0.78)', border: '2px solid #444',
-          borderRadius: 8, overflow: 'hidden', boxShadow: '0 0 16px rgba(0,0,0,0.8)',
+          position: 'absolute', top: 16, right: 14, width: mapSize, height: mapSize,
+          background: 'rgba(0,0,0,0.78)', border: '2px solid rgba(255,255,255,0.25)',
+          borderRadius: '50%', overflow: 'hidden',
+          boxShadow: '0 0 0 1px rgba(0,255,170,0.3), 0 4px 24px rgba(0,0,0,0.7)',
         }}>
           {[-80, -40, 0, 40, 80].map(r => (
-            <div key={`mvr${r}`} style={{ position: 'absolute', left: toMapX(r) - 2, top: 0, width: 4, height: mapSize, background: '#2a2a2a' }} />
+            <div key={`mvr${r}`} style={{ position: 'absolute', left: toMapX(r) - 1, top: 0, width: 2, height: mapSize, background: 'rgba(255,255,255,0.06)' }} />
           ))}
           {[-80, -40, 0, 40, 80].map(r => (
-            <div key={`mhr${r}`} style={{ position: 'absolute', left: 0, top: toMapZ(r) - 2, width: mapSize, height: 4, background: '#2a2a2a' }} />
+            <div key={`mhr${r}`} style={{ position: 'absolute', left: 0, top: toMapZ(r) - 1, width: mapSize, height: 2, background: 'rgba(255,255,255,0.06)' }} />
           ))}
           {minimapDots.map((dot, i) => (
             <div key={i} style={{
@@ -176,15 +177,11 @@ export default function HUD() {
             width: 12, height: 12, background: '#00ffaa', borderRadius: '50%',
             border: '2px solid #fff', zIndex: 10,
           }} />
-          <div style={{
-            position: 'absolute', bottom: 4, left: 0, right: 0,
-            textAlign: 'center', color: '#555', fontSize: 9, fontFamily: 'monospace',
-          }}>MINIMAP</div>
         </div>
 
-        {/* FPS counter — bottom-right above minimap */}
+        {/* FPS counter — bottom-right */}
         <div style={{
-          position: 'absolute', bottom: 192, right: 14,
+          position: 'absolute', bottom: 16, right: 14,
           background: 'rgba(0,0,0,0.72)', borderRadius: 6,
           padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 8,
           fontFamily: 'monospace', fontSize: 12,
@@ -202,7 +199,7 @@ export default function HUD() {
       {/* ── Interactive buttons ── */}
 
       {/* Quality cycle button — right of FPS, same row */}
-      <div style={{ position: 'fixed', bottom: 192, right: 14, zIndex: 300 }}>
+      <div style={{ position: 'fixed', bottom: 16, right: 14, zIndex: 300 }}>
         <button
           type="button"
           onClick={e => { e.stopPropagation(); setQuality(NEXT_QUALITY[quality]) }}

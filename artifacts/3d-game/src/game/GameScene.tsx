@@ -1064,11 +1064,12 @@ function DynamicLighting({ timeOfDay }: { timeOfDay: number }) {
   const sunY = elevation * 90 + 5
   const sunZ = Math.sin(azimuth * Math.PI * 2) * 80
 
-  const dirIntensity = isDay ? elevation * 1.6 + 0.3 : 0
+  const dirIntensity = isDay ? elevation * 6 + 2 : 0
   const dirColor     = isDawn ? '#ffaa55' : isDusk ? '#ff7733' : '#fff8f0'
   const hemiSky      = isDawn ? '#ffcc88' : isDusk ? '#ff9966' : isDay ? '#b0d4ff' : '#1a2a44'
   const hemiGround   = isDay ? '#3a5a28' : '#0e1a08'
   const fogColor     = isDay ? (isDawn ? '#ffcc99' : isDusk ? '#ff9966' : '#c6e0f5') : '#06060f'
+  const ambientInt   = isDay ? 2.5 : 0.15
 
   return (
     <>
@@ -1084,8 +1085,10 @@ function DynamicLighting({ timeOfDay }: { timeOfDay: number }) {
       ) : (
         <color attach="background" args={['#06060f']}/>
       )}
+      {/* Ambient fill — prevents total darkness */}
+      <ambientLight intensity={ambientInt} color={isDay ? '#ffffff' : '#1a2a44'}/>
       {/* Sky / ground hemisphere for soft fill */}
-      <hemisphereLight args={[hemiSky as THREE.ColorRepresentation, hemiGround as THREE.ColorRepresentation, isDay ? 0.75 : 0.2]}/>
+      <hemisphereLight args={[hemiSky as THREE.ColorRepresentation, hemiGround as THREE.ColorRepresentation, isDay ? 4.0 : 0.3]}/>
       <directionalLight
         position={[sunX, sunY, sunZ]}
         intensity={dirIntensity}
@@ -1099,8 +1102,8 @@ function DynamicLighting({ timeOfDay }: { timeOfDay: number }) {
       />
       {/* Night: soft blue moonlight fill + distant city glow */}
       {!isDay && <>
-        <pointLight position={[0,25,0]} intensity={3} color="#2244aa" distance={200} decay={1}/>
-        <pointLight position={[0,8,0]} intensity={0.8} color="#aaccff" distance={80} decay={2}/>
+        <pointLight position={[0,25,0]} intensity={12} color="#2244aa" distance={200} decay={1}/>
+        <pointLight position={[0,8,0]} intensity={4} color="#aaccff" distance={80} decay={2}/>
       </>}
       <fog attach="fog" args={[fogColor, isDay ? 70 : 40, isDay ? 210 : 150]}/>
     </>
