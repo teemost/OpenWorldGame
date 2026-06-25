@@ -557,18 +557,31 @@ function Player({ onShoot }: PlayerProps) {
     if (!groupRef.current) return
 
     const kb = getControls()
-    // Merge keyboard + touch input so both work simultaneously
+    // forward/back/shoot/enter/run merged from keyboard + touch
     const controls = {
       forward: kb.forward || touchState.forward,
-      back: kb.back || touchState.back,
-      left: kb.left || touchState.left,
-      right: kb.right || touchState.right,
-      shoot: kb.shoot || touchState.shoot,
-      enter: kb.enter || touchState.enter,
-      run: kb.run || touchState.run,
+      back:    kb.back    || touchState.back,
+      // left/right only for keyboard (on-foot turning) and vehicle steering
+      left:    kb.left    || touchState.left,
+      right:   kb.right   || touchState.right,
+      shoot:   kb.shoot   || touchState.shoot,
+      enter:   kb.enter   || touchState.enter,
+      run:     kb.run     || touchState.run,
     }
     fireCooldown.current = Math.max(0, fireCooldown.current - delta)
     enterCooldown.current = Math.max(0, enterCooldown.current - delta)
+
+    // ── Camera/player rotation from right-side drag (applied every frame, then cleared) ──
+    if (touchState.camDx !== 0) {
+      const CAM_SENSITIVITY = 0.007 // radians per pixel
+      if (sharedInVehicle.value) {
+        const vRef2 = vehicleRefs.get(sharedVehicleId.value)
+        if (vRef2) vRef2.rot -= touchState.camDx * CAM_SENSITIVITY
+      } else {
+        rotRef.current.value -= touchState.camDx * CAM_SENSITIVITY
+      }
+      touchState.camDx = 0
+    }
 
     if (sharedInVehicle.value) {
       // ── In-vehicle controls ─────────────────────────────────────────────
@@ -618,18 +631,25 @@ function Player({ onShoot }: PlayerProps) {
       }
     } else {
       // ── On-foot controls ────────────────────────────────────────────────
+      // Keyboard left/right = turn; touch left/right = STRAFE (not turn)
       const turnSpeed = 2.2 * delta
-      if (controls.left) rotRef.current.value += turnSpeed
-      if (controls.right) rotRef.current.value -= turnSpeed
+      if (kb.left)  rotRef.current.value += turnSpeed
+      if (kb.right) rotRef.current.value -= turnSpeed
 
       const speed = controls.run ? 9 : 5.5
-      const dx = Math.sin(rotRef.current.value)
-      const dz = Math.cos(rotRef.current.value)
+      const fwdX = Math.sin(rotRef.current.value)
+      const fwdZ = Math.cos(rotRef.current.value)
+      // Perpendicular direction for strafing
+      const strX =  Math.cos(rotRef.current.value)
+      const strZ = -Math.sin(rotRef.current.value)
 
       let newX = posRef.current.x
       let newZ = posRef.current.z
-      if (controls.forward) { newX += dx * speed * delta; newZ += dz * speed * delta }
-      if (controls.back) { newX -= dx * speed * delta * 0.6; newZ -= dz * speed * delta * 0.6 }
+      if (controls.forward) { newX += fwdX * speed * delta; newZ += fwdZ * speed * delta }
+      if (controls.back)    { newX -= fwdX * speed * delta * 0.6; newZ -= fwdZ * speed * delta * 0.6 }
+      // Touch joystick X → strafe (keyboard left/right already handled as turn above)
+      if (touchState.strafeLeft)  { newX -= strX * speed * delta; newZ -= strZ * speed * delta }
+      if (touchState.strafeRight) { newX += strX * speed * delta; newZ += strZ * speed * delta }
 
       newX = Math.max(-108, Math.min(108, newX))
       newZ = Math.max(-108, Math.min(108, newZ))
