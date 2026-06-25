@@ -705,38 +705,48 @@ function Player({ onShoot }: PlayerProps) {
       }
     }
 
-    // Sync player group (hidden — first-person)
+    // Sync player group (visible — third-person)
     groupRef.current.position.copy(posRef.current)
     groupRef.current.rotation.y = rotRef.current.value
-    groupRef.current.visible = false
+    groupRef.current.visible = true
 
-    // ── First-person camera ───────────────────────────────────────────────────
+    // ── Third-person camera (behind the player at shoulder height) ───────────
     const pitch = pitchRef.current
+    const CAM_DIST   = 5   // how far behind
+    const CAM_HEIGHT = 1.6 // shoulder/head height offset
+
     if (sharedInVehicle.value) {
       const vRef = vehicleRefs.get(sharedVehicleId.value)
       if (vRef) {
         const rot = vRef.rot
-        // Slightly ahead of centre — driver seat
-        const eyeX = vRef.pos.x + Math.sin(rot) * 0.6
-        const eyeY = 1.2 // seated eye height
-        const eyeZ = vRef.pos.z + Math.cos(rot) * 0.6
-        camera.position.set(eyeX, eyeY, eyeZ)
+        const tx = vRef.pos.x
+        const ty = 0.9
+        const tz = vRef.pos.z
+        camera.position.set(
+          tx - Math.sin(rot) * CAM_DIST,
+          ty + CAM_HEIGHT,
+          tz - Math.cos(rot) * CAM_DIST
+        )
         camera.lookAt(
-          eyeX + Math.sin(rot) * Math.cos(pitch) * 100,
-          eyeY + Math.sin(pitch) * 100,
-          eyeZ + Math.cos(rot) * Math.cos(pitch) * 100
+          tx + Math.sin(rot) * 3,
+          ty + 0.6,
+          tz + Math.cos(rot) * 3
         )
       }
     } else {
       const rot = rotRef.current.value
-      const eyeX = posRef.current.x
-      const eyeY = posRef.current.y + 1.55 // eye level
-      const eyeZ = posRef.current.z
-      camera.position.set(eyeX, eyeY, eyeZ)
+      const px = posRef.current.x
+      const py = posRef.current.y
+      const pz = posRef.current.z
+      camera.position.set(
+        px - Math.sin(rot) * CAM_DIST,
+        py + CAM_HEIGHT,
+        pz - Math.cos(rot) * CAM_DIST
+      )
       camera.lookAt(
-        eyeX + Math.sin(rot) * Math.cos(pitch) * 100,
-        eyeY + Math.sin(pitch) * 100,
-        eyeZ + Math.cos(rot) * Math.cos(pitch) * 100
+        px + Math.sin(rot) * 3,
+        py + 1.0,
+        pz + Math.cos(rot) * 3
       )
     }
   })
