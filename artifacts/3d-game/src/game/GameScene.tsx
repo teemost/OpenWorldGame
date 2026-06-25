@@ -238,15 +238,6 @@ function City() {
       {[-60,-20,20,60].map(z=>(
         <StreetBench key={`bench1_${z}`} x={-83} z={z}/>
       ))}
-      {/* Crosswalk stripes */}
-      {[-80,-40,0,40,80].map(x=>[-80,-40,0,40,80].filter(z=>z!==x).map(z=>(
-        Array.from({length:4},(_,i)=>(
-          <mesh key={`cw${x}${z}${i}`} rotation={[-Math.PI/2,0,0]} position={[x-3+i*2,0.004,z+8.5]}>
-            <planeGeometry args={[1.5,3]}/>
-            <meshStandardMaterial color="rgba(255,255,255,0.6)"/>
-          </mesh>
-        ))
-      )))}
     </group>
   )
 }
@@ -272,7 +263,7 @@ function Vehicle({ vehicleId }: { vehicleId: string }) {
   if (vehicleModel) {
     return (
       <group ref={groupRef}>
-        <CustomModel url={vehicleModel.url} format={vehicleModel.format} scale={1.5} />
+        <CustomModel url={vehicleModel.url} format={vehicleModel.format} targetHeight={1.5} />
       </group>
     )
   }
@@ -459,7 +450,9 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
   const skinTones = ['#ddb080','#c8956c','#a0724a','#7a4a28','#f0c090']
   const skin = skinTones[npcIndex % skinTones.length]
 
-  const npcTag = (
+  // Only show name tag if within 30 units of player (performance: Html overlays are expensive)
+  const distNow = nRef.pos.distanceTo(sharedPlayerPos)
+  const npcTag = distNow < 30 ? (
     <Html position={[0, 2.6, 0]} center distanceFactor={10} occlude>
       <div style={{
         color: '#fff', fontSize: 11, fontFamily: 'monospace',
@@ -468,13 +461,13 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
         border: '1px solid rgba(255,255,255,0.15)',
       }}>{npcName}</div>
     </Html>
-  )
+  ) : null
 
   if (npcModel) {
     return (
       <group ref={groupRef} position={[nRef.pos.x, 0, nRef.pos.z]}>
         {npcTag}
-        <CustomModel url={npcModel.url} format={npcModel.format} scale={1} />
+        <CustomModel url={npcModel.url} format={npcModel.format} targetHeight={1.8} />
       </group>
     )
   }
@@ -596,7 +589,9 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
   const hatColor = isSwat ? '#000' : '#0a1a66'
   const policeModel = isSwat ? modelBlobURLs.get('swat') : modelBlobURLs.get('police')
 
-  const policeTag = (
+  // Only show police tag when close (Html overlays are GPU-expensive)
+  const policeDistNow = pRef.pos.distanceTo(sharedPlayerPos)
+  const policeTag = policeDistNow < 28 ? (
     <Html position={[0, 2.6, 0]} center distanceFactor={10} occlude>
       <div style={{
         color: '#aaddff', fontSize: 11, fontFamily: 'monospace',
@@ -607,13 +602,13 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
         {isSwat ? `SWAT ${surname}` : `Ofc. ${surname}`}
       </div>
     </Html>
-  )
+  ) : null
 
   if (policeModel) {
     return (
       <group ref={groupRef} position={[pRef.pos.x, 0, pRef.pos.z]}>
         {policeTag}
-        <CustomModel url={policeModel.url} format={policeModel.format} scale={1} />
+        <CustomModel url={policeModel.url} format={policeModel.format} targetHeight={1.85} />
       </group>
     )
   }
@@ -1027,13 +1022,13 @@ function DynamicLighting({ timeOfDay }: { timeOfDay: number }) {
       <color attach="background" args={[skyColor]}/>
       <ambientLight intensity={ambInt} color={ambCol}/>
       <directionalLight position={[50,80,50]} intensity={dirInt} color={dirCol}
-        castShadow shadow-mapSize={[2048,2048]}
-        shadow-camera-near={1} shadow-camera-far={220}
-        shadow-camera-left={-130} shadow-camera-right={130}
-        shadow-camera-top={130} shadow-camera-bottom={-130}
+        castShadow shadow-mapSize={[1024,1024]}
+        shadow-camera-near={1} shadow-camera-far={180}
+        shadow-camera-left={-90} shadow-camera-right={90}
+        shadow-camera-top={90} shadow-camera-bottom={-90}
       />
       {!isDay && <pointLight position={[0,8,0]} intensity={0.9} color="#ffee88" distance={45}/>}
-      <fog attach="fog" args={[skyColor,70,220]}/>
+      <fog attach="fog" args={[skyColor,65,200]}/>
     </>
   )
 }

@@ -161,9 +161,10 @@ function Game() {
             <KeyboardControls map={keyMap}>
               <Canvas
                 shadows
-                camera={{ position: [0, 5, 8], fov: 68, near: 0.1, far: 600 }}
-                gl={{ antialias: true, powerPreference: 'default', failIfMajorPerformanceCaveat: false }}
+                camera={{ position: [0, 5, 8], fov: 68, near: 0.3, far: 500 }}
+                gl={{ antialias: false, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: false, stencil: false }}
                 style={{ width: '100%', height: '100%' }}
+                performance={{ min: 0.5 }}
               >
                 <GameScene />
               </Canvas>
