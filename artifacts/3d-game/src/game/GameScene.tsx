@@ -899,8 +899,8 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       }
     } else {
       // ── On-foot: A/D orbits camera ──────────────────────────────────────
-      if (kb.left)  sharedCamYaw.value += 1.6 * delta
-      if (kb.right) sharedCamYaw.value -= 1.6 * delta
+      if (kb.left)  sharedCamYaw.value -= 1.6 * delta
+      if (kb.right) sharedCamYaw.value += 1.6 * delta
 
       // ── On-foot: camera-relative movement ──────────────────────────────
       const camYaw = sharedCamYaw.value
@@ -925,7 +925,7 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
 
       // Player faces movement direction (decoupled from camera)
       if (Math.abs(moveX) > 0.01 || Math.abs(moveZ) > 0.01) {
-        rotRef.current.value = Math.atan2(moveX, moveZ)
+        rotRef.current.value = Math.atan2(moveX, moveZ) + Math.PI
       }
 
       newX = Math.max(-108, Math.min(108, newX))
