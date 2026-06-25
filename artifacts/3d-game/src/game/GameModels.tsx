@@ -192,9 +192,10 @@ interface AnimatedHumanoidProps {
   targetHeight?: number
   colorTint?: string | null
   skinTone?: string | null
+  disableAnimation?: boolean
 }
 
-function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, colorTint, skinTone }: AnimatedHumanoidProps) {
+function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, colorTint, skinTone, disableAnimation = false }: AnimatedHumanoidProps) {
   const gltf = useLoader(GLTFLoader, modelPath)
   const groupRef = useRef<THREE.Group>(null!)
   const mixerRef = useRef<THREE.AnimationMixer | null>(null)
@@ -257,6 +258,7 @@ function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, c
   }, [scene, gltf.animations])
 
   useFrame((_, delta) => {
+    if (disableAnimation) return
     mixerRef.current?.update(delta)
     const state = getAnimStateRef.current()
     const actions = actionsRef.current

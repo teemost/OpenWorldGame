@@ -171,10 +171,18 @@ function Game() {
   const isTouch = useIsTouch()
   useMouseCameraOrbit(!isTouch)
   const loadAllModelURLs = useModelStore(s => s.loadAllModelURLs)
+  const settings = useModelStore(s => s.settings)
+  const initFromSettings = useGameStore(s => s.initFromSettings)
 
   // Restore blob URLs from IndexedDB every time the game mounts
   // (covers fresh page load AND returning from the admin panel)
   useEffect(() => { loadAllModelURLs() }, [loadAllModelURLs])
+
+  // Apply admin settings (health, money, ammo) when the game first loads
+  useEffect(() => {
+    initFromSettings(settings.playerHealthMax, settings.startingMoney, settings.startingAmmo)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <LandscapeGuard>
@@ -184,7 +192,7 @@ function Game() {
             <KeyboardControls map={keyMap}>
               <Canvas
                 shadows
-                camera={{ position: [0, 5, 8], fov: 68, near: 0.3, far: 500 }}
+                camera={{ position: [0, 3, 5], fov: 68, near: 0.3, far: 500 }}
                 gl={{ antialias: false, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: false, stencil: false }}
                 style={{ width: '100%', height: '100%' }}
                 performance={{ min: 0.5 }}

@@ -41,6 +41,7 @@ interface GameStore {
   setFps: (fps: number) => void
   setQuality: (q: GraphicsQuality) => void
   resetGame: () => void
+  initFromSettings: (health: number, money: number, ammo: number) => void
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -96,4 +97,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       inVehicle: false,
       ammo: 60,
     }),
+  initFromSettings: (health, money, ammo) =>
+    set({ health, money, ammo }),
 }))
