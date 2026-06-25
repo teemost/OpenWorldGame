@@ -21,7 +21,9 @@ function computeFit(obj: THREE.Object3D, targetHeight: number): { scale: number;
   // Propagate all node transforms without needing a live scene
   obj.updateMatrixWorld(true)
 
+  let minX = Infinity, maxX = -Infinity
   let minY = Infinity, maxY = -Infinity
+  let minZ = Infinity, maxZ = -Infinity
   const tmpBox = new THREE.Box3()
   obj.traverse(child => {
     const mesh = child as THREE.Mesh
@@ -31,11 +33,25 @@ function computeFit(obj: THREE.Object3D, targetHeight: number): { scale: number;
     if (!bb) return
     // Transform local geometry bbox → world space using the node's world matrix
     tmpBox.copy(bb).applyMatrix4(mesh.matrixWorld)
+    if (tmpBox.min.x < minX) minX = tmpBox.min.x
+    if (tmpBox.max.x > maxX) maxX = tmpBox.max.x
     if (tmpBox.min.y < minY) minY = tmpBox.min.y
     if (tmpBox.max.y > maxY) maxY = tmpBox.max.y
+    if (tmpBox.min.z < minZ) minZ = tmpBox.min.z
+    if (tmpBox.max.z > maxZ) maxZ = tmpBox.max.z
   })
 
-  const modelHeight = isFinite(minY) && isFinite(maxY) ? maxY - minY : 0
+  if (!isFinite(minY) || !isFinite(maxY)) return { scale: 1, yOffset: 0 }
+
+  // Use the largest dimension as the effective height so rotated models
+  // (e.g. fembot.glb exported with a 90° X root rotation) scale correctly.
+  // A standing humanoid's true height equals its longest axis regardless of
+  // how the root node is oriented in the file.
+  const xSize = isFinite(minX) && isFinite(maxX) ? maxX - minX : 0
+  const ySize = maxY - minY
+  const zSize = isFinite(minZ) && isFinite(maxZ) ? maxZ - minZ : 0
+  const modelHeight = Math.max(xSize, ySize, zSize)
+
   if (modelHeight < 0.001) return { scale: 1, yOffset: 0 }
   const scale = targetHeight / modelHeight
   const yOffset = -minY * scale
