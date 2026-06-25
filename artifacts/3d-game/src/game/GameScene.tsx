@@ -11,6 +11,8 @@ import {
   resolveCollision,
 } from './cityData'
 import HUD from './HUD'
+import TouchControls from './TouchControls'
+import { touchState } from './touchState'
 
 // ─── Controls enum ───────────────────────────────────────────────────────────
 export enum Controls {
@@ -345,7 +347,7 @@ function NPC({ npcId }: NPCProps) {
 
     groupRef.current.position.set(nRef.pos.x, 0, nRef.pos.z)
     groupRef.current.rotation.y = nRef.dir
-    groupRef.current.visible = nRef.state !== 'dead'
+    groupRef.current.visible = true // already returned if dead above
   })
 
   return (
@@ -556,7 +558,17 @@ function Player({ onShoot }: PlayerProps) {
   useFrame(({ camera }, delta) => {
     if (!groupRef.current) return
 
-    const controls = getControls()
+    const kb = getControls()
+    // Merge keyboard + touch input so both work simultaneously
+    const controls = {
+      forward: kb.forward || touchState.forward,
+      back: kb.back || touchState.back,
+      left: kb.left || touchState.left,
+      right: kb.right || touchState.right,
+      shoot: kb.shoot || touchState.shoot,
+      enter: kb.enter || touchState.enter,
+      run: kb.run || touchState.run,
+    }
     fireCooldown.current = Math.max(0, fireCooldown.current - delta)
     enterCooldown.current = Math.max(0, enterCooldown.current - delta)
 
@@ -1015,13 +1027,14 @@ export default function GameScene() {
       {/* Minimap data collector */}
       <MinimapCollector onUpdate={setMinimapDotsState} />
 
-      {/* HUD (HTML overlay) */}
+      {/* HUD + Touch Controls (HTML overlay) */}
       <Html fullscreen>
         <HUD
           minimapDots={minimapDotsState}
           playerX={playerDisplayPos.x}
           playerZ={playerDisplayPos.z}
         />
+        <TouchControls inVehicle={sharedInVehicle.value} />
       </Html>
     </>
   )
