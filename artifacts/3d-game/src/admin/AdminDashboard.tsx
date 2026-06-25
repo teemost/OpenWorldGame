@@ -437,6 +437,12 @@ function OverviewSection() {
   const { getAllUsers, currentUser } = useAuthStore()
   const triggerRestart = useGameStore(s => s.triggerRestart)
   const [confirmRestart, setConfirmRestart] = useState(false)
+  const [confirmClear,   setConfirmClear  ] = useState(false)
+
+  const handleClearCache = () => {
+    localStorage.clear()
+    window.location.reload()
+  }
   const users         = getAllUsers()
   const uploadedCount = Object.values(models).filter(Boolean).length
   const totalCats     = CATEGORIES.length
@@ -557,6 +563,64 @@ function OverviewSection() {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setConfirmRestart(false) }}
+                style={{
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#888', padding: '8px 22px', borderRadius: 7,
+                  fontSize: 12, cursor: 'pointer', fontFamily: 'monospace',
+                }}
+              >Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Clear Cache ────────────────────────────────────────────────── */}
+      <div style={{
+        background: confirmClear ? 'rgba(180,100,0,0.12)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${confirmClear ? 'rgba(255,140,0,0.4)' : 'rgba(255,255,255,0.07)'}`,
+        borderRadius: 12, padding: '18px 20px', marginBottom: 18,
+        transition: 'all 0.2s',
+      }}>
+        <div style={{ color: '#ff6600', fontSize: 12, letterSpacing: 2, marginBottom: 14, fontFamily: 'monospace' }}>
+          ── CACHE CONTROL
+        </div>
+        {!confirmClear ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div>
+              <div style={{ color: '#ccc', fontSize: 13 }}>Clear All LocalStorage Cache</div>
+              <div style={{ color: '#555', fontSize: 11, marginTop: 3 }}>
+                Resets all stored settings, accounts, uploaded models and preferences — page reloads automatically
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setConfirmClear(true) }}
+              style={{
+                background: 'rgba(255,140,0,0.15)', border: '1px solid rgba(255,140,0,0.4)',
+                color: '#ffaa00', padding: '8px 20px', borderRadius: 7,
+                fontSize: 12, cursor: 'pointer', fontFamily: 'monospace',
+                fontWeight: 'bold', letterSpacing: 1, flexShrink: 0, whiteSpace: 'nowrap',
+              }}
+            >🗑️ CLEAR CACHE</button>
+          </div>
+        ) : (
+          <div>
+            <div style={{ color: '#ffaa00', fontSize: 13, marginBottom: 10, fontWeight: 'bold' }}>
+              ⚠️ This will erase all data — accounts, models, settings. Continue?
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleClearCache() }}
+                style={{
+                  background: 'rgba(200,100,0,0.3)', border: '1px solid rgba(255,140,0,0.5)',
+                  color: '#ffaa00', padding: '8px 22px', borderRadius: 7,
+                  fontSize: 12, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: 1,
+                }}
+              >YES, CLEAR & RELOAD</button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setConfirmClear(false) }}
                 style={{
                   background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
                   color: '#888', padding: '8px 22px', borderRadius: 7,
