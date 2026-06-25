@@ -229,6 +229,16 @@ export const useModelStore = create<ModelStore>()(
     {
       name: 'owcc_model_store_v2',
       partialize: (s) => ({ models: s.models, settings: s.settings }),
+      // Deep-merge settings so newly added fields are always backfilled from
+      // DEFAULT_SETTINGS even when an older version is cached in localStorage.
+      merge: (persisted: unknown, current) => {
+        const p = persisted as Partial<typeof current>
+        return {
+          ...current,
+          ...p,
+          settings: { ...DEFAULT_SETTINGS, ...(p.settings ?? {}) },
+        }
+      },
     }
   )
 )
