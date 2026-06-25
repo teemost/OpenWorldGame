@@ -13,17 +13,26 @@ const SkeletonUtils: { clone: (obj: THREE.Object3D) => THREE.Object3D } =
   (_SkeletonUtilsMod as any).default ??
   _SkeletonUtilsMod
 
-// Compute bounding box and return scale + y-offset to fit targetHeight, grounded at y=0
+// Compute scale + y-offset to fit targetHeight, grounded at y=0.
+// Reads raw geometry vertex positions so it works on skinned meshes that
+// haven't been attached to a live scene (bone world matrices not updated yet).
 function computeFit(obj: THREE.Object3D, targetHeight: number): { scale: number; yOffset: number } {
-  const box = new THREE.Box3().setFromObject(obj)
-  const size = new THREE.Vector3()
-  box.getSize(size)
-  const modelHeight = size.y
+  let minY = Infinity, maxY = -Infinity
+  obj.traverse(child => {
+    const mesh = child as THREE.Mesh
+    if (!mesh.isMesh || !mesh.geometry) return
+    const pos = mesh.geometry.attributes.position
+    if (!pos) return
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i)
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
+    }
+  })
+  const modelHeight = isFinite(maxY) && isFinite(minY) ? maxY - minY : 0
   if (modelHeight < 0.001) return { scale: 1, yOffset: 0 }
   const scale = targetHeight / modelHeight
-  // After scaling, bottom of model should be at y=0
-  const scaledBottom = box.min.y * scale
-  const yOffset = -scaledBottom
+  const yOffset = -minY * scale
   return { scale, yOffset }
 }
 
