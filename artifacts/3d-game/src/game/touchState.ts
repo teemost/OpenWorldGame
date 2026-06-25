@@ -3,11 +3,15 @@ export const touchState = {
   // Joystick Y-axis
   forward: false,
   back: false,
-  // Joystick X-axis — used for VEHICLE steering (in-vehicle) and on-foot STRAFE
-  left: false,       // vehicle steer left
-  right: false,      // vehicle steer right
-  strafeLeft: false, // on-foot strafe left
-  strafeRight: false,// on-foot strafe right
+  // On-foot strafe (corrected: joystick right → strafeRight)
+  strafeLeft: false,
+  strafeRight: false,
+  // Vehicle steering (original direction: joystick left → vehicleLeft)
+  vehicleLeft: false,
+  vehicleRight: false,
+  // Legacy aliases used in vehicle controls
+  left: false,
+  right: false,
   // Buttons
   shoot: false,
   enter: false,

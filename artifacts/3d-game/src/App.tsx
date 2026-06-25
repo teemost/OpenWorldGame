@@ -1,9 +1,12 @@
 import { Canvas } from '@react-three/fiber'
 import { KeyboardControls } from '@react-three/drei'
-import { Component, ReactNode, useState, useEffect } from 'react'
+import { Component, ReactNode, useState, useEffect, useRef } from 'react'
 import GameScene, { Controls } from './game/GameScene'
 import TouchControls from './game/TouchControls'
 import HUD from './game/HUD'
+import AuthScreen from './auth/AuthScreen'
+import { useAuthStore } from './auth/useAuthStore'
+import { touchState } from './game/touchState'
 import './index.css'
 
 const keyMap = [
@@ -16,7 +19,6 @@ const keyMap = [
   { name: Controls.run,     keys: ['ShiftLeft', 'ShiftRight'] },
 ]
 
-// ── Error boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
   { hasError: boolean }
@@ -31,7 +33,6 @@ class ErrorBoundary extends Component<
   }
 }
 
-// ── No-WebGL fallback ─────────────────────────────────────────────────────────
 function NoWebGLFallback() {
   return (
     <div style={{
@@ -46,68 +47,35 @@ function NoWebGLFallback() {
         OPEN WORLD CRIME CITY
       </div>
       <div style={{ fontSize: 16, color: '#ff8844', marginBottom: 24, maxWidth: 480 }}>
-        WebGL is required to run this 3D game.
-        <br />
-        Please open this app in Chrome, Firefox, or Edge on a device with GPU support.
-      </div>
-      <div style={{
-        background: 'rgba(255,255,255,0.05)', border: '1px solid #333',
-        borderRadius: 12, padding: '20px 32px', maxWidth: 500,
-      }}>
-        <div style={{ color: '#88aaff', fontSize: 14, lineHeight: 2 }}>
-          🏙️ Open-world city with skyscrapers &amp; roads<br />
-          🚗 Drive 12 unique vehicles<br />
-          👥 25 NPCs with AI behavior<br />
-          🚔 Dynamic police &amp; wanted system<br />
-          🔫 Third-person shooting mechanics<br />
-          🌅 Day/night cycle<br />
-          🗺️ Live minimap HUD
-        </div>
+        WebGL is required. Please use Chrome, Firefox, or Edge on a GPU-enabled device.
       </div>
     </div>
   )
 }
 
-// ── WebGL detection ───────────────────────────────────────────────────────────
 function WebGLCheck({ children }: { children: ReactNode }) {
   const [supported, setSupported] = useState<boolean | null>(null)
   useEffect(() => {
     try {
       const c = document.createElement('canvas')
-      setSupported(
-        !!(c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl'))
-      )
+      setSupported(!!(c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl')))
     } catch { setSupported(false) }
   }, [])
-
-  if (supported === null) {
-    return (
-      <div style={{
-        width: '100vw', height: '100vh', background: '#0a0a1a',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: '#fff', fontFamily: 'monospace',
-      }}>
-        Loading…
-      </div>
-    )
-  }
+  if (supported === null) return (
+    <div style={{ width:'100vw',height:'100vh',background:'#0a0a1a',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontFamily:'monospace' }}>
+      Loading…
+    </div>
+  )
   return supported ? <>{children}</> : <NoWebGLFallback />
 }
 
-// ── Landscape guard (mobile only) ─────────────────────────────────────────────
 function LandscapeGuard({ children }: { children: ReactNode }) {
   const [isPortrait, setIsPortrait] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-
   useEffect(() => {
-    const checkMobile = () =>
-      setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0)
-
-    const checkOrientation = () =>
-      setIsPortrait(window.innerHeight > window.innerWidth)
-
-    checkMobile()
-    checkOrientation()
+    const checkMobile = () => setIsMobile('ontouchstart' in window || navigator.maxTouchPoints > 0)
+    const checkOrientation = () => setIsPortrait(window.innerHeight > window.innerWidth)
+    checkMobile(); checkOrientation()
     window.addEventListener('resize', checkOrientation)
     window.addEventListener('orientationchange', checkOrientation)
     return () => {
@@ -115,54 +83,74 @@ function LandscapeGuard({ children }: { children: ReactNode }) {
       window.removeEventListener('orientationchange', checkOrientation)
     }
   }, [])
-
-  if (isMobile && isPortrait) {
-    return (
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        background: '#0a0a1a',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        color: '#fff', fontFamily: 'monospace', textAlign: 'center', gap: 20,
-      }}>
-        <div style={{ fontSize: 72 }}>↻</div>
-        <div style={{ fontSize: 22, fontWeight: 'bold', color: '#ffcc00' }}>
-          ROTATE YOUR DEVICE
-        </div>
-        <div style={{ fontSize: 14, color: '#aaa', maxWidth: 260 }}>
-          This game plays in landscape mode. Please rotate your phone sideways.
-        </div>
-      </div>
-    )
-  }
-
+  if (isMobile && isPortrait) return (
+    <div style={{ position:'fixed',inset:0,zIndex:9999,background:'#0a0a1a',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#fff',fontFamily:'monospace',textAlign:'center',gap:20 }}>
+      <div style={{ fontSize:72 }}>↻</div>
+      <div style={{ fontSize:22,fontWeight:'bold',color:'#ffcc00' }}>ROTATE YOUR DEVICE</div>
+      <div style={{ fontSize:14,color:'#aaa',maxWidth:260 }}>This game plays in landscape mode.</div>
+    </div>
+  )
   return <>{children}</>
 }
 
-// ── Touch device detection (for hiding desktop hint) ──────────────────────────
 function useIsTouch() {
   const [isTouch, setIsTouch] = useState(false)
-  useEffect(() => {
-    setIsTouch('ontouchstart' in window || navigator.maxTouchPoints > 0)
-  }, [])
+  useEffect(() => { setIsTouch('ontouchstart' in window || navigator.maxTouchPoints > 0) }, [])
   return isTouch
 }
 
-// ── Root App ──────────────────────────────────────────────────────────────────
-export default function App() {
+// Mouse camera drag for desktop
+function useMouseCameraOrbit(enabled: boolean) {
+  const isDragging = useRef(false)
+  const lastX = useRef(0)
+  const lastY = useRef(0)
+
+  useEffect(() => {
+    if (!enabled) return
+
+    const onDown = (e: MouseEvent) => {
+      if (e.button === 0 || e.button === 2) {
+        isDragging.current = true
+        lastX.current = e.clientX
+        lastY.current = e.clientY
+      }
+    }
+    const onMove = (e: MouseEvent) => {
+      if (!isDragging.current) return
+      touchState.camDx += e.clientX - lastX.current
+      touchState.camDy += e.clientY - lastY.current
+      lastX.current = e.clientX
+      lastY.current = e.clientY
+    }
+    const onUp = () => { isDragging.current = false }
+
+    window.addEventListener('mousedown', onDown)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    window.addEventListener('contextmenu', e => e.preventDefault())
+    return () => {
+      window.removeEventListener('mousedown', onDown)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [enabled])
+}
+
+function Game() {
   const isTouch = useIsTouch()
+  useMouseCameraOrbit(!isTouch)
 
   return (
     <LandscapeGuard>
-      <div style={{ width: '100vw', height: '100vh', background: '#000', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ width:'100vw',height:'100vh',background:'#000',overflow:'hidden',position:'relative' }}>
         <WebGLCheck>
           <ErrorBoundary fallback={<NoWebGLFallback />}>
             <KeyboardControls map={keyMap}>
               <Canvas
                 shadows
-                camera={{ position: [5, 15, 25], fov: 65, near: 0.1, far: 500 }}
-                gl={{ antialias: true, powerPreference: 'default', failIfMajorPerformanceCaveat: false }}
-                style={{ width: '100%', height: '100%' }}
+                camera={{ position:[0,5,8], fov:68, near:0.1, far:600 }}
+                gl={{ antialias:true, powerPreference:'default', failIfMajorPerformanceCaveat:false }}
+                style={{ width:'100%',height:'100%' }}
               >
                 <GameScene />
               </Canvas>
@@ -170,35 +158,37 @@ export default function App() {
           </ErrorBoundary>
         </WebGLCheck>
 
-        {/* HUD — rendered OUTSIDE Canvas so it never inherits camera transforms */}
         <HUD />
-
-        {/* Touch controls — rendered OUTSIDE Canvas so position:fixed is viewport-relative */}
         {isTouch && <TouchControls />}
 
-        {/* Startup hint — desktop only, fades after 4s */}
         {!isTouch && (
           <div style={{
-            position: 'fixed', top: '50%', left: '50%',
-            transform: 'translate(-50%, -50%)',
-            background: 'rgba(0,0,0,0.82)', color: '#fff',
-            padding: '16px 28px', borderRadius: 12,
-            fontFamily: 'monospace', fontSize: 16, textAlign: 'center',
-            pointerEvents: 'none',
-            animation: 'fadeOut 0.5s ease-out 4s forwards',
-            zIndex: 200, border: '1px solid #444',
+            position:'fixed',top:'50%',left:'50%',
+            transform:'translate(-50%,-50%)',
+            background:'rgba(0,0,0,0.82)',color:'#fff',
+            padding:'16px 28px',borderRadius:12,
+            fontFamily:'monospace',fontSize:15,textAlign:'center',
+            pointerEvents:'none',
+            animation:'fadeOut 0.5s ease-out 5s forwards',
+            zIndex:200,border:'1px solid #444',
           }}>
-            <div style={{ fontSize: 22, fontWeight: 'bold', color: '#ffcc00', marginBottom: 10 }}>
+            <div style={{ fontSize:20,fontWeight:'bold',color:'#ffcc00',marginBottom:10 }}>
               OPEN WORLD CRIME CITY
             </div>
-            <div style={{ color: '#aaa', lineHeight: 1.8 }}>
-              Click the game · WASD to move
-              <br />
-              SPACE: Shoot · E: Enter/Exit Vehicle · Shift: Run
+            <div style={{ color:'#aaa',lineHeight:1.9 }}>
+              WASD — Move &nbsp;|&nbsp; Mouse drag — Camera<br/>
+              Space — Shoot &nbsp;|&nbsp; E — Enter/Exit Vehicle<br/>
+              Shift — Run
             </div>
           </div>
         )}
       </div>
     </LandscapeGuard>
   )
+}
+
+export default function App() {
+  const currentUser = useAuthStore(s => s.currentUser)
+  if (!currentUser) return <AuthScreen />
+  return <Game />
 }

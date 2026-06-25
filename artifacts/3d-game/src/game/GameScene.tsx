@@ -1,8 +1,9 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
-import { useKeyboardControls } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
+import { useKeyboardControls, Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '../store/useGameStore'
+import { useAuthStore } from '../auth/useAuthStore'
 import {
   CITY_BUILDINGS,
   INITIAL_VEHICLES,
@@ -12,7 +13,6 @@ import {
 } from './cityData'
 import { touchState } from './touchState'
 
-// ─── Controls enum ───────────────────────────────────────────────────────────
 export enum Controls {
   forward = 'forward',
   back = 'back',
@@ -23,644 +23,742 @@ export enum Controls {
   run = 'run',
 }
 
-// ─── Shared mutable game refs (fast, no React overhead) ────────────────────
+// ─── Module-level shared state ────────────────────────────────────────────────
 const sharedPlayerPos = new THREE.Vector3(0, 0.9, 0)
 const sharedPlayerRot = { value: 0 }
 const sharedInVehicle = { value: false }
 const sharedVehicleId = { value: '' }
 const sharedWantedLevel = { value: 0 }
+const sharedCamYaw   = { value: Math.PI }   // camera starts behind player
+const sharedCamPitch = { value: 0.25 }
+
+// ─── NPC / Police names ───────────────────────────────────────────────────────
+const NPC_NAMES = [
+  'Marcus','Luis','Tanya','Devon','Carla','Rico','Keisha','Andre',
+  'Mia','Jerome','Priya','Bobby','Lena','Darius','Yolanda','Tank',
+  'Cleo','Malik','Sandra','Trevor','Nina','Slice','Donna','Ricky','Eva',
+]
+const POLICE_SURNAMES = ['Rogers','Chen','Williams','Torres','Davis','Park','Martin','Stone']
 
 interface VehicleRef {
-  pos: THREE.Vector3
-  rot: number
-  speed: number
-  color: string
-  occupied: boolean
-  mesh: THREE.Group | null
+  pos: THREE.Vector3; rot: number; speed: number
+  color: string; occupied: boolean; mesh: THREE.Group | null
 }
-
 interface NPCRef {
-  pos: THREE.Vector3
-  dir: number
-  health: number
-  state: 'walking' | 'fleeing' | 'dead'
-  moveTimer: number
-  speed: number
-  mesh: THREE.Group | null
+  pos: THREE.Vector3; dir: number; health: number
+  state: 'idle' | 'walking' | 'fleeing' | 'panicking' | 'dead'
+  moveTimer: number; speed: number; mesh: THREE.Group | null
+  panicTimer: number
 }
-
 interface PoliceRef {
-  pos: THREE.Vector3
-  dir: number
-  health: number
-  shootTimer: number
-  mesh: THREE.Group | null
+  pos: THREE.Vector3; dir: number; health: number
+  shootTimer: number; mesh: THREE.Group | null; formation: number
 }
-
 interface BulletRef {
-  id: string
-  pos: THREE.Vector3
-  dir: THREE.Vector3
-  age: number
-  owner: 'player' | 'police'
-  mesh: THREE.Mesh | null
+  id: string; pos: THREE.Vector3; dir: THREE.Vector3
+  age: number; owner: 'player' | 'police'; mesh: THREE.Mesh | null
 }
 
-// Shared maps for cross-component access
 const vehicleRefs = new Map<string, VehicleRef>()
-const npcRefs = new Map<string, NPCRef>()
-const policeRefs = new Map<string, PoliceRef>()
-let bulletRefs: BulletRef[] = []
+const npcRefs     = new Map<string, NPCRef>()
+const policeRefs  = new Map<string, PoliceRef>()
+let   bulletRefs: BulletRef[] = []
 
-// Initialize vehicles
-INITIAL_VEHICLES.forEach((v) => {
-  vehicleRefs.set(v.id, {
-    pos: new THREE.Vector3(v.x, 0, v.z),
-    rot: v.rot,
-    speed: 0,
-    color: v.color,
-    occupied: false,
-    mesh: null,
-  })
-})
+INITIAL_VEHICLES.forEach(v => vehicleRefs.set(v.id, {
+  pos: new THREE.Vector3(v.x, 0, v.z), rot: v.rot,
+  speed: 0, color: v.color, occupied: false, mesh: null,
+}))
+INITIAL_NPCS.forEach((n, i) => npcRefs.set(n.id, {
+  pos: new THREE.Vector3(n.x, 0.8, n.z),
+  dir: (i * 0.7) % (Math.PI * 2), health: 100,
+  state: 'walking', moveTimer: 0, speed: n.speed,
+  mesh: null, panicTimer: 0,
+}))
 
-// Initialize NPCs
-INITIAL_NPCS.forEach((n) => {
-  npcRefs.set(n.id, {
-    pos: new THREE.Vector3(n.x, 0.8, n.z),
-    dir: (INITIAL_NPCS.indexOf(n) * 0.7) % (Math.PI * 2),
-    health: 100,
-    state: 'walking',
-    moveTimer: 0,
-    speed: n.speed,
-    mesh: null,
-  })
-})
+// ─── Enhanced City ─────────────────────────────────────────────────────────────
+function Tree({ x, z }: { x: number; z: number }) {
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 0.9, 0]} castShadow>
+        <cylinderGeometry args={[0.18, 0.26, 1.8, 7]} />
+        <meshStandardMaterial color="#5a3a1a" />
+      </mesh>
+      <mesh position={[0, 2.8, 0]} castShadow>
+        <sphereGeometry args={[1.3, 9, 7]} />
+        <meshStandardMaterial color="#2d6a2d" />
+      </mesh>
+      <mesh position={[0, 3.9, 0]} castShadow>
+        <sphereGeometry args={[0.9, 8, 6]} />
+        <meshStandardMaterial color="#256025" />
+      </mesh>
+    </group>
+  )
+}
 
-// ─── City (static geometry) ───────────────────────────────────────────────
+function StreetBench({ x, z, rot = 0 }: { x: number; z: number; rot?: number }) {
+  return (
+    <group position={[x, 0, z]} rotation-y={rot}>
+      <mesh position={[0, 0.5, 0]}>
+        <boxGeometry args={[1.6, 0.08, 0.45]} />
+        <meshStandardMaterial color="#7a5a3a" />
+      </mesh>
+      <mesh position={[0, 0.7, -0.18]}>
+        <boxGeometry args={[1.6, 0.5, 0.08]} />
+        <meshStandardMaterial color="#7a5a3a" />
+      </mesh>
+      {[-0.65, 0.65].map((ox, i) => (
+        <mesh key={i} position={[ox, 0.25, 0]}>
+          <boxGeometry args={[0.08, 0.5, 0.45]} />
+          <meshStandardMaterial color="#5a3a1a" />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
 function City() {
   return (
     <group>
       {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
-        <planeGeometry args={[280, 280]} />
+        <planeGeometry args={[300, 300]} />
         <meshStandardMaterial color="#2d4020" />
       </mesh>
-
-      {/* Road tarmac - vertical (along Z) */}
-      {[-80, -40, 0, 40, 80].map((x) => (
-        <mesh key={`vr${x}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0, 0]}>
-          <planeGeometry args={[12, 280]} />
-          <meshStandardMaterial color="#2a2a2a" />
+      {/* Park grass zones */}
+      {[[-60,-60],[60,-60],[-60,60],[60,60]].map(([px,pz],i)=>(
+        <mesh key={`park${i}`} rotation={[-Math.PI/2,0,0]} position={[px,-0.01,pz]} receiveShadow>
+          <planeGeometry args={[26,26]} />
+          <meshStandardMaterial color="#3a6020" />
         </mesh>
       ))}
-      {/* Road tarmac - horizontal (along X) */}
-      {[-80, -40, 0, 40, 80].map((z) => (
-        <mesh key={`hr${z}`} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, z]}>
-          <planeGeometry args={[280, 12]} />
-          <meshStandardMaterial color="#2a2a2a" />
+      {/* Road tarmac - vertical */}
+      {[-80,-40,0,40,80].map(x=>(
+        <mesh key={`vr${x}`} rotation={[-Math.PI/2,0,0]} position={[x,0,0]}>
+          <planeGeometry args={[13,300]} />
+          <meshStandardMaterial color="#1e1e1e" />
         </mesh>
       ))}
-
-      {/* Road markings - center lines */}
-      {[-80, -40, 0, 40, 80].map((x) => (
-        <mesh key={`crv${x}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.003, 0]}>
-          <planeGeometry args={[0.3, 280]} />
+      {/* Road tarmac - horizontal */}
+      {[-80,-40,0,40,80].map(z=>(
+        <mesh key={`hr${z}`} rotation={[-Math.PI/2,0,0]} position={[0,0.001,z]}>
+          <planeGeometry args={[300,13]} />
+          <meshStandardMaterial color="#1e1e1e" />
+        </mesh>
+      ))}
+      {/* Center dashed lines V */}
+      {[-80,-40,0,40,80].map(x=>(
+        <mesh key={`cl${x}`} rotation={[-Math.PI/2,0,0]} position={[x,0.003,0]}>
+          <planeGeometry args={[0.25,300]} />
           <meshStandardMaterial color="#ffee00" />
         </mesh>
       ))}
-      {[-80, -40, 0, 40, 80].map((z) => (
-        <mesh key={`crh${z}`} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, z]}>
-          <planeGeometry args={[280, 0.3]} />
+      {/* Center dashed lines H */}
+      {[-80,-40,0,40,80].map(z=>(
+        <mesh key={`clh${z}`} rotation={[-Math.PI/2,0,0]} position={[0,0.003,z]}>
+          <planeGeometry args={[300,0.25]} />
           <meshStandardMaterial color="#ffee00" />
         </mesh>
       ))}
-
-      {/* Sidewalks */}
-      {[-80, -40, 0, 40, 80].map((x) =>
-        [-1, 1].map((side) => (
-          <mesh
-            key={`sw${x}${side}`}
-            rotation={[-Math.PI / 2, 0, 0]}
-            position={[x + side * 8, 0.02, 0]}
-          >
-            <planeGeometry args={[3, 280]} />
-            <meshStandardMaterial color="#555555" />
-          </mesh>
-        ))
-      )}
-      {[-80, -40, 0, 40, 80].map((z) =>
-        [-1, 1].map((side) => (
-          <mesh
-            key={`swh${z}${side}`}
-            rotation={[-Math.PI / 2, 0, 0]}
-            position={[0, 0.025, z + side * 8]}
-          >
-            <planeGeometry args={[280, 3]} />
-            <meshStandardMaterial color="#555555" />
-          </mesh>
-        ))
-      )}
-
+      {/* Sidewalks V */}
+      {[-80,-40,0,40,80].map(x=>[-1,1].map(s=>(
+        <mesh key={`swv${x}${s}`} rotation={[-Math.PI/2,0,0]} position={[x+s*8.5,0.02,0]}>
+          <planeGeometry args={[3,300]} />
+          <meshStandardMaterial color="#6a6a6a" />
+        </mesh>
+      )))}
+      {/* Sidewalks H */}
+      {[-80,-40,0,40,80].map(z=>[-1,1].map(s=>(
+        <mesh key={`swh${z}${s}`} rotation={[-Math.PI/2,0,0]} position={[0,0.025,z+s*8.5]}>
+          <planeGeometry args={[300,3]} />
+          <meshStandardMaterial color="#6a6a6a" />
+        </mesh>
+      )))}
       {/* Buildings */}
-      {CITY_BUILDINGS.map((b) => (
-        <group key={b.id} position={[b.x, 0, b.z]}>
-          {/* Building body */}
-          <mesh position={[0, b.height / 2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[b.width, b.height, b.depth]} />
+      {CITY_BUILDINGS.map(b=>(
+        <group key={b.id} position={[b.x,0,b.z]}>
+          <mesh position={[0,b.height/2,0]} castShadow receiveShadow>
+            <boxGeometry args={[b.width,b.height,b.depth]} />
             <meshStandardMaterial color={b.color} />
           </mesh>
-          {/* Rooftop accent */}
-          <mesh position={[0, b.height + 0.3, 0]}>
-            <boxGeometry args={[b.width, 0.5, b.depth]} />
-            <meshStandardMaterial color="#222" />
+          <mesh position={[0,b.height+0.4,0]}>
+            <boxGeometry args={[b.width+0.4,0.8,b.depth+0.4]} />
+            <meshStandardMaterial color="#111" />
           </mesh>
-          {/* Window rows (tall buildings) */}
-          {b.height > 20 &&
-            Array.from({ length: Math.floor(b.height / 5) }, (_, i) => (
-              <mesh
-                key={i}
-                position={[0, 3 + i * 5, b.depth / 2 + 0.05]}
-              >
-                <planeGeometry args={[b.width - 2, 2]} />
-                <meshStandardMaterial
-                  color="#aaccff"
-                  emissive="#2244aa"
-                  emissiveIntensity={0.3}
-                />
-              </mesh>
-            ))}
+          {/* Antenna */}
+          {b.height>30&&(
+            <mesh position={[0,b.height+2,0]}>
+              <cylinderGeometry args={[0.06,0.06,4,5]}/>
+              <meshStandardMaterial color="#888"/>
+            </mesh>
+          )}
+          {/* Windows */}
+          {b.height>20&&Array.from({length:Math.floor(b.height/5)},(_,i)=>(
+            <mesh key={i} position={[0,3+i*5,b.depth/2+0.06]}>
+              <planeGeometry args={[b.width-2,2.2]}/>
+              <meshStandardMaterial color="#aaccff" emissive="#1133aa" emissiveIntensity={0.4}/>
+            </mesh>
+          ))}
+          {/* Side windows */}
+          {b.height>20&&Array.from({length:Math.floor(b.height/5)},(_,i)=>(
+            <mesh key={`sw${i}`} position={[b.width/2+0.06,3+i*5,0]}>
+              <planeGeometry args={[b.depth-2,2.2]}/>
+              <meshStandardMaterial color="#aaccff" emissive="#1133aa" emissiveIntensity={0.3}/>
+            </mesh>
+          ))}
         </group>
       ))}
-
       {/* Street lamps */}
-      {[-80, -40, 0, 40, 80].map((x) =>
-        [-60, -20, 20, 60].map((z) => (
-          <group key={`lamp${x}${z}`} position={[x + 7, 0, z]}>
-            <mesh position={[0, 3, 0]}>
-              <cylinderGeometry args={[0.1, 0.15, 6, 6]} />
-              <meshStandardMaterial color="#888" />
-            </mesh>
-            <mesh position={[0, 6.2, 0]}>
-              <sphereGeometry args={[0.4, 8, 8]} />
-              <meshStandardMaterial color="#ffffaa" emissive="#ffee66" emissiveIntensity={1} />
-            </mesh>
-          </group>
+      {[-80,-40,0,40,80].map(x=>[-60,-20,20,60].map(z=>(
+        <group key={`lamp${x}${z}`} position={[x+7.5,0,z]}>
+          <mesh position={[0,3,0]}>
+            <cylinderGeometry args={[0.08,0.12,6,6]}/>
+            <meshStandardMaterial color="#999"/>
+          </mesh>
+          <mesh position={[0.6,5.8,0]}>
+            <cylinderGeometry args={[0.04,0.04,1.2,6]} rotation={[0,0,Math.PI/2]}/>
+            <meshStandardMaterial color="#999"/>
+          </mesh>
+          <mesh position={[1.1,5.7,0]}>
+            <sphereGeometry args={[0.3,8,6]}/>
+            <meshStandardMaterial color="#ffffaa" emissive="#ffee66" emissiveIntensity={2}/>
+          </mesh>
+        </group>
+      )))}
+      {/* Park trees */}
+      {[[-60,-60],[60,-60],[-60,60],[60,60]].map(([px,pz],pi)=>
+        [[-8,-8],[-8,8],[8,-8],[8,8],[0,0],[-8,0],[8,0],[0,-8],[0,8]].map(([tx,tz],ti)=>(
+          <Tree key={`tree${pi}_${ti}`} x={px+tx} z={pz+tz}/>
         ))
       )}
-
-      {/* Boundary wall (invisible collision barrier) */}
+      {/* Street benches */}
+      {[-60,-20,20,60].map(z=>(
+        <StreetBench key={`bench1_${z}`} x={-83} z={z}/>
+      ))}
+      {/* Crosswalk stripes */}
+      {[-80,-40,0,40,80].map(x=>[-80,-40,0,40,80].filter(z=>z!==x).map(z=>(
+        Array.from({length:4},(_,i)=>(
+          <mesh key={`cw${x}${z}${i}`} rotation={[-Math.PI/2,0,0]} position={[x-3+i*2,0.004,z+8.5]}>
+            <planeGeometry args={[1.5,3]}/>
+            <meshStandardMaterial color="rgba(255,255,255,0.6)"/>
+          </mesh>
+        ))
+      )))}
     </group>
   )
 }
 
-// ─── Vehicle Component ───────────────────────────────────────────────────────
-interface VehicleProps {
-  vehicleId: string
-}
-
-function Vehicle({ vehicleId }: VehicleProps) {
+// ─── Enhanced Vehicle ─────────────────────────────────────────────────────────
+function Vehicle({ vehicleId }: { vehicleId: string }) {
   const groupRef = useRef<THREE.Group>(null!)
   const vRef = vehicleRefs.get(vehicleId)!
-  const { color } = vRef
 
-  useEffect(() => {
-    vRef.mesh = groupRef.current
-    return () => { vRef.mesh = null }
-  }, [vRef])
-
+  useEffect(() => { vRef.mesh = groupRef.current; return () => { vRef.mesh = null } }, [vRef])
   useFrame(() => {
     if (!groupRef.current) return
     groupRef.current.position.set(vRef.pos.x, 0, vRef.pos.z)
     groupRef.current.rotation.y = vRef.rot
   })
 
+  const c = vRef.color
   return (
-    <group ref={groupRef} position={[vRef.pos.x, 0, vRef.pos.z]} rotation-y={vRef.rot}>
-      {/* Car body */}
-      <mesh position={[0, 0.6, 0]} castShadow>
-        <boxGeometry args={[2.2, 0.8, 4.5]} />
-        <meshStandardMaterial color={color} />
+    <group ref={groupRef}>
+      {/* Main chassis */}
+      <mesh position={[0,0.42,0]} castShadow>
+        <boxGeometry args={[2.1,0.55,4.8]}/>
+        <meshStandardMaterial color={c} roughness={0.3} metalness={0.5}/>
       </mesh>
-      {/* Car cabin */}
-      <mesh position={[0, 1.25, -0.2]} castShadow>
-        <boxGeometry args={[1.8, 0.7, 2.4]} />
-        <meshStandardMaterial color={color} />
+      {/* Raised cabin */}
+      <mesh position={[0,1.05,-0.25]} castShadow>
+        <boxGeometry args={[1.75,0.65,2.6]}/>
+        <meshStandardMaterial color={c} roughness={0.3} metalness={0.5}/>
       </mesh>
-      {/* Windows */}
-      <mesh position={[0, 1.25, 0.99]}>
-        <boxGeometry args={[1.7, 0.55, 0.05]} />
-        <meshStandardMaterial color="#aaddff" transparent opacity={0.6} />
+      {/* Hood slope */}
+      <mesh position={[0,0.72,1.5]} rotation={[0.22,0,0]} castShadow>
+        <boxGeometry args={[1.9,0.12,1.6]}/>
+        <meshStandardMaterial color={c} roughness={0.3} metalness={0.5}/>
       </mesh>
-      {/* Wheels */}
-      {[[-1.1, 0.3, 1.5], [1.1, 0.3, 1.5], [-1.1, 0.3, -1.5], [1.1, 0.3, -1.5]].map(
-        ([wx, wy, wz], i) => (
-          <mesh key={i} position={[wx, wy, wz]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.35, 0.35, 0.3, 12]} />
-            <meshStandardMaterial color="#111" />
+      {/* Trunk */}
+      <mesh position={[0,0.68,-1.65]} rotation={[-0.15,0,0]} castShadow>
+        <boxGeometry args={[1.9,0.12,1.4]}/>
+        <meshStandardMaterial color={c} roughness={0.3} metalness={0.5}/>
+      </mesh>
+      {/* Front bumper */}
+      <mesh position={[0,0.28,2.48]}>
+        <boxGeometry args={[2.0,0.28,0.18]}/>
+        <meshStandardMaterial color="#333" roughness={0.8}/>
+      </mesh>
+      {/* Rear bumper */}
+      <mesh position={[0,0.28,-2.48]}>
+        <boxGeometry args={[2.0,0.28,0.18]}/>
+        <meshStandardMaterial color="#333" roughness={0.8}/>
+      </mesh>
+      {/* Windshield */}
+      <mesh position={[0,1.08,0.9]} rotation={[-0.45,0,0]}>
+        <boxGeometry args={[1.65,0.7,0.07]}/>
+        <meshStandardMaterial color="#88ccff" transparent opacity={0.5} roughness={0} metalness={0.1}/>
+      </mesh>
+      {/* Rear window */}
+      <mesh position={[0,1.08,-1.4]} rotation={[0.4,0,0]}>
+        <boxGeometry args={[1.65,0.55,0.07]}/>
+        <meshStandardMaterial color="#88ccff" transparent opacity={0.45} roughness={0} metalness={0.1}/>
+      </mesh>
+      {/* Side windows */}
+      {[-0.88,0.88].map((wx,i)=>(
+        <mesh key={i} position={[wx,1.08,-0.2]} rotation={[0,Math.PI/2,0]}>
+          <boxGeometry args={[1.9,0.45,0.04]}/>
+          <meshStandardMaterial color="#88ccff" transparent opacity={0.4} roughness={0}/>
+        </mesh>
+      ))}
+      {/* Wheels — enhanced with hub detail */}
+      {[[-1.06,0.36,1.55],[1.06,0.36,1.55],[-1.06,0.36,-1.55],[1.06,0.36,-1.55]].map(([wx,wy,wz],i)=>(
+        <group key={i} position={[wx,wy,wz]}>
+          <mesh rotation={[0,0,Math.PI/2]}>
+            <cylinderGeometry args={[0.38,0.38,0.28,16]}/>
+            <meshStandardMaterial color="#111" roughness={0.9}/>
           </mesh>
-        )
-      )}
+          <mesh rotation={[0,0,Math.PI/2]}>
+            <cylinderGeometry args={[0.22,0.22,0.3,8]}/>
+            <meshStandardMaterial color="#aaa" metalness={0.8} roughness={0.2}/>
+          </mesh>
+        </group>
+      ))}
       {/* Headlights */}
-      <mesh position={[0.6, 0.65, 2.25]}>
-        <boxGeometry args={[0.4, 0.25, 0.05]} />
-        <meshStandardMaterial color="#ffffee" emissive="#ffffff" emissiveIntensity={1} />
-      </mesh>
-      <mesh position={[-0.6, 0.65, 2.25]}>
-        <boxGeometry args={[0.4, 0.25, 0.05]} />
-        <meshStandardMaterial color="#ffffee" emissive="#ffffff" emissiveIntensity={1} />
-      </mesh>
+      {[[-0.65,0.65,2.42],[0.65,0.65,2.42]].map(([hx,hy,hz],i)=>(
+        <mesh key={i} position={[hx,hy,hz]}>
+          <boxGeometry args={[0.45,0.22,0.06]}/>
+          <meshStandardMaterial color="#ffffee" emissive="#ffffff" emissiveIntensity={1.5}/>
+        </mesh>
+      ))}
       {/* Taillights */}
-      <mesh position={[0.7, 0.65, -2.25]}>
-        <boxGeometry args={[0.35, 0.2, 0.05]} />
-        <meshStandardMaterial color="#ff2222" emissive="#ff0000" emissiveIntensity={1} />
-      </mesh>
-      <mesh position={[-0.7, 0.65, -2.25]}>
-        <boxGeometry args={[0.35, 0.2, 0.05]} />
-        <meshStandardMaterial color="#ff2222" emissive="#ff0000" emissiveIntensity={1} />
-      </mesh>
+      {[[-0.7,0.65,-2.42],[0.7,0.65,-2.42]].map(([tx,ty,tz],i)=>(
+        <mesh key={i} position={[tx,ty,tz]}>
+          <boxGeometry args={[0.38,0.2,0.06]}/>
+          <meshStandardMaterial color="#ff2222" emissive="#ff0000" emissiveIntensity={1.2}/>
+        </mesh>
+      ))}
+      {/* Side mirrors */}
+      {[-1.12,1.12].map((mx,i)=>(
+        <mesh key={i} position={[mx,1.1,0.55]}>
+          <boxGeometry args={[0.08,0.14,0.22]}/>
+          <meshStandardMaterial color={c} roughness={0.3} metalness={0.4}/>
+        </mesh>
+      ))}
     </group>
   )
 }
 
-// ─── NPC Component ───────────────────────────────────────────────────────────
-interface NPCProps {
-  npcId: string
-}
-
-function NPC({ npcId }: NPCProps) {
+// ─── Enhanced NPC ─────────────────────────────────────────────────────────────
+function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
   const groupRef = useRef<THREE.Group>(null!)
   const nRef = npcRefs.get(npcId)!
+  const npcName = NPC_NAMES[npcIndex % NPC_NAMES.length]
+  const npcColor = INITIAL_NPCS.find(n => n.id === npcId)?.color ?? '#888'
 
-  useEffect(() => {
-    nRef.mesh = groupRef.current
-    return () => { nRef.mesh = null }
-  }, [nRef])
+  useEffect(() => { nRef.mesh = groupRef.current; return () => { nRef.mesh = null } }, [nRef])
 
   useFrame((_, delta) => {
-    if (!groupRef.current || nRef.state === 'dead') return
-
-    nRef.moveTimer += delta
+    if (!groupRef.current || nRef.state === 'dead') {
+      if (groupRef.current) groupRef.current.visible = false
+      return
+    }
+    groupRef.current.visible = true
+    nRef.moveTimer  += delta
+    nRef.panicTimer  = Math.max(0, nRef.panicTimer - delta)
     const dist = nRef.pos.distanceTo(sharedPlayerPos)
 
-    // React to player proximity and wanted level
-    if (dist < 25 && sharedWantedLevel.value === 0) {
-      if (nRef.state !== 'fleeing') nRef.state = 'fleeing'
+    // ── Advanced AI state machine ─────────────────────────────────────────
+    if (sharedWantedLevel.value >= 3) {
+      // Mass panic at high wanted level
+      nRef.state = 'panicking'
+      nRef.panicTimer = 5
+    } else if (dist < 20 && sharedWantedLevel.value > 0) {
+      nRef.state = 'fleeing'
+    } else if (nRef.panicTimer > 0) {
+      nRef.state = 'panicking'
+    } else if (dist < 18 && sharedWantedLevel.value === 0) {
+      // Just walk away slowly, don't flee from peaceful player
+      if (nRef.state === 'fleeing') nRef.state = 'walking'
     } else if (dist > 40) {
       nRef.state = 'walking'
     }
 
-    // Flee from combat zone
-    if (sharedWantedLevel.value > 0 && dist < 40) {
-      nRef.state = 'fleeing'
+    // Propagate panic to nearby NPCs
+    if (nRef.state === 'panicking' || nRef.state === 'fleeing') {
+      for (const [, other] of npcRefs) {
+        if (other !== nRef && other.state === 'walking' && other.pos.distanceTo(nRef.pos) < 12) {
+          other.state = 'panicking'
+          other.panicTimer = 3 + Math.random() * 2
+        }
+      }
     }
 
-    const speed = nRef.state === 'fleeing' ? nRef.speed * 2.5 : nRef.speed
+    const speedMult = nRef.state === 'panicking' ? 3.2 : nRef.state === 'fleeing' ? 2.5 : 1
+    const speed = nRef.speed * speedMult
 
-    if (nRef.state === 'fleeing') {
-      // Run away from player
+    if (nRef.state === 'fleeing' || nRef.state === 'panicking') {
       const away = nRef.pos.clone().sub(sharedPlayerPos).normalize()
       nRef.dir = Math.atan2(away.x, away.z)
     } else {
-      // Wander: change direction periodically
       if (nRef.moveTimer > 2.5) {
         nRef.moveTimer = 0
         nRef.dir += (npcId.charCodeAt(3) % 7 - 3) * 0.6 + (Date.now() % 100) * 0.001
       }
     }
 
-    const newX = nRef.pos.x + Math.sin(nRef.dir) * speed * delta
-    const newZ = nRef.pos.z + Math.cos(nRef.dir) * speed * delta
-
-    // Clamp to map
-    const clampedX = Math.max(-108, Math.min(108, newX))
-    const clampedZ = Math.max(-108, Math.min(108, newZ))
-
-    if (!isInsideBuilding(clampedX, clampedZ, 0.4)) {
-      nRef.pos.x = clampedX
-      nRef.pos.z = clampedZ
-    } else {
-      nRef.dir += Math.PI * 0.5
-    }
+    const nx = Math.max(-108, Math.min(108, nRef.pos.x + Math.sin(nRef.dir) * speed * delta))
+    const nz = Math.max(-108, Math.min(108, nRef.pos.z + Math.cos(nRef.dir) * speed * delta))
+    if (!isInsideBuilding(nx, nz, 0.4)) { nRef.pos.x = nx; nRef.pos.z = nz }
+    else nRef.dir += Math.PI * 0.5
 
     groupRef.current.position.set(nRef.pos.x, 0, nRef.pos.z)
     groupRef.current.rotation.y = nRef.dir
-    groupRef.current.visible = true // already returned if dead above
   })
+
+  // Varied clothing per NPC
+  const shirtColor = npcColor
+  const pantsColor = `hsl(${(npcIndex * 47) % 360},40%,25%)`
+  const skinTones = ['#ddb080','#c8956c','#a0724a','#7a4a28','#f0c090']
+  const skin = skinTones[npcIndex % skinTones.length]
 
   return (
     <group ref={groupRef} position={[nRef.pos.x, 0, nRef.pos.z]}>
-      {/* Body */}
-      <mesh position={[0, 0.85, 0]} castShadow>
-        <boxGeometry args={[0.55, 1.1, 0.4]} />
-        <meshStandardMaterial color={INITIAL_NPCS.find((n) => n.id === npcId)?.color ?? '#888'} />
+      {/* Name tag */}
+      <Html position={[0, 2.6, 0]} center distanceFactor={10} occlude>
+        <div style={{
+          color: '#fff', fontSize: 11, fontFamily: 'monospace',
+          background: 'rgba(0,0,0,0.65)', padding: '2px 7px',
+          borderRadius: 4, whiteSpace: 'nowrap', pointerEvents: 'none',
+          border: '1px solid rgba(255,255,255,0.15)',
+        }}>{npcName}</div>
+      </Html>
+      {/* Torso */}
+      <mesh position={[0,0.95,0]} castShadow>
+        <boxGeometry args={[0.55,0.85,0.38]}/>
+        <meshStandardMaterial color={shirtColor} roughness={0.9}/>
       </mesh>
       {/* Head */}
-      <mesh position={[0, 1.6, 0]}>
-        <boxGeometry args={[0.45, 0.45, 0.45]} />
-        <meshStandardMaterial color="#ddb080" />
+      <mesh position={[0,1.65,0]} castShadow>
+        <boxGeometry args={[0.42,0.42,0.4]}/>
+        <meshStandardMaterial color={skin}/>
       </mesh>
+      {/* Hair */}
+      <mesh position={[0,1.87,0]}>
+        <boxGeometry args={[0.44,0.1,0.42]}/>
+        <meshStandardMaterial color={`hsl(${(npcIndex*23)%360},30%,20%)`}/>
+      </mesh>
+      {/* Neck */}
+      <mesh position={[0,1.42,0]}>
+        <cylinderGeometry args={[0.1,0.1,0.22,7]}/>
+        <meshStandardMaterial color={skin}/>
+      </mesh>
+      {/* Arms */}
+      {[-0.38,0.38].map((ax,i)=>(
+        <group key={i}>
+          <mesh position={[ax,0.95,0]} rotation={[0,0,ax<0?0.25:-0.25]}>
+            <boxGeometry args={[0.17,0.7,0.17]}/>
+            <meshStandardMaterial color={shirtColor} roughness={0.9}/>
+          </mesh>
+          <mesh position={[ax*1.1,0.58,0]}>
+            <boxGeometry args={[0.15,0.35,0.15]}/>
+            <meshStandardMaterial color={skin}/>
+          </mesh>
+        </group>
+      ))}
       {/* Legs */}
-      <mesh position={[-0.15, 0.2, 0]}>
-        <boxGeometry args={[0.2, 0.4, 0.2]} />
-        <meshStandardMaterial color="#3a3a6a" />
-      </mesh>
-      <mesh position={[0.15, 0.2, 0]}>
-        <boxGeometry args={[0.2, 0.4, 0.2]} />
-        <meshStandardMaterial color="#3a3a6a" />
-      </mesh>
+      {[-0.15,0.15].map((lx,i)=>(
+        <group key={i}>
+          <mesh position={[lx,0.38,0]}>
+            <boxGeometry args={[0.2,0.52,0.2]}/>
+            <meshStandardMaterial color={pantsColor} roughness={0.9}/>
+          </mesh>
+          <mesh position={[lx,0.08,0.02]}>
+            <boxGeometry args={[0.2,0.18,0.3]}/>
+            <meshStandardMaterial color="#222"/>
+          </mesh>
+        </group>
+      ))}
     </group>
   )
 }
 
-// ─── Police Unit Component ────────────────────────────────────────────────────
-interface PoliceProps {
-  policeId: string
-  onShootPlayer: () => void
-}
-
-function PoliceUnit({ policeId, onShootPlayer }: PoliceProps) {
+// ─── Enhanced Police Unit ────────────────────────────────────────────────────
+function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
+  policeId: string; policeIndex: number; onShootPlayer: () => void
+}) {
   const groupRef = useRef<THREE.Group>(null!)
   const pRef = policeRefs.get(policeId)!
+  const surname = POLICE_SURNAMES[policeIndex % POLICE_SURNAMES.length]
 
-  useEffect(() => {
-    pRef.mesh = groupRef.current
-    return () => { pRef.mesh = null }
-  }, [pRef])
+  useEffect(() => { pRef.mesh = groupRef.current; return () => { pRef.mesh = null } }, [pRef])
 
   useFrame((_, delta) => {
     if (!groupRef.current || pRef.health <= 0) {
       if (groupRef.current) groupRef.current.visible = false
       return
     }
-
     pRef.shootTimer += delta
-
     const dist = pRef.pos.distanceTo(sharedPlayerPos)
     const toPlayer = sharedPlayerPos.clone().sub(pRef.pos).normalize()
     pRef.dir = Math.atan2(toPlayer.x, toPlayer.z)
 
+    const wantedLvl = sharedWantedLevel.value
+    const chaseSpeed = 4.5 + wantedLvl * 0.8
+
     if (dist > 5) {
-      // Chase player
-      const speed = 4.5 + sharedWantedLevel.value * 0.5
-      const newX = pRef.pos.x + toPlayer.x * speed * delta
-      const newZ = pRef.pos.z + toPlayer.z * speed * delta
-      if (!isInsideBuilding(newX, newZ, 0.6)) {
-        pRef.pos.x = newX
-        pRef.pos.z = newZ
+      // Formation logic at high wanted: flank player
+      if (wantedLvl >= 3 && pRef.formation !== undefined) {
+        const formAngle = pRef.formation * (Math.PI * 2 / 4)
+        const flankedX = sharedPlayerPos.x + Math.cos(formAngle) * 8
+        const flankedZ = sharedPlayerPos.z + Math.sin(formAngle) * 8
+        const toFlank = new THREE.Vector2(flankedX - pRef.pos.x, flankedZ - pRef.pos.z).normalize()
+        const nx = pRef.pos.x + toFlank.x * chaseSpeed * delta
+        const nz = pRef.pos.z + toFlank.y * chaseSpeed * delta
+        if (!isInsideBuilding(nx, nz, 0.6)) { pRef.pos.x = nx; pRef.pos.z = nz }
+      } else {
+        const nx = pRef.pos.x + toPlayer.x * chaseSpeed * delta
+        const nz = pRef.pos.z + toPlayer.z * chaseSpeed * delta
+        if (!isInsideBuilding(nx, nz, 0.6)) { pRef.pos.x = nx; pRef.pos.z = nz }
       }
-    } else if (dist < 5 && pRef.shootTimer > 1.5) {
-      // Shoot at player
+    } else if (pRef.shootTimer > Math.max(0.6, 1.8 - wantedLvl * 0.2)) {
       pRef.shootTimer = 0
       onShootPlayer()
     }
 
     groupRef.current.position.set(pRef.pos.x, 0, pRef.pos.z)
     groupRef.current.rotation.y = pRef.dir
+    groupRef.current.visible = true
   })
+
+  const isSwat = sharedWantedLevel.value >= 4
+  const uniformColor = isSwat ? '#111' : '#1e3a88'
+  const hatColor = isSwat ? '#000' : '#0a1a66'
 
   return (
     <group ref={groupRef} position={[pRef.pos.x, 0, pRef.pos.z]}>
-      {/* Body - blue police uniform */}
-      <mesh position={[0, 0.85, 0]} castShadow>
-        <boxGeometry args={[0.6, 1.1, 0.45]} />
-        <meshStandardMaterial color="#2244bb" />
+      {/* Name tag */}
+      <Html position={[0, 2.6, 0]} center distanceFactor={10} occlude>
+        <div style={{
+          color: '#aaddff', fontSize: 11, fontFamily: 'monospace',
+          background: 'rgba(0,20,60,0.75)', padding: '2px 7px',
+          borderRadius: 4, whiteSpace: 'nowrap', pointerEvents: 'none',
+          border: '1px solid rgba(100,150,255,0.35)',
+        }}>
+          {isSwat ? `SWAT ${surname}` : `Ofc. ${surname}`}
+        </div>
+      </Html>
+      {/* Torso / vest */}
+      <mesh position={[0,0.95,0]} castShadow>
+        <boxGeometry args={[0.6,0.85,0.45]}/>
+        <meshStandardMaterial color={uniformColor}/>
       </mesh>
-      {/* Head */}
-      <mesh position={[0, 1.6, 0]}>
-        <boxGeometry args={[0.5, 0.5, 0.5]} />
-        <meshStandardMaterial color="#ddb080" />
-      </mesh>
-      {/* Hat */}
-      <mesh position={[0, 1.95, 0]}>
-        <boxGeometry args={[0.55, 0.2, 0.55]} />
-        <meshStandardMaterial color="#111188" />
-      </mesh>
-      {/* Legs */}
-      <mesh position={[-0.15, 0.2, 0]}>
-        <boxGeometry args={[0.22, 0.4, 0.22]} />
-        <meshStandardMaterial color="#1a1a4a" />
-      </mesh>
-      <mesh position={[0.15, 0.2, 0]}>
-        <boxGeometry args={[0.22, 0.4, 0.22]} />
-        <meshStandardMaterial color="#1a1a4a" />
+      {/* Chest armor */}
+      <mesh position={[0,0.98,0.23]}>
+        <boxGeometry args={[0.5,0.6,0.06]}/>
+        <meshStandardMaterial color={isSwat?'#1a1a1a':'#2244cc'} roughness={0.4}/>
       </mesh>
       {/* Badge */}
-      <mesh position={[0, 1.0, 0.23]}>
-        <boxGeometry args={[0.15, 0.1, 0.01]} />
-        <meshStandardMaterial color="#ffcc00" emissive="#aa8800" />
+      <mesh position={[0,1.02,0.27]}>
+        <boxGeometry args={[0.14,0.1,0.02]}/>
+        <meshStandardMaterial color="#ffcc00" emissive="#aa8800" emissiveIntensity={0.5}/>
       </mesh>
+      {/* Head */}
+      <mesh position={[0,1.65,0]} castShadow>
+        <boxGeometry args={[0.45,0.44,0.42]}/>
+        <meshStandardMaterial color="#ddb080"/>
+      </mesh>
+      {/* Helmet/Hat */}
+      <mesh position={[0,1.9,0]}>
+        <boxGeometry args={[0.52,0.22,0.55]}/>
+        <meshStandardMaterial color={hatColor}/>
+      </mesh>
+      {isSwat && (
+        <mesh position={[0,1.73,0.22]}>
+          <boxGeometry args={[0.48,0.28,0.06]}/>
+          <meshStandardMaterial color="#222" transparent opacity={0.5}/>
+        </mesh>
+      )}
+      {/* Neck */}
+      <mesh position={[0,1.42,0]}>
+        <cylinderGeometry args={[0.1,0.1,0.22,7]}/>
+        <meshStandardMaterial color="#ddb080"/>
+      </mesh>
+      {/* Arms */}
+      {[-0.4,0.4].map((ax,i)=>(
+        <mesh key={i} position={[ax,0.9,0]} rotation={[0,0,ax<0?0.3:-0.3]}>
+          <boxGeometry args={[0.18,0.72,0.18]}/>
+          <meshStandardMaterial color={uniformColor}/>
+        </mesh>
+      ))}
+      {/* Gun arm extension */}
+      <mesh position={[0.42,0.75,0.3]} rotation={[-0.5,0,0.3]}>
+        <boxGeometry args={[0.1,0.12,0.45]}/>
+        <meshStandardMaterial color="#222"/>
+      </mesh>
+      {/* Legs */}
+      {[-0.16,0.16].map((lx,i)=>(
+        <group key={i}>
+          <mesh position={[lx,0.38,0]}>
+            <boxGeometry args={[0.22,0.52,0.22]}/>
+            <meshStandardMaterial color={uniformColor}/>
+          </mesh>
+          <mesh position={[lx,0.08,0.02]}>
+            <boxGeometry args={[0.22,0.18,0.32]}/>
+            <meshStandardMaterial color="#111"/>
+          </mesh>
+        </group>
+      ))}
     </group>
   )
 }
 
-// ─── Bullet Component ─────────────────────────────────────────────────────────
-interface BulletProps {
-  bullet: BulletRef
-  onExpire: (id: string) => void
-  onHitNPC: (id: string) => void
-  onHitPolice: (id: string) => void
-}
-
-function Bullet({ bullet, onExpire, onHitNPC, onHitPolice }: BulletProps) {
+// ─── Bullet ───────────────────────────────────────────────────────────────────
+function Bullet({ bullet, onExpire, onHitNPC, onHitPolice }: {
+  bullet: BulletRef; onExpire: (id: string) => void
+  onHitNPC: (id: string) => void; onHitPolice: (id: string) => void
+}) {
   const meshRef = useRef<THREE.Mesh>(null!)
-
-  useEffect(() => {
-    bullet.mesh = meshRef.current
-    return () => { bullet.mesh = null }
-  }, [bullet])
+  useEffect(() => { bullet.mesh = meshRef.current; return () => { bullet.mesh = null } }, [bullet])
 
   useFrame((_, delta) => {
     if (!meshRef.current) return
-
     bullet.age += delta
-    if (bullet.age > 2.5) {
-      onExpire(bullet.id)
-      return
-    }
+    if (bullet.age > 2.5) { onExpire(bullet.id); return }
+    bullet.pos.addScaledVector(bullet.dir, 48 * delta)
+    if (Math.abs(bullet.pos.x) > 125 || Math.abs(bullet.pos.z) > 125) { onExpire(bullet.id); return }
+    if (isInsideBuilding(bullet.pos.x, bullet.pos.z, 0.1)) { onExpire(bullet.id); return }
 
-    bullet.pos.addScaledVector(bullet.dir, 45 * delta)
-
-    // Out of bounds
-    if (Math.abs(bullet.pos.x) > 120 || Math.abs(bullet.pos.z) > 120) {
-      onExpire(bullet.id)
-      return
-    }
-
-    // Hit building
-    if (isInsideBuilding(bullet.pos.x, bullet.pos.z, 0.1)) {
-      onExpire(bullet.id)
-      return
-    }
-
-    // Hit NPCs (player bullets only)
     if (bullet.owner === 'player') {
       for (const [id, npc] of npcRefs) {
         if (npc.state === 'dead') continue
-        if (bullet.pos.distanceTo(npc.pos) < 1.2) {
-          onHitNPC(id)
-          onExpire(bullet.id)
-          return
-        }
+        if (bullet.pos.distanceTo(npc.pos) < 1.2) { onHitNPC(id); onExpire(bullet.id); return }
       }
-      // Hit police
-      for (const [id, police] of policeRefs) {
-        if (police.health <= 0) continue
-        if (bullet.pos.distanceTo(police.pos) < 1.2) {
-          onHitPolice(id)
-          onExpire(bullet.id)
-          return
-        }
+      for (const [id, p] of policeRefs) {
+        if (p.health <= 0) continue
+        if (bullet.pos.distanceTo(p.pos) < 1.2) { onHitPolice(id); onExpire(bullet.id); return }
       }
     }
-
     meshRef.current.position.copy(bullet.pos)
   })
 
-  const isPlayer = bullet.owner === 'player'
   return (
     <mesh ref={meshRef} position={[bullet.pos.x, bullet.pos.y, bullet.pos.z]}>
-      <sphereGeometry args={[isPlayer ? 0.12 : 0.1, 6, 6]} />
+      <sphereGeometry args={[bullet.owner==='player'?0.13:0.1, 6, 6]}/>
       <meshStandardMaterial
-        color={isPlayer ? '#ffff00' : '#ff4444'}
-        emissive={isPlayer ? '#ffaa00' : '#ff0000'}
-        emissiveIntensity={2}
+        color={bullet.owner==='player'?'#ffff00':'#ff4444'}
+        emissive={bullet.owner==='player'?'#ffaa00':'#ff0000'}
+        emissiveIntensity={2.5}
       />
     </mesh>
   )
 }
 
-// ─── Player Component ─────────────────────────────────────────────────────────
-interface PlayerProps {
-  onShoot: (pos: THREE.Vector3, dir: THREE.Vector3) => void
-}
-
-function Player({ onShoot }: PlayerProps) {
-  const groupRef = useRef<THREE.Group>(null!)
-  const posRef = useRef(sharedPlayerPos)
-  const rotRef = useRef(sharedPlayerRot)
+// ─── Enhanced Player ──────────────────────────────────────────────────────────
+function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3) => void }) {
+  const groupRef   = useRef<THREE.Group>(null!)
+  const posRef     = useRef(sharedPlayerPos)
+  const rotRef     = useRef(sharedPlayerRot)
   const [, getControls] = useKeyboardControls<Controls>()
-  const fireCooldown = useRef(0)
+  const fireCooldown  = useRef(0)
   const enterCooldown = useRef(0)
-  const bodyRef = useRef<THREE.Mesh>(null!)
-  const pitchRef = useRef(0) // vertical look angle (first-person)
+  const { currentUser } = useAuthStore()
+  const playerName  = currentUser?.username ?? 'Player'
+  const playerColor = currentUser?.characterColor ?? '#ff6600'
+  const isAdmin     = currentUser?.role === 'admin'
 
-  const {
-    takeDamage,
-    setInVehicle,
-    useAmmo,
-    incrementWanted,
-    addMoney,
-    addScore,
-  } = useGameStore()
+  const { takeDamage, setInVehicle, useAmmo, incrementWanted, addMoney, addScore } = useGameStore()
 
   useFrame(({ camera }, delta) => {
     if (!groupRef.current) return
 
     const kb = getControls()
-    // forward/back/shoot/enter/run merged from keyboard + touch
     const controls = {
       forward: kb.forward || touchState.forward,
       back:    kb.back    || touchState.back,
-      // left/right only for keyboard (on-foot turning) and vehicle steering
-      left:    kb.left    || touchState.left,
-      right:   kb.right   || touchState.right,
       shoot:   kb.shoot   || touchState.shoot,
       enter:   kb.enter   || touchState.enter,
       run:     kb.run     || touchState.run,
     }
-    fireCooldown.current = Math.max(0, fireCooldown.current - delta)
+    fireCooldown.current  = Math.max(0, fireCooldown.current - delta)
     enterCooldown.current = Math.max(0, enterCooldown.current - delta)
 
-    // ── Camera/player rotation from right-side drag ──────────────────────────
-    const CAM_SENSITIVITY = 0.007
-    const PITCH_LIMIT = Math.PI / 2.5 // ~72° up/down
+    // ── Camera orbit from right-side drag / mouse ────────────────────────
+    const CAM_SEN = 0.0038
     if (touchState.camDx !== 0 || touchState.camDy !== 0) {
-      if (sharedInVehicle.value) {
-        const vRef2 = vehicleRefs.get(sharedVehicleId.value)
-        if (vRef2) vRef2.rot -= touchState.camDx * CAM_SENSITIVITY
-      } else {
-        rotRef.current.value -= touchState.camDx * CAM_SENSITIVITY
-      }
-      pitchRef.current = Math.max(
-        -PITCH_LIMIT,
-        Math.min(PITCH_LIMIT, pitchRef.current - touchState.camDy * CAM_SENSITIVITY)
-      )
+      sharedCamYaw.value   += touchState.camDx * CAM_SEN
+      sharedCamPitch.value  = Math.max(-0.08, Math.min(0.58, sharedCamPitch.value - touchState.camDy * CAM_SEN))
       touchState.camDx = 0
       touchState.camDy = 0
     }
+    // Keyboard A/D orbits camera on desktop
+    if (kb.left)  sharedCamYaw.value += 1.6 * delta
+    if (kb.right) sharedCamYaw.value -= 1.6 * delta
 
     if (sharedInVehicle.value) {
-      // ── In-vehicle controls ─────────────────────────────────────────────
+      // ── In-vehicle ─────────────────────────────────────────────────────
       const vRef = vehicleRefs.get(sharedVehicleId.value)
       if (!vRef) return
 
-      const turnSpeed = 1.8 * delta
-      if (controls.left) vRef.rot += turnSpeed
-      if (controls.right) vRef.rot -= turnSpeed
+      const vLeft  = touchState.vehicleLeft
+      const vRight = touchState.vehicleRight
+      const turnSpd = 1.9 * delta
+      if (vLeft)  vRef.rot += turnSpd
+      if (vRight) vRef.rot -= turnSpd
 
-      const accel = controls.run ? 22 : 14
-      const friction = 0.9
-      if (controls.forward) vRef.speed += accel * delta
-      else if (controls.back) vRef.speed -= accel * delta
-      else vRef.speed *= friction
+      const accel = controls.run ? 24 : 15
+      if (controls.forward)     vRef.speed += accel * delta
+      else if (controls.back)   vRef.speed -= accel * delta
+      else                      vRef.speed *= 0.88
 
-      vRef.speed = Math.max(-8, Math.min(28, vRef.speed))
+      vRef.speed = Math.max(-9, Math.min(32, vRef.speed))
 
       const dx = Math.sin(vRef.rot) * vRef.speed * delta
       const dz = Math.cos(vRef.rot) * vRef.speed * delta
-      const newX = Math.max(-108, Math.min(108, vRef.pos.x + dx))
-      const newZ = Math.max(-108, Math.min(108, vRef.pos.z + dz))
-
-      // Vehicle collision with buildings (wider radius)
-      if (!isInsideBuilding(newX, newZ, 1.5)) {
-        vRef.pos.x = newX
-        vRef.pos.z = newZ
-      } else {
-        vRef.speed *= -0.3
-      }
+      const nx = Math.max(-108, Math.min(108, vRef.pos.x + dx))
+      const nz = Math.max(-108, Math.min(108, vRef.pos.z + dz))
+      if (!isInsideBuilding(nx, nz, 1.6)) { vRef.pos.x = nx; vRef.pos.z = nz }
+      else vRef.speed *= -0.3
 
       posRef.current.set(vRef.pos.x, 0.9, vRef.pos.z)
       rotRef.current.value = vRef.rot
       sharedPlayerPos.copy(posRef.current)
 
-      // Exit vehicle
       if (controls.enter && enterCooldown.current <= 0) {
         enterCooldown.current = 0.5
-        vRef.occupied = false
-        vRef.speed = 0
-        sharedInVehicle.value = false
-        sharedVehicleId.value = ''
+        vRef.occupied = false; vRef.speed = 0
+        sharedInVehicle.value = false; sharedVehicleId.value = ''
         setInVehicle(false)
         posRef.current.x += Math.sin(rotRef.current.value + Math.PI / 2) * 3
         posRef.current.z += Math.cos(rotRef.current.value + Math.PI / 2) * 3
         sharedPlayerPos.copy(posRef.current)
       }
     } else {
-      // ── On-foot controls ────────────────────────────────────────────────
-      // Keyboard left/right = turn; touch left/right = STRAFE (not turn)
-      const turnSpeed = 2.2 * delta
-      if (kb.left)  rotRef.current.value += turnSpeed
-      if (kb.right) rotRef.current.value -= turnSpeed
+      // ── On-foot: camera-relative movement ──────────────────────────────
+      const camYaw = sharedCamYaw.value
+      const speed  = controls.run ? 9.5 : 5.8
 
-      const speed = controls.run ? 9 : 5.5
-      const fwdX = Math.sin(rotRef.current.value)
-      const fwdZ = Math.cos(rotRef.current.value)
-      // Perpendicular direction for strafing
-      const strX =  Math.cos(rotRef.current.value)
-      const strZ = -Math.sin(rotRef.current.value)
+      // Forward = toward where camera is looking (away from camera pos)
+      const fwdX = -Math.sin(camYaw)
+      const fwdZ = -Math.cos(camYaw)
+      // Right strafe
+      const strX =  Math.cos(camYaw)
+      const strZ = -Math.sin(camYaw)
 
-      let newX = posRef.current.x
-      let newZ = posRef.current.z
-      if (controls.forward) { newX += fwdX * speed * delta; newZ += fwdZ * speed * delta }
-      if (controls.back)    { newX -= fwdX * speed * delta * 0.6; newZ -= fwdZ * speed * delta * 0.6 }
-      // Touch joystick X → strafe (keyboard left/right already handled as turn above)
-      if (touchState.strafeLeft)  { newX -= strX * speed * delta; newZ -= strZ * speed * delta }
-      if (touchState.strafeRight) { newX += strX * speed * delta; newZ += strZ * speed * delta }
+      let moveX = 0, moveZ = 0
+      if (controls.forward)       { moveX += fwdX;       moveZ += fwdZ       }
+      if (controls.back)          { moveX -= fwdX * 0.6; moveZ -= fwdZ * 0.6 }
+      if (touchState.strafeLeft)  { moveX -= strX;       moveZ -= strZ       }
+      if (touchState.strafeRight) { moveX += strX;       moveZ += strZ       }
+
+      let newX = posRef.current.x + moveX * speed * delta
+      let newZ = posRef.current.z + moveZ * speed * delta
+
+      // Player faces movement direction (decoupled from camera)
+      if (Math.abs(moveX) > 0.01 || Math.abs(moveZ) > 0.01) {
+        rotRef.current.value = Math.atan2(moveX, moveZ)
+      }
 
       newX = Math.max(-108, Math.min(108, newX))
       newZ = Math.max(-108, Math.min(108, newZ))
-
       const resolved = resolveCollision(posRef.current, newX, newZ, 0.55)
       posRef.current.x = resolved.x
       posRef.current.z = resolved.z
@@ -670,408 +768,317 @@ function Player({ onShoot }: PlayerProps) {
       if (controls.enter && enterCooldown.current <= 0) {
         enterCooldown.current = 0.5
         for (const [id, vRef] of vehicleRefs) {
-          if (!vRef.occupied && posRef.current.distanceTo(vRef.pos) < 4) {
-            vRef.occupied = true
-            sharedInVehicle.value = true
-            sharedVehicleId.value = id
-            setInVehicle(true)
-            posRef.current.copy(vRef.pos)
-            posRef.current.y = 0.9
+          if (!vRef.occupied && posRef.current.distanceTo(vRef.pos) < 4.5) {
+            vRef.occupied = true; sharedInVehicle.value = true
+            sharedVehicleId.value = id; setInVehicle(true)
+            posRef.current.copy(vRef.pos); posRef.current.y = 0.9
             rotRef.current.value = vRef.rot
-            sharedPlayerPos.copy(posRef.current)
-            break
+            sharedPlayerPos.copy(posRef.current); break
           }
-        }
-      }
-
-      // Shoot — ray from eye in facing direction (accounts for pitch)
-      if (controls.shoot && fireCooldown.current <= 0) {
-        fireCooldown.current = 0.25
-        if (useAmmo()) {
-          const pitch = pitchRef.current
-          const rot   = rotRef.current.value
-          const dir = new THREE.Vector3(
-            Math.sin(rot) * Math.cos(pitch),
-            Math.sin(pitch),
-            Math.cos(rot) * Math.cos(pitch)
-          ).normalize()
-          const origin = new THREE.Vector3(
-            posRef.current.x,
-            posRef.current.y + 1.55, // eye height
-            posRef.current.z
-          )
-          onShoot(origin, dir)
         }
       }
     }
 
-    // Sync player group (visible — third-person)
+    // Shoot (works in both modes) — fires in camera forward direction
+    if (controls.shoot && fireCooldown.current <= 0) {
+      fireCooldown.current = 0.22
+      if (useAmmo()) {
+        const cy = sharedCamYaw.value
+        const cp = sharedCamPitch.value
+        const dir = new THREE.Vector3(
+          -Math.sin(cy) * Math.cos(cp),
+           Math.sin(cp),
+          -Math.cos(cy) * Math.cos(cp)
+        ).normalize()
+        onShoot(new THREE.Vector3(posRef.current.x, posRef.current.y + 1.3, posRef.current.z), dir)
+      }
+    }
+
+    // Sync mesh — player faces movement direction, NOT camera
     groupRef.current.position.copy(posRef.current)
     groupRef.current.rotation.y = rotRef.current.value
     groupRef.current.visible = true
 
-    // ── Third-person camera (behind the player at shoulder height) ───────────
-    const pitch = pitchRef.current
-    const CAM_DIST   = 5   // how far behind
-    const CAM_HEIGHT = 1.6 // shoulder/head height offset
+    // ── Orbit camera with collision ───────────────────────────────────────
+    const camYaw   = sharedCamYaw.value
+    const camPitch = sharedCamPitch.value
+    const CAM_DIST   = 5.5
+    const CAM_HEIGHT = 1.8
 
-    // Camera collision: step from desired camera pos toward player until clear
-    const safeCamera = (
-      originX: number, originY: number, originZ: number,
-      desiredX: number, desiredY: number, desiredZ: number
-    ) => {
-      const steps = 10
-      for (let i = 0; i <= steps; i++) {
-        const t = i / steps
-        const cx = desiredX + (originX - desiredX) * t
-        const cz = desiredZ + (originZ - desiredZ) * t
-        if (!isInsideBuilding(cx, cz, 0.3)) {
-          return { x: cx, y: desiredY + (originY - desiredY) * t, z: cz }
-        }
+    const safeCam = (ox:number,oy:number,oz:number,dx:number,dy:number,dz:number)=>{
+      for (let i=0;i<=12;i++){
+        const t=i/12
+        const cx=dx+(ox-dx)*t, cz=dz+(oz-dz)*t
+        if(!isInsideBuilding(cx,cz,0.3)) return{x:cx,y:dy+(oy-dy)*t,z:cz}
       }
-      return { x: originX, y: originY, z: originZ }
+      return{x:ox,y:oy,z:oz}
     }
 
     if (sharedInVehicle.value) {
       const vRef = vehicleRefs.get(sharedVehicleId.value)
       if (vRef) {
-        const rot = vRef.rot
-        const tx = vRef.pos.x
-        const ty = 0.9
-        const tz = vRef.pos.z
-        const desiredX = tx - Math.sin(rot) * CAM_DIST
-        const desiredY = ty + CAM_HEIGHT
-        const desiredZ = tz - Math.cos(rot) * CAM_DIST
-        const cam = safeCamera(tx, ty + CAM_HEIGHT, tz, desiredX, desiredY, desiredZ)
-        camera.position.set(cam.x, cam.y, cam.z)
-        camera.lookAt(tx + Math.sin(rot) * 3, ty + 0.6, tz + Math.cos(rot) * 3)
+        const tx=vRef.pos.x, ty=0.9, tz=vRef.pos.z
+        const c=safeCam(tx,ty+CAM_HEIGHT,tz,
+          tx+Math.sin(camYaw)*CAM_DIST,
+          ty+CAM_HEIGHT+Math.sin(camPitch)*CAM_DIST*0.5,
+          tz+Math.cos(camYaw)*CAM_DIST)
+        camera.position.set(c.x,c.y,c.z)
+        camera.lookAt(tx,ty+0.8,tz)
       }
     } else {
-      const rot = rotRef.current.value
-      const px = posRef.current.x
-      const py = posRef.current.y
-      const pz = posRef.current.z
-      const desiredX = px - Math.sin(rot) * CAM_DIST
-      const desiredY = py + CAM_HEIGHT
-      const desiredZ = pz - Math.cos(rot) * CAM_DIST
-      const cam = safeCamera(px, py + CAM_HEIGHT, pz, desiredX, desiredY, desiredZ)
-      camera.position.set(cam.x, cam.y, cam.z)
-      camera.lookAt(px + Math.sin(rot) * 3, py + 1.0, pz + Math.cos(rot) * 3)
+      const px=posRef.current.x, py=posRef.current.y, pz=posRef.current.z
+      const c=safeCam(px,py+CAM_HEIGHT,pz,
+        px+Math.sin(camYaw)*CAM_DIST,
+        py+CAM_HEIGHT+Math.sin(camPitch)*CAM_DIST*0.5,
+        pz+Math.cos(camYaw)*CAM_DIST)
+      camera.position.set(c.x,c.y,c.z)
+      camera.lookAt(px,py+1.2,pz)
     }
   })
 
+  const skinTone = '#f0b880'
   return (
-    <group ref={groupRef} position={[sharedPlayerPos.x, sharedPlayerPos.y, sharedPlayerPos.z]}>
-      {/* Body */}
-      <mesh ref={bodyRef} position={[0, 0.85, 0]} castShadow>
-        <boxGeometry args={[0.65, 1.1, 0.5]} />
-        <meshStandardMaterial color="#ff6600" />
+    <group ref={groupRef} position={[sharedPlayerPos.x,sharedPlayerPos.y,sharedPlayerPos.z]}>
+      {/* Player name tag */}
+      <Html position={[0,2.8,0]} center distanceFactor={10} occlude>
+        <div style={{
+          color: isAdmin ? '#FFD700' : '#00ffaa',
+          fontSize: 12, fontFamily: 'monospace', fontWeight: 'bold',
+          background: isAdmin ? 'rgba(80,50,0,0.8)' : 'rgba(0,40,20,0.8)',
+          padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          border: `1px solid ${isAdmin?'rgba(255,200,0,0.5)':'rgba(0,255,150,0.3)'}`,
+        }}>
+          {isAdmin ? '👑 ' : ''}{playerName}
+        </div>
+      </Html>
+      {/* Torso */}
+      <mesh position={[0,0.98,0]} castShadow>
+        <boxGeometry args={[0.58,0.88,0.4]}/>
+        <meshStandardMaterial color={playerColor} roughness={0.8}/>
       </mesh>
       {/* Head */}
-      <mesh position={[0, 1.6, 0]}>
-        <boxGeometry args={[0.5, 0.5, 0.5]} />
-        <meshStandardMaterial color="#ffaa80" />
+      <mesh position={[0,1.68,0]} castShadow>
+        <boxGeometry args={[0.44,0.44,0.42]}/>
+        <meshStandardMaterial color={skinTone}/>
       </mesh>
-      {/* Legs (hidden when in vehicle) */}
-      {!sharedInVehicle.value && (
-        <>
-          <mesh position={[-0.17, 0.2, 0]}>
-            <boxGeometry args={[0.22, 0.45, 0.22]} />
-            <meshStandardMaterial color="#1a3a5a" />
-          </mesh>
-          <mesh position={[0.17, 0.2, 0]}>
-            <boxGeometry args={[0.22, 0.45, 0.22]} />
-            <meshStandardMaterial color="#1a3a5a" />
-          </mesh>
-        </>
-      )}
-      {/* Gun arm */}
-      <mesh position={[0.4, 0.9, 0.2]} rotation={[0, 0, -0.3]}>
-        <boxGeometry args={[0.15, 0.5, 0.15]} />
-        <meshStandardMaterial color="#333" />
+      {/* Hair */}
+      <mesh position={[0,1.9,0]}>
+        <boxGeometry args={[0.46,0.12,0.44]}/>
+        <meshStandardMaterial color={isAdmin?'#FFD700':'#222'}/>
       </mesh>
+      {/* Neck */}
+      <mesh position={[0,1.45,0]}>
+        <cylinderGeometry args={[0.1,0.1,0.22,7]}/>
+        <meshStandardMaterial color={skinTone}/>
+      </mesh>
+      {/* Arms */}
+      {[-0.4,0.4].map((ax,i)=>(
+        <group key={i}>
+          <mesh position={[ax,0.98,0]} rotation={[0,0,ax<0?0.28:-0.28]}>
+            <boxGeometry args={[0.17,0.72,0.17]}/>
+            <meshStandardMaterial color={playerColor} roughness={0.8}/>
+          </mesh>
+          <mesh position={[ax*1.1,0.6,0]}>
+            <boxGeometry args={[0.15,0.35,0.15]}/>
+            <meshStandardMaterial color={skinTone}/>
+          </mesh>
+        </group>
+      ))}
+      {/* Gun in right hand */}
+      <mesh position={[0.46,0.72,0.28]} rotation={[-0.4,0,0.3]}>
+        <boxGeometry args={[0.09,0.12,0.38]}/>
+        <meshStandardMaterial color="#222" metalness={0.8} roughness={0.3}/>
+      </mesh>
+      {/* Legs */}
+      {[-0.16,0.16].map((lx,i)=>(
+        <group key={i}>
+          <mesh position={[lx,0.38,0]}>
+            <boxGeometry args={[0.22,0.54,0.22]}/>
+            <meshStandardMaterial color="#1a2a4a" roughness={0.9}/>
+          </mesh>
+          <mesh position={[lx,0.08,0.03]}>
+            <boxGeometry args={[0.22,0.18,0.32]}/>
+            <meshStandardMaterial color="#111"/>
+          </mesh>
+        </group>
+      ))}
     </group>
   )
 }
 
-// ─── Lighting based on time of day ────────────────────────────────────────────
+// ─── Lighting ─────────────────────────────────────────────────────────────────
 function DynamicLighting({ timeOfDay }: { timeOfDay: number }) {
-  const ambientRef = useRef<THREE.AmbientLight>(null!)
-  const dirRef = useRef<THREE.DirectionalLight>(null!)
-
-  const isDay = timeOfDay >= 6 && timeOfDay <= 20
+  const isDay  = timeOfDay >= 6 && timeOfDay <= 20
   const isDawn = timeOfDay >= 6 && timeOfDay < 9
   const isDusk = timeOfDay >= 17 && timeOfDay <= 20
 
-  let ambientIntensity = isDay ? 0.6 : 0.1
-  let ambientColor = '#ffffff'
-  let dirIntensity = isDay ? 1.2 : 0.0
-  let dirColor = '#ffffff'
+  let ambInt = isDay ? 0.65 : 0.12
+  let ambCol = '#ffffff', dirInt = isDay ? 1.3 : 0.0, dirCol = '#ffffff'
   let skyColor = '#87ceeb'
-
-  if (isDawn || isDusk) {
-    ambientColor = '#ffaa66'
-    dirColor = '#ff8844'
-    ambientIntensity = 0.4
-    skyColor = isDawn ? '#ff9944' : '#ff6622'
-  } else if (!isDay) {
-    skyColor = '#0a0a2a'
-  }
+  if (isDawn || isDusk) { ambCol='#ffaa66'; dirCol='#ff8844'; ambInt=0.45; skyColor=isDawn?'#ff9944':'#ff6622' }
+  else if (!isDay) skyColor='#0a0a2a'
 
   return (
     <>
-      <color attach="background" args={[skyColor]} />
-      <ambientLight ref={ambientRef} intensity={ambientIntensity} color={ambientColor} />
-      <directionalLight
-        ref={dirRef}
-        position={[50, 80, 50]}
-        intensity={dirIntensity}
-        color={dirColor}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-near={1}
-        shadow-camera-far={200}
-        shadow-camera-left={-120}
-        shadow-camera-right={120}
-        shadow-camera-top={120}
-        shadow-camera-bottom={-120}
+      <color attach="background" args={[skyColor]}/>
+      <ambientLight intensity={ambInt} color={ambCol}/>
+      <directionalLight position={[50,80,50]} intensity={dirInt} color={dirCol}
+        castShadow shadow-mapSize={[2048,2048]}
+        shadow-camera-near={1} shadow-camera-far={220}
+        shadow-camera-left={-130} shadow-camera-right={130}
+        shadow-camera-top={130} shadow-camera-bottom={-130}
       />
-      {/* Street light glow at night */}
-      {!isDay && (
-        <pointLight position={[0, 8, 0]} intensity={0.8} color="#ffee88" distance={40} />
-      )}
-      <fog attach="fog" args={[skyColor, 60, 200]} />
+      {!isDay && <pointLight position={[0,8,0]} intensity={0.9} color="#ffee88" distance={45}/>}
+      <fog attach="fog" args={[skyColor,70,220]}/>
     </>
   )
 }
 
-// ─── Minimap dot collector ─────────────────────────────────────────────────────
-let minimapDots: Array<{ x: number; z: number; color: string; size: number }> = []
-
+// ─── Minimap Collector ────────────────────────────────────────────────────────
 function MinimapCollector() {
-  const setMinimapDots = useGameStore((s) => s.setMinimapDots)
-  const setPlayerPos   = useGameStore((s) => s.setPlayerPos)
-  const frameCount = useRef(0)
-
-  useFrame(() => {
-    frameCount.current++
-    if (frameCount.current % 6 !== 0) return // Update every 6 frames
-
-    const dots: typeof minimapDots = []
-    for (const [, v] of vehicleRefs) {
-      dots.push({ x: v.pos.x, z: v.pos.z, color: v.color, size: 5 })
-    }
-    for (const [, n] of npcRefs) {
-      if (n.state !== 'dead') dots.push({ x: n.pos.x, z: n.pos.z, color: '#88ff88', size: 3 })
-    }
-    for (const [, p] of policeRefs) {
-      if (p.health > 0) dots.push({ x: p.pos.x, z: p.pos.z, color: '#4466ff', size: 4 })
-    }
+  const setMinimapDots = useGameStore(s=>s.setMinimapDots)
+  const setPlayerPos   = useGameStore(s=>s.setPlayerPos)
+  const frameCount     = useRef(0)
+  useFrame(()=>{
+    if(++frameCount.current%6!==0) return
+    const dots: Array<{x:number;z:number;color:string;size:number}> = []
+    for(const[,v] of vehicleRefs) dots.push({x:v.pos.x,z:v.pos.z,color:v.color,size:5})
+    for(const[,n] of npcRefs) if(n.state!=='dead') dots.push({x:n.pos.x,z:n.pos.z,color:'#88ff88',size:3})
+    for(const[,p] of policeRefs) if(p.health>0) dots.push({x:p.pos.x,z:p.pos.z,color:'#4466ff',size:4})
     setMinimapDots(dots)
-    setPlayerPos(sharedPlayerPos.x, sharedPlayerPos.z)
+    setPlayerPos(sharedPlayerPos.x,sharedPlayerPos.z)
   })
   return null
 }
 
 // ─── Police Spawner ───────────────────────────────────────────────────────────
-const MAX_POLICE = 4
+const MAX_POLICE = 6
 let policeIdCounter = 0
 
 function spawnPolice(wantedLevel: number) {
-  const count = Math.min(wantedLevel, MAX_POLICE)
-  // Remove excess
+  const count = Math.min(wantedLevel * 2, MAX_POLICE)
   const ids = Array.from(policeRefs.keys())
-  while (ids.length > count) {
-    policeRefs.delete(ids.pop()!)
-  }
-  // Add if needed
+  while (ids.length > count) { policeRefs.delete(ids.pop()!) }
+  let formationIdx = 0
   while (policeRefs.size < count) {
     const id = `police${policeIdCounter++}`
     const angle = Math.random() * Math.PI * 2
-    const spawnDist = 40 + Math.random() * 30
-    const spawnX = sharedPlayerPos.x + Math.cos(angle) * spawnDist
-    const spawnZ = sharedPlayerPos.z + Math.sin(angle) * spawnDist
+    const dist  = 35 + Math.random() * 35
     policeRefs.set(id, {
       pos: new THREE.Vector3(
-        Math.max(-100, Math.min(100, spawnX)),
+        Math.max(-100,Math.min(100, sharedPlayerPos.x+Math.cos(angle)*dist)),
         0,
-        Math.max(-100, Math.min(100, spawnZ))
+        Math.max(-100,Math.min(100, sharedPlayerPos.z+Math.sin(angle)*dist))
       ),
-      dir: 0,
-      health: 100,
-      shootTimer: 0,
-      mesh: null,
+      dir:0, health:100, shootTimer:0, mesh:null,
+      formation: formationIdx++,
     })
   }
 }
 
-// ─── Main GameScene ────────────────────────────────────────────────────────────
+// ─── Main GameScene ───────────────────────────────────────────────────────────
 export default function GameScene() {
-  const [bullets, setBullets] = useState<BulletRef[]>([])
+  const [bullets,   setBullets  ] = useState<BulletRef[]>([])
   const [policeIds, setPoliceIds] = useState<string[]>([])
   const [timeOfDay, setTimeOfDay] = useState(10)
-
-  const timeRef = useRef(10)
+  const timeRef        = useRef(10)
   const wantedDecayRef = useRef(0)
-  const wantedLevel = useGameStore((s) => s.wantedLevel)
-  const { takeDamage, setWantedLevel, incrementWanted, addMoney, addScore, isGameOver } =
-    useGameStore()
+  const wantedLevel    = useGameStore(s=>s.wantedLevel)
+  const { takeDamage, setWantedLevel, incrementWanted, addMoney, addScore, isGameOver } = useGameStore()
+  const [policeIndexMap, setPoliceIndexMap] = useState<Map<string,number>>(new Map())
 
-  // Time of day cycle
-  useFrame((_, delta) => {
-    timeRef.current += delta * 0.05 // 1 game hour per 20 real seconds
-    if (timeRef.current >= 24) timeRef.current = 0
-    const tod = Math.floor(timeRef.current * 10) / 10
-    if (Math.floor(tod) !== Math.floor(timeRef.current - delta * 0.05)) {
-      setTimeOfDay(tod)
-    }
+  useFrame((_,delta)=>{
+    timeRef.current += delta * 0.05
+    if (timeRef.current>=24) timeRef.current=0
+    const tod=Math.floor(timeRef.current*10)/10
+    if(Math.floor(tod)!==Math.floor(timeRef.current-delta*0.05)) setTimeOfDay(tod)
 
-    // Wanted level decay when hiding
-    if (sharedWantedLevel.value > 0) {
-      wantedDecayRef.current += delta
-      if (wantedDecayRef.current > 30) {
-        wantedDecayRef.current = 0
-        sharedWantedLevel.value = Math.max(0, sharedWantedLevel.value - 1)
+    if(sharedWantedLevel.value>0){
+      wantedDecayRef.current+=delta
+      if(wantedDecayRef.current>30){
+        wantedDecayRef.current=0
+        sharedWantedLevel.value=Math.max(0,sharedWantedLevel.value-1)
         setWantedLevel(sharedWantedLevel.value)
       }
     }
-
-    // (player pos written to store by MinimapCollector)
   })
 
-  // Police spawning when wanted level changes
-  useEffect(() => {
-    sharedWantedLevel.value = wantedLevel
+  useEffect(()=>{
+    sharedWantedLevel.value=wantedLevel
     spawnPolice(wantedLevel)
-    setPoliceIds(Array.from(policeRefs.keys()))
-  }, [wantedLevel])
+    const ids=Array.from(policeRefs.keys())
+    setPoliceIds(ids)
+    const map=new Map<string,number>()
+    ids.forEach((id,i)=>map.set(id,i))
+    setPoliceIndexMap(map)
+  },[wantedLevel])
 
-  const handleShoot = useCallback((pos: THREE.Vector3, dir: THREE.Vector3) => {
-    const id = `b${Date.now()}_${Math.random().toString(36).slice(2)}`
-    const newBullet: BulletRef = {
-      id,
-      pos: pos.clone(),
-      dir: dir.clone(),
-      age: 0,
-      owner: 'player',
-      mesh: null,
-    }
-    bulletRefs = [...bulletRefs, newBullet]
+  const handleShoot=useCallback((pos:THREE.Vector3,dir:THREE.Vector3)=>{
+    const id=`b${Date.now()}_${Math.random().toString(36).slice(2)}`
+    bulletRefs=[...bulletRefs,{id,pos:pos.clone(),dir:dir.clone(),age:0,owner:'player',mesh:null}]
     setBullets([...bulletRefs])
-  }, [])
+  },[])
 
-  const handlePoliceShoot = useCallback(() => {
-    const id = `pb${Date.now()}_${Math.random().toString(36).slice(2)}`
-    // Find shooting police
-    for (const [, police] of policeRefs) {
-      if (police.pos.distanceTo(sharedPlayerPos) < 6) {
-        const dir = sharedPlayerPos.clone().sub(police.pos).normalize()
-        dir.y = 0
-        const newBullet: BulletRef = {
-          id,
-          pos: police.pos.clone().add(new THREE.Vector3(0, 1, 0)),
-          dir,
-          age: 0,
-          owner: 'police',
-          mesh: null,
-        }
-        bulletRefs = [...bulletRefs, newBullet]
-        setBullets([...bulletRefs])
-        break
+  const handlePoliceShoot=useCallback(()=>{
+    for(const[,p] of policeRefs){
+      if(p.pos.distanceTo(sharedPlayerPos)<7){
+        const dir=sharedPlayerPos.clone().sub(p.pos).normalize(); dir.y=0
+        const id=`pb${Date.now()}_${Math.random().toString(36).slice(2)}`
+        bulletRefs=[...bulletRefs,{id,pos:p.pos.clone().add(new THREE.Vector3(0,1.2,0)),dir,age:0,owner:'police',mesh:null}]
+        setBullets([...bulletRefs]); break
       }
     }
-  }, [])
+  },[])
 
-  const handleBulletExpire = useCallback((id: string) => {
-    bulletRefs = bulletRefs.filter((b) => b.id !== id)
-    setBullets([...bulletRefs])
-  }, [])
+  const handleBulletExpire=useCallback((id:string)=>{
+    bulletRefs=bulletRefs.filter(b=>b.id!==id); setBullets([...bulletRefs])
+  },[])
 
-  const handleHitNPC = useCallback(
-    (id: string) => {
-      const npc = npcRefs.get(id)
-      if (!npc || npc.state === 'dead') return
-      npc.health -= 34
-      if (npc.health <= 0) {
-        npc.state = 'dead'
-        addMoney(50)
-        addScore(100)
-        // Increase wanted
-        incrementWanted()
-        sharedWantedLevel.value = Math.min(5, sharedWantedLevel.value + 1)
-        wantedDecayRef.current = 0
-        spawnPolice(sharedWantedLevel.value)
-        setPoliceIds(Array.from(policeRefs.keys()))
-      }
-    },
-    [addMoney, addScore, incrementWanted]
-  )
+  const handleHitNPC=useCallback((id:string)=>{
+    const npc=npcRefs.get(id); if(!npc||npc.state==='dead') return
+    npc.health-=34
+    if(npc.health<=0){
+      npc.state='dead'; addMoney(50); addScore(100)
+      incrementWanted(); sharedWantedLevel.value=Math.min(5,sharedWantedLevel.value+1)
+      wantedDecayRef.current=0; spawnPolice(sharedWantedLevel.value)
+      setPoliceIds(Array.from(policeRefs.keys()))
+    }
+  },[addMoney,addScore,incrementWanted])
 
-  const handleHitPolice = useCallback(
-    (id: string) => {
-      const police = policeRefs.get(id)
-      if (!police || police.health <= 0) return
-      police.health -= 40
-      addScore(150)
-      if (police.health <= 0) {
-        addMoney(100)
-        addScore(250)
-        incrementWanted()
-        sharedWantedLevel.value = Math.min(5, sharedWantedLevel.value + 2)
-        wantedDecayRef.current = 0
-      }
-    },
-    [addMoney, addScore, incrementWanted]
-  )
+  const handleHitPolice=useCallback((id:string)=>{
+    const p=policeRefs.get(id); if(!p||p.health<=0) return
+    p.health-=40; addScore(150)
+    if(p.health<=0){
+      addMoney(100); addScore(250); incrementWanted()
+      sharedWantedLevel.value=Math.min(5,sharedWantedLevel.value+2)
+      wantedDecayRef.current=0
+    }
+  },[addMoney,addScore,incrementWanted])
 
-  // Police bullet hitting player
-  const handlePoliceBulletHitPlayer = useCallback(() => {
-    takeDamage(12)
-  }, [takeDamage])
+  const handlePoliceBulletHit=useCallback(()=>{ takeDamage(12) },[takeDamage])
 
-  if (isGameOver) {
-    return <DynamicLighting timeOfDay={timeOfDay} />
-  }
+  if (isGameOver) return <DynamicLighting timeOfDay={timeOfDay}/>
 
   return (
     <>
-      <DynamicLighting timeOfDay={timeOfDay} />
-
-      <City />
-
-      {/* Vehicles */}
-      {INITIAL_VEHICLES.map((v) => (
-        <Vehicle key={v.id} vehicleId={v.id} />
-      ))}
-
-      {/* NPCs */}
-      {INITIAL_NPCS.map((n) => (
-        <NPC key={n.id} npcId={n.id} />
-      ))}
-
-      {/* Police */}
-      {policeIds.map((id) =>
-        policeRefs.has(id) ? (
-          <PoliceUnit key={id} policeId={id} onShootPlayer={handlePoliceShoot} />
-        ) : null
-      )}
-
-      {/* Bullets */}
-      {bullets.map((bullet) => (
-        <Bullet
-          key={bullet.id}
-          bullet={bullet}
+      <DynamicLighting timeOfDay={timeOfDay}/>
+      <City/>
+      {INITIAL_VEHICLES.map(v=><Vehicle key={v.id} vehicleId={v.id}/>)}
+      {INITIAL_NPCS.map((n,i)=><NPC key={n.id} npcId={n.id} npcIndex={i}/>)}
+      {policeIds.map(id=>policeRefs.has(id)?(
+        <PoliceUnit key={id} policeId={id}
+          policeIndex={policeIndexMap.get(id)??0}
+          onShootPlayer={handlePoliceShoot}/>
+      ):null)}
+      {bullets.map(b=>(
+        <Bullet key={b.id} bullet={b}
           onExpire={handleBulletExpire}
           onHitNPC={handleHitNPC}
-          onHitPolice={handleHitPolice}
-        />
+          onHitPolice={handleHitPolice}/>
       ))}
-
-      {/* Player */}
-      <Player onShoot={handleShoot} />
-
-      {/* Minimap + player pos → Zustand store → HUD rendered in App.tsx */}
-      <MinimapCollector />
+      <Player onShoot={handleShoot}/>
+      <MinimapCollector/>
     </>
   )
 }

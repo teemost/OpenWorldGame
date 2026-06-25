@@ -60,12 +60,15 @@ export default function TouchControls() {
         const thr = RADIUS * 0.25
         touchState.forward    = ky < -thr
         touchState.back       = ky > thr
-        // X-axis: vehicle steering AND on-foot strafe (Player picks which to use)
-        // kx > thr means the knob moved RIGHT → player moves RIGHT (was inverted)
-        touchState.left        = kx > thr
-        touchState.right       = kx < -thr
-        touchState.strafeLeft  = kx > thr
-        touchState.strafeRight = kx < -thr
+        // On-foot strafe: joystick right (kx > thr) → move right
+        touchState.strafeLeft  = kx < -thr
+        touchState.strafeRight = kx > thr
+        // Vehicle steering: joystick left (kx < -thr) → steer left (original direction)
+        touchState.vehicleLeft  = kx < -thr
+        touchState.vehicleRight = kx > thr
+        // Legacy aliases
+        touchState.left  = kx < -thr
+        touchState.right = kx > thr
       }
     }
 
