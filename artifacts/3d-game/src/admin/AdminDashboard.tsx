@@ -3,14 +3,17 @@ import { useAuthStore } from '../auth/useAuthStore'
 import { useModelStore, ModelCategory, DEFAULT_SETTINGS, modelBlobURLs } from '../store/useModelStore'
 
 const CATEGORIES: { key: ModelCategory; label: string; icon: string; desc: string }[] = [
-  { key: 'player',  label: 'Player Character',  icon: '🎮', desc: 'The main player character model' },
-  { key: 'npc',     label: 'NPC Citizens',       icon: '🚶', desc: 'Generic civilian NPC models' },
-  { key: 'police',  label: 'Police Officers',    icon: '👮', desc: 'Standard police officer model' },
-  { key: 'swat',    label: 'SWAT Units',         icon: '🪖', desc: 'High-wanted-level SWAT model' },
-  { key: 'vehicle', label: 'Vehicles',           icon: '🚗', desc: 'All driveable vehicle models' },
+  { key: 'player',         label: 'Player Character',    icon: '🎮', desc: 'The main controllable player character model' },
+  { key: 'npc',            label: 'Civilian NPCs',       icon: '🚶', desc: 'Generic civilian NPC walking characters' },
+  { key: 'police',         label: 'Police Officers',     icon: '👮', desc: 'Standard police officer character model' },
+  { key: 'swat',           label: 'SWAT Units',          icon: '🪖', desc: 'High-wanted-level SWAT tactical units' },
+  { key: 'ai_character',   label: 'AI Characters',       icon: '🤖', desc: 'General AI-controlled character model' },
+  { key: 'vehicle',        label: 'Civilian Vehicle',    icon: '🚗', desc: 'Default driveable civilian car model' },
+  { key: 'police_vehicle', label: 'Police Vehicle',      icon: '🚔', desc: 'Police cruiser model' },
+  { key: 'weapon',         label: 'Weapon / Gun',        icon: '🔫', desc: 'Handheld weapon model shown in player hands' },
 ]
 
-const ACCEPTED = '.glb,.gltf,.fbx,.obj,.ply'
+const ACCEPTED        = '.glb,.gltf,.fbx,.obj,.ply'
 const ACCEPTED_FORMATS = ['glb', 'gltf', 'fbx', 'obj', 'ply']
 
 function formatBytes(bytes: number) {
@@ -22,34 +25,34 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString()
 }
 
-// ─── Sidebar nav ─────────────────────────────────────────────────────────────
 type Section = 'overview' | 'models' | 'settings' | 'players'
 
 const NAV: { key: Section; label: string; icon: string }[] = [
-  { key: 'overview', label: 'Overview',        icon: '📊' },
-  { key: 'models',   label: 'Model Manager',   icon: '🗂️' },
-  { key: 'settings', label: 'Game Settings',   icon: '⚙️' },
-  { key: 'players',  label: 'Player Manager',  icon: '👥' },
+  { key: 'overview', label: 'Overview',       icon: '📊' },
+  { key: 'models',   label: 'Model Manager',  icon: '🗂️' },
+  { key: 'settings', label: 'Game Settings',  icon: '⚙️' },
+  { key: 'players',  label: 'Player Manager', icon: '👥' },
 ]
 
-// ─── Model upload card ───────────────────────────────────────────────────────
+// ─── Model upload card ────────────────────────────────────────────────────────
 function ModelUploadCard({ cat }: { cat: typeof CATEGORIES[0] }) {
-  const { models, uploadModel, removeModel } = useModelStore()
+  const { models, uploadModel, removeModel, modelRevision } = useModelStore()
   const meta    = models[cat.key]
   const fileRef = useRef<HTMLInputElement>(null)
-  const [dragging, setDragging] = useState(false)
+  const [dragging,  setDragging ] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [error, setError]    = useState('')
-  const hasURL = modelBlobURLs.has(cat.key)
+  const [error,     setError    ] = useState('')
+  const [hasURL,    setHasURL   ] = useState(() => modelBlobURLs.has(cat.key))
+
+  useEffect(() => { setHasURL(modelBlobURLs.has(cat.key)) }, [modelRevision, cat.key])
 
   const handleFile = async (file: File) => {
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
     if (!ACCEPTED_FORMATS.includes(ext)) {
-      setError(`Unsupported format: .${ext}. Use ${ACCEPTED_FORMATS.join(', ')}.`)
+      setError(`Unsupported format: .${ext}. Accepted: ${ACCEPTED_FORMATS.join(', ')}.`)
       return
     }
-    setError('')
-    setUploading(true)
+    setError(''); setUploading(true)
     try {
       await uploadModel(cat.key, file)
     } catch (e) {
@@ -78,31 +81,25 @@ function ModelUploadCard({ cat }: { cat: typeof CATEGORIES[0] }) {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
         <span style={{ fontSize: 28 }}>{cat.icon}</span>
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={{ color: '#fff', fontSize: 15, fontWeight: 'bold' }}>{cat.label}</div>
-          <div style={{ color: '#666', fontSize: 12, marginTop: 2 }}>{cat.desc}</div>
+          <div style={{ color: '#555', fontSize: 12, marginTop: 2 }}>{cat.desc}</div>
         </div>
         {hasURL && (
           <div style={{
-            marginLeft: 'auto', background: 'rgba(0,200,100,0.15)',
-            border: '1px solid rgba(0,200,100,0.3)', color: '#00cc66',
-            padding: '3px 10px', borderRadius: 20, fontSize: 11,
-          }}>
-            ● ACTIVE IN-GAME
-          </div>
+            background: 'rgba(0,200,100,0.15)', border: '1px solid rgba(0,200,100,0.3)',
+            color: '#00cc66', padding: '3px 10px', borderRadius: 20, fontSize: 11, flexShrink: 0,
+          }}>● ACTIVE IN-GAME</div>
         )}
         {meta && !hasURL && (
           <div style={{
-            marginLeft: 'auto', background: 'rgba(200,150,0,0.15)',
-            border: '1px solid rgba(200,150,0,0.3)', color: '#ccaa00',
-            padding: '3px 10px', borderRadius: 20, fontSize: 11,
-          }}>
-            ⟳ RELOAD TO ACTIVATE
-          </div>
+            background: 'rgba(200,150,0,0.15)', border: '1px solid rgba(200,150,0,0.3)',
+            color: '#ccaa00', padding: '3px 10px', borderRadius: 20, fontSize: 11, flexShrink: 0,
+          }}>⟳ RELOAD TO ACTIVATE</div>
         )}
       </div>
 
-      {meta ? (
+      {meta && (
         <div style={{
           background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '12px 14px',
           marginBottom: 12, border: '1px solid rgba(255,255,255,0.06)',
@@ -119,25 +116,23 @@ function ModelUploadCard({ cat }: { cat: typeof CATEGORIES[0] }) {
               </div>
             </div>
             <button
-              onClick={() => removeModel(cat.key)}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); removeModel(cat.key) }}
               style={{
                 background: 'rgba(200,0,0,0.2)', border: '1px solid rgba(200,0,0,0.35)',
                 color: '#ff6666', padding: '4px 12px', borderRadius: 6,
-                fontSize: 12, cursor: 'pointer', fontFamily: 'monospace',
+                fontSize: 12, cursor: 'pointer', fontFamily: 'monospace', flexShrink: 0,
               }}
-            >
-              Remove
-            </button>
+            >Remove</button>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {/* Drop zone */}
       <div
-        onDragOver={(e)=>{ e.preventDefault(); setDragging(true) }}
-        onDragLeave={()=>setDragging(false)}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+        onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        onClick={()=>fileRef.current?.click()}
+        onClick={() => fileRef.current?.click()}
         style={{
           border: `2px dashed ${dragging ? 'rgba(255,100,0,0.7)' : 'rgba(255,255,255,0.15)'}`,
           borderRadius: 8, padding: '18px 12px', textAlign: 'center',
@@ -151,24 +146,24 @@ function ModelUploadCard({ cat }: { cat: typeof CATEGORIES[0] }) {
           <>
             <div style={{ fontSize: 24, marginBottom: 6 }}>⬆️</div>
             <div style={{ color: '#888', fontSize: 13 }}>
-              {meta ? 'Drop a new file to replace' : 'Drop model file here or click to browse'}
+              {meta ? 'Drop a new file to replace' : 'Drop 3D model file here or click to browse'}
             </div>
             <div style={{ color: '#444', fontSize: 11, marginTop: 4 }}>
-              Supported: GLB · GLTF · FBX · OBJ · PLY
+              GLB · GLTF · FBX · OBJ · PLY
             </div>
           </>
         )}
       </div>
-      <input ref={fileRef} type="file" accept={ACCEPTED} style={{ display:'none' }} onChange={onInputChange}/>
+      <input ref={fileRef} type="file" accept={ACCEPTED} style={{ display: 'none' }} onChange={onInputChange} />
       {error && (
-        <div style={{ color:'#ff6666', fontSize:12, marginTop:8, padding:'6px 10px',
-          background:'rgba(255,0,0,0.1)', borderRadius:4 }}>{error}</div>
+        <div style={{ color: '#ff6666', fontSize: 12, marginTop: 8, padding: '6px 10px',
+          background: 'rgba(255,0,0,0.1)', borderRadius: 4 }}>{error}</div>
       )}
     </div>
   )
 }
 
-// ─── Settings section ─────────────────────────────────────────────────────────
+// ─── Settings components ──────────────────────────────────────────────────────
 function Slider({ label, value, min, max, step = 0.01, unit = '', onChange }: {
   label: string; value: number; min: number; max: number
   step?: number; unit?: string; onChange: (v: number) => void
@@ -178,11 +173,12 @@ function Slider({ label, value, min, max, step = 0.01, unit = '', onChange }: {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
         <span style={{ color: '#bbb', fontSize: 13 }}>{label}</span>
         <span style={{ color: '#ff6600', fontSize: 13, fontFamily: 'monospace' }}>
-          {typeof value === 'number' && step < 1 ? value.toFixed(step < 0.1 ? 2 : 1) : value}{unit}
+          {step < 1 ? value.toFixed(step < 0.1 ? 2 : 1) : value}{unit}
         </span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(Number(e.target.value))}
+        onClick={e => e.stopPropagation()}
         style={{ width: '100%', accentColor: '#ff6600', cursor: 'pointer' }}
       />
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
@@ -206,18 +202,18 @@ function Toggle({ label, value, onChange, desc }: {
         {desc && <div style={{ color: '#555', fontSize: 11, marginTop: 2 }}>{desc}</div>}
       </div>
       <div
-        onClick={() => onChange(!value)}
+        onClick={(e) => { e.stopPropagation(); onChange(!value) }}
         style={{
           width: 44, height: 24, borderRadius: 12, cursor: 'pointer',
           background: value ? '#ff6600' : '#333',
-          position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+          position: 'relative', transition: 'background 0.2s', flexShrink: 0, marginLeft: 16,
         }}
       >
         <div style={{
           position: 'absolute', top: 3, left: value ? 23 : 3,
           width: 18, height: 18, borderRadius: '50%', background: '#fff',
           transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
-        }}/>
+        }} />
       </div>
     </div>
   )
@@ -244,52 +240,81 @@ function SettingsSection() {
 
   return (
     <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-        <div style={{ color:'#fff', fontSize:18, fontWeight:'bold' }}>Game Settings</div>
-        <button onClick={resetSettings} style={{
-          background:'rgba(200,0,0,0.15)',border:'1px solid rgba(200,0,0,0.3)',
-          color:'#ff6666',padding:'6px 14px',borderRadius:6,cursor:'pointer',
-          fontFamily:'monospace',fontSize:12,
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Game Settings</div>
+        <button type="button" onClick={resetSettings} style={{
+          background: 'rgba(200,0,0,0.15)', border: '1px solid rgba(200,0,0,0.3)',
+          color: '#ff6666', padding: '6px 14px', borderRadius: 6, cursor: 'pointer',
+          fontFamily: 'monospace', fontSize: 12,
         }}>Reset to Defaults</button>
       </div>
 
       <SettingsCard title="── PLAYER">
-        <Slider label="Movement Speed" value={s.playerSpeedMult} min={0.3} max={3} step={0.1} unit="×" onChange={v=>setSettings({playerSpeedMult:v})}/>
-        <Slider label="Max Health" value={s.playerHealthMax} min={50} max={500} step={10} unit=" HP" onChange={v=>setSettings({playerHealthMax:v})}/>
-        <Slider label="Starting Money" value={s.startingMoney} min={0} max={99999} step={100} unit=" $" onChange={v=>setSettings({startingMoney:v})}/>
-        <Slider label="Starting Ammo" value={s.startingAmmo} min={0} max={999} step={10} onChange={v=>setSettings({startingAmmo:v})}/>
-        <Slider label="Bullet Damage" value={s.bulletDamage} min={1} max={100} step={1} unit=" HP" onChange={v=>setSettings({bulletDamage:v})}/>
+        <Slider label="Movement Speed"      value={s.playerSpeedMult}    min={0.3}  max={3}    step={0.1}  unit="×"   onChange={v => setSettings({ playerSpeedMult: v })} />
+        <Slider label="Max Health"          value={s.playerHealthMax}    min={50}   max={500}  step={10}   unit=" HP" onChange={v => setSettings({ playerHealthMax: v })} />
+        <Slider label="Starting Money"      value={s.startingMoney}      min={0}    max={99999} step={100} unit=" $"  onChange={v => setSettings({ startingMoney: v })} />
+        <Slider label="Starting Ammo"       value={s.startingAmmo}       min={0}    max={999}  step={10}              onChange={v => setSettings({ startingAmmo: v })} />
+        <Slider label="Damage Resistance"   value={s.playerDamageResist} min={0}    max={0.9}  step={0.05} unit="×"  onChange={v => setSettings({ playerDamageResist: v })} />
       </SettingsCard>
 
       <SettingsCard title="── WORLD & ENVIRONMENT">
-        <Toggle label="Day/Night Cycle" value={s.enableDayCycle} onChange={v=>setSettings({enableDayCycle:v})} desc="Toggle automatic time progression"/>
-        <Slider label="Day Cycle Speed" value={s.dayCycleSpeed} min={0} max={0.5} step={0.01} onChange={v=>setSettings({dayCycleSpeed:v})}/>
-        <Slider label="Fog Distance" value={s.fogDistance} min={30} max={500} step={10} unit=" m" onChange={v=>setSettings({fogDistance:v})}/>
+        <Toggle label="Day/Night Cycle"  value={s.enableDayCycle} onChange={v => setSettings({ enableDayCycle: v })} desc="Toggle automatic time progression" />
+        <Slider label="Day Cycle Speed"  value={s.dayCycleSpeed}  min={0}   max={0.5} step={0.01}             onChange={v => setSettings({ dayCycleSpeed: v })} />
+        <Slider label="Fog Distance"     value={s.fogDistance}    min={30}  max={500} step={10}   unit=" m"   onChange={v => setSettings({ fogDistance: v })} />
+        <Toggle label="Weather Effects"  value={s.enableWeather}  onChange={v => setSettings({ enableWeather: v })} desc="Rain and atmospheric effects" />
+        <Slider label="Gravity Multiplier" value={s.gravityMultiplier} min={0.5} max={3} step={0.1} unit="×" onChange={v => setSettings({ gravityMultiplier: v })} />
       </SettingsCard>
 
-      <SettingsCard title="── NPC CITIZENS">
-        <Slider label="NPC Count" value={s.npcCount} min={0} max={50} step={1} unit=" NPCs" onChange={v=>setSettings({npcCount:v})}/>
-        <Slider label="NPC Move Speed" value={s.npcSpeed} min={0.2} max={3} step={0.1} unit="×" onChange={v=>setSettings({npcSpeed:v})}/>
-        <Slider label="Panic Radius" value={s.npcPanicRadius} min={3} max={60} step={1} unit=" m" onChange={v=>setSettings({npcPanicRadius:v})}/>
+      <SettingsCard title="── NPC CITIZENS & AI">
+        <Slider label="NPC Count"        value={s.npcCount}       min={0}   max={50} step={1}  unit=" NPCs" onChange={v => setSettings({ npcCount: v })} />
+        <Slider label="NPC Move Speed"   value={s.npcSpeed}       min={0.2} max={3}  step={0.1} unit="×"   onChange={v => setSettings({ npcSpeed: v })} />
+        <Slider label="Panic Radius"     value={s.npcPanicRadius} min={3}   max={60} step={1}  unit=" m"   onChange={v => setSettings({ npcPanicRadius: v })} />
+        <Toggle label="Enable AI"        value={s.enableAI}       onChange={v => setSettings({ enableAI: v })} desc="Toggle all NPC AI behaviour" />
+        <Slider label="AI Difficulty"    value={s.aiDifficulty}   min={0}   max={3}  step={1}              onChange={v => setSettings({ aiDifficulty: v })} />
+        <Slider label="AI Reaction Time" value={s.aiReactionTime} min={0.1} max={2}  step={0.1} unit=" s"  onChange={v => setSettings({ aiReactionTime: v })} />
       </SettingsCard>
 
       <SettingsCard title="── POLICE">
-        <Toggle label="Wanted System" value={s.enableWantedSystem} onChange={v=>setSettings({enableWantedSystem:v})} desc="Disable to prevent police from spawning"/>
-        <Slider label="Police Speed" value={s.policeSpeed} min={0.3} max={3} step={0.1} unit="×" onChange={v=>setSettings({policeSpeed:v})}/>
-        <Slider label="Police Aggression" value={s.policeAggression} min={0} max={3} step={1} onChange={v=>setSettings({policeAggression:v})}/>
-        <Slider label="Spawn Delay" value={s.policeSpawnDelay} min={3} max={120} step={1} unit=" s" onChange={v=>setSettings({policeSpawnDelay:v})}/>
+        <Toggle label="Wanted System"    value={s.enableWantedSystem} onChange={v => setSettings({ enableWantedSystem: v })} desc="Disable to prevent police spawning" />
+        <Slider label="Police Speed"     value={s.policeSpeed}        min={0.3} max={3}   step={0.1} unit="×"  onChange={v => setSettings({ policeSpeed: v })} />
+        <Slider label="Police Aggression" value={s.policeAggression}  min={0}   max={3}   step={1}             onChange={v => setSettings({ policeAggression: v })} />
+        <Slider label="Spawn Delay"      value={s.policeSpawnDelay}   min={3}   max={120} step={1}   unit=" s" onChange={v => setSettings({ policeSpawnDelay: v })} />
+        <Slider label="Police Health Multiplier" value={s.policeHealthMult} min={0.5} max={3} step={0.1} unit="×" onChange={v => setSettings({ policeHealthMult: v })} />
       </SettingsCard>
 
       <SettingsCard title="── VEHICLES">
-        <Slider label="Vehicle Count" value={s.vehicleCount} min={0} max={30} step={1} onChange={v=>setSettings({vehicleCount:v})}/>
+        <Slider label="Vehicle Count"       value={s.vehicleCount}        min={0}  max={30} step={1}             onChange={v => setSettings({ vehicleCount: v })} />
+        <Slider label="Max Speed"           value={s.vehicleMaxSpeed}     min={10} max={60} step={1}  unit=" m/s" onChange={v => setSettings({ vehicleMaxSpeed: v })} />
+        <Slider label="Acceleration"        value={s.vehicleAcceleration} min={5}  max={50} step={1}             onChange={v => setSettings({ vehicleAcceleration: v })} />
+        <Slider label="Friction / Drag"     value={s.vehicleFriction}     min={0.7} max={0.99} step={0.01}       onChange={v => setSettings({ vehicleFriction: v })} />
+        <Toggle label="Camera Follow Vehicle" value={s.vehicleCameraFollow} onChange={v => setSettings({ vehicleCameraFollow: v })} desc="Auto-align camera behind vehicle when driving" />
       </SettingsCard>
 
-      <SettingsCard title="── EFFECTS">
-        <Toggle label="Blood Effects" value={s.enableBloodEffects} onChange={v=>setSettings({enableBloodEffects:v})}/>
+      <SettingsCard title="── WEAPONS & COMBAT">
+        <Slider label="Bullet Damage"   value={s.bulletDamage}  min={1}    max={100} step={1}  unit=" HP" onChange={v => setSettings({ bulletDamage: v })} />
+        <Slider label="Fire Rate"       value={s.weaponFireRate} min={0.05} max={1}   step={0.01} unit=" s" onChange={v => setSettings({ weaponFireRate: v })} />
+        <Slider label="Weapon Range"    value={s.weaponRange}   min={20}   max={200} step={5}  unit=" m"  onChange={v => setSettings({ weaponRange: v })} />
+        <Slider label="Bullet Speed"    value={s.bulletSpeed}   min={20}   max={120} step={5}  unit=" m/s" onChange={v => setSettings({ bulletSpeed: v })} />
+        <Slider label="Max Bullets"     value={s.maxBullets}    min={10}   max={200} step={5}             onChange={v => setSettings({ maxBullets: v })} />
+        <Toggle label="Explosions"      value={s.enableExplosions} onChange={v => setSettings({ enableExplosions: v })} desc="Enable explosive effects on impact" />
+        <Slider label="Explosion Radius" value={s.explosionRadius} min={0} max={20} step={0.5} unit=" m" onChange={v => setSettings({ explosionRadius: v })} />
       </SettingsCard>
 
-      <div style={{ background:'rgba(255,150,0,0.08)',border:'1px solid rgba(255,150,0,0.2)',
-        borderRadius:8,padding:'12px 16px',fontSize:12,color:'#cc8800',marginTop:4 }}>
+      <SettingsCard title="── ECONOMY & PROGRESSION">
+        <Slider label="Money Multiplier"  value={s.moneyMultiplier}  min={0.1} max={5} step={0.1} unit="×"  onChange={v => setSettings({ moneyMultiplier: v })} />
+        <Slider label="Score Multiplier"  value={s.scoreMultiplier}  min={0.1} max={5} step={0.1} unit="×"  onChange={v => setSettings({ scoreMultiplier: v })} />
+        <Slider label="Kill Bounty"       value={s.killBounty}       min={0}   max={500} step={10} unit=" $" onChange={v => setSettings({ killBounty: v })} />
+      </SettingsCard>
+
+      <SettingsCard title="── VISUAL & EFFECTS">
+        <Toggle label="Blood Effects"   value={s.enableBloodEffects} onChange={v => setSettings({ enableBloodEffects: v })} />
+        <Toggle label="Show Name Tags"  value={s.showNameTags}       onChange={v => setSettings({ showNameTags: v })} />
+        <Slider label="Minimap Zoom"    value={s.minimapZoom}        min={0.5} max={3} step={0.1} unit="×" onChange={v => setSettings({ minimapZoom: v })} />
+        <Slider label="Field of View"   value={s.fieldOfView}        min={50}  max={110} step={1} unit="°" onChange={v => setSettings({ fieldOfView: v })} />
+      </SettingsCard>
+
+      <div style={{ background: 'rgba(255,150,0,0.08)', border: '1px solid rgba(255,150,0,0.2)',
+        borderRadius: 8, padding: '12px 16px', fontSize: 12, color: '#cc8800', marginTop: 4 }}>
         ⚠️ NPC Count, Vehicle Count, and some settings require returning to the game and pressing RESPAWN to take full effect.
       </div>
     </div>
@@ -304,52 +329,51 @@ function PlayersSection() {
 
   return (
     <div>
-      <div style={{ color:'#fff',fontSize:18,fontWeight:'bold',marginBottom:20 }}>
+      <div style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 20 }}>
         Player Manager
-        <span style={{ color:'#555',fontSize:13,fontWeight:'normal',marginLeft:10 }}>
-          {users.length} registered player{users.length!==1?'s':''}
+        <span style={{ color: '#555', fontSize: 13, fontWeight: 'normal', marginLeft: 10 }}>
+          {users.length} registered player{users.length !== 1 ? 's' : ''}
         </span>
       </div>
       {users.length === 0 ? (
-        <div style={{ color:'#555',fontSize:14,textAlign:'center',padding:'40px 0' }}>
+        <div style={{ color: '#555', fontSize: 14, textAlign: 'center', padding: '40px 0' }}>
           No players have registered yet.
         </div>
       ) : (
         users.map(u => (
           <div key={u.id} style={{
-            background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',
-            borderRadius:10,padding:'14px 18px',marginBottom:10,
-            display:'flex',alignItems:'center',gap:14,
+            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+            borderRadius: 10, padding: '14px 18px', marginBottom: 10,
+            display: 'flex', alignItems: 'center', gap: 14,
           }}>
             <div style={{
-              width:40,height:40,borderRadius:'50%',background:u.characterColor,
-              border:'2px solid rgba(255,255,255,0.2)',flexShrink:0,
-              display:'flex',alignItems:'center',justifyContent:'center',
-              fontSize:18,fontWeight:'bold',color:'rgba(0,0,0,0.6)',
+              width: 40, height: 40, borderRadius: '50%', background: u.characterColor,
+              border: '2px solid rgba(255,255,255,0.2)', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 18, fontWeight: 'bold', color: 'rgba(0,0,0,0.6)',
             }}>
               {u.username[0].toUpperCase()}
             </div>
-            <div style={{ flex:1 }}>
-              <div style={{ color:'#fff',fontSize:14,fontWeight:'bold' }}>{u.username}</div>
-              <div style={{ color:'#666',fontSize:11,marginTop:2 }}>{u.email}</div>
-              <div style={{ color:'#888',fontSize:11,marginTop:4,display:'flex',gap:16 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{u.username}</div>
+              <div style={{ color: '#666', fontSize: 11, marginTop: 2 }}>{u.email}</div>
+              <div style={{ color: '#888', fontSize: 11, marginTop: 4, display: 'flex', gap: 16 }}>
                 <span>Lv.{u.level}</span>
                 <span>Score: {u.totalScore.toLocaleString()}</span>
                 <span>${u.totalMoney.toLocaleString()}</span>
                 <span>Kills: {u.kills}</span>
-                <span style={{ color:'#555' }}>Joined: {new Date(u.createdAt).toLocaleDateString()}</span>
+                <span style={{ color: '#555' }}>Joined: {new Date(u.createdAt).toLocaleDateString()}</span>
               </div>
             </div>
             <button
-              onClick={()=>{ kickUser(u.id); refresh() }}
+              type="button"
+              onClick={() => { kickUser(u.id); refresh() }}
               style={{
-                background:'rgba(200,0,0,0.15)',border:'1px solid rgba(200,0,0,0.3)',
-                color:'#ff6666',padding:'5px 14px',borderRadius:6,
-                fontSize:12,cursor:'pointer',fontFamily:'monospace',
+                background: 'rgba(200,0,0,0.15)', border: '1px solid rgba(200,0,0,0.3)',
+                color: '#ff6666', padding: '5px 14px', borderRadius: 6,
+                fontSize: 12, cursor: 'pointer', fontFamily: 'monospace',
               }}
-            >
-              Delete
-            </button>
+            >Delete</button>
           </div>
         ))
       )}
@@ -361,65 +385,90 @@ function PlayersSection() {
 function OverviewSection() {
   const { models, settings } = useModelStore()
   const { getAllUsers, currentUser } = useAuthStore()
-  const users = getAllUsers()
+  const users         = getAllUsers()
   const uploadedCount = Object.values(models).filter(Boolean).length
+  const totalCats     = CATEGORIES.length
 
   const StatCard = ({ label, value, color = '#ff6600', icon }: {
     label: string; value: string | number; color?: string; icon: string
   }) => (
     <div style={{
-      background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',
-      borderRadius:10,padding:'16px 18px',flex:1,minWidth:140,
+      background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+      borderRadius: 10, padding: '16px 18px', flex: 1, minWidth: 130,
     }}>
-      <div style={{ fontSize:24,marginBottom:8 }}>{icon}</div>
-      <div style={{ color,fontSize:22,fontWeight:'bold',fontFamily:'monospace' }}>{value}</div>
-      <div style={{ color:'#555',fontSize:12,marginTop:4 }}>{label}</div>
+      <div style={{ fontSize: 24, marginBottom: 8 }}>{icon}</div>
+      <div style={{ color, fontSize: 22, fontWeight: 'bold', fontFamily: 'monospace' }}>{value}</div>
+      <div style={{ color: '#555', fontSize: 12, marginTop: 4 }}>{label}</div>
     </div>
   )
 
   return (
     <div>
-      <div style={{ color:'#fff',fontSize:18,fontWeight:'bold',marginBottom:20 }}>Dashboard Overview</div>
-
-      <div style={{ display:'flex',gap:12,marginBottom:24,flexWrap:'wrap' }}>
-        <StatCard icon="👥" label="Registered Players" value={users.length} color="#44ff88"/>
-        <StatCard icon="🗂️" label="Custom Models" value={`${uploadedCount}/5`} color="#ff6600"/>
-        <StatCard icon="🏃" label="NPC Count" value={settings.npcCount}/>
-        <StatCard icon="🚗" label="Vehicle Count" value={settings.vehicleCount}/>
+      <div style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 20 }}>Dashboard Overview</div>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
+        <StatCard icon="👥" label="Registered Players" value={users.length} color="#44ff88" />
+        <StatCard icon="🗂️" label="Custom Models" value={`${uploadedCount}/${totalCats}`} color="#ff6600" />
+        <StatCard icon="🏃" label="NPC Count" value={settings.npcCount} />
+        <StatCard icon="🚗" label="Vehicle Count" value={settings.vehicleCount} />
       </div>
 
       <div style={{
-        background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',
-        borderRadius:12,padding:'18px 20px',marginBottom:18,
+        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+        borderRadius: 12, padding: '18px 20px', marginBottom: 18,
       }}>
-        <div style={{ color:'#ff6600',fontSize:12,letterSpacing:2,marginBottom:14,fontFamily:'monospace' }}>
+        <div style={{ color: '#ff6600', fontSize: 12, letterSpacing: 2, marginBottom: 14, fontFamily: 'monospace' }}>
           ── ADMIN ACCOUNT
         </div>
-        <div style={{ color:'#fff',fontSize:14 }}>👑 {currentUser?.username}</div>
-        <div style={{ color:'#555',fontSize:12,marginTop:4 }}>{currentUser?.email}</div>
+        <div style={{ color: '#fff', fontSize: 14 }}>👑 {currentUser?.username}</div>
+        <div style={{ color: '#555', fontSize: 12, marginTop: 4 }}>{currentUser?.email}</div>
       </div>
 
       <div style={{
-        background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',
-        borderRadius:12,padding:'18px 20px',
+        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+        borderRadius: 12, padding: '18px 20px', marginBottom: 18,
       }}>
-        <div style={{ color:'#ff6600',fontSize:12,letterSpacing:2,marginBottom:14,fontFamily:'monospace' }}>
-          ── ACTIVE MODELS
+        <div style={{ color: '#ff6600', fontSize: 12, letterSpacing: 2, marginBottom: 14, fontFamily: 'monospace' }}>
+          ── ACTIVE 3D MODELS
         </div>
         {CATEGORIES.map(c => (
           <div key={c.key} style={{
-            display:'flex',alignItems:'center',justifyContent:'space-between',
-            padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.04)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
           }}>
-            <span style={{ color:'#888',fontSize:13 }}>{c.icon} {c.label}</span>
+            <span style={{ color: '#888', fontSize: 13 }}>{c.icon} {c.label}</span>
             <span style={{
-              fontSize:11,padding:'2px 10px',borderRadius:20,
+              fontSize: 11, padding: '2px 10px', borderRadius: 20,
               background: models[c.key] ? 'rgba(0,200,100,0.15)' : 'rgba(255,255,255,0.05)',
               color: models[c.key] ? '#00cc66' : '#444',
               border: `1px solid ${models[c.key] ? 'rgba(0,200,100,0.3)' : 'rgba(255,255,255,0.07)'}`,
             }}>
-              {models[c.key] ? `${models[c.key]!.name}` : 'Default 3D'}
+              {models[c.key] ? models[c.key]!.name : 'Default 3D'}
             </span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{
+        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+        borderRadius: 12, padding: '18px 20px',
+      }}>
+        <div style={{ color: '#ff6600', fontSize: 12, letterSpacing: 2, marginBottom: 14, fontFamily: 'monospace' }}>
+          ── QUICK SETTINGS SNAPSHOT
+        </div>
+        {[
+          ['NPC Count', settings.npcCount],
+          ['Vehicle Count', settings.vehicleCount],
+          ['Police Aggression', ['Chill', 'Normal', 'Aggressive', 'Extreme'][settings.policeAggression]],
+          ['Wanted System', settings.enableWantedSystem ? 'ON' : 'OFF'],
+          ['Day/Night Cycle', settings.enableDayCycle ? 'ON' : 'OFF'],
+          ['Field of View', `${settings.fieldOfView}°`],
+        ].map(([label, val]) => (
+          <div key={String(label)} style={{
+            display: 'flex', justifyContent: 'space-between',
+            padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+          }}>
+            <span style={{ color: '#666', fontSize: 12 }}>{label}</span>
+            <span style={{ color: '#aaa', fontSize: 12, fontFamily: 'monospace' }}>{String(val)}</span>
           </div>
         ))}
       </div>
@@ -437,10 +486,10 @@ export default function AdminDashboard() {
 
   if (!currentUser || currentUser.role !== 'admin') {
     return (
-      <div style={{ width:'100vw',height:'100vh',background:'#060610',display:'flex',
-        alignItems:'center',justifyContent:'center',color:'#ff4444',fontFamily:'monospace',fontSize:18 }}>
+      <div style={{ width: '100vw', height: '100vh', background: '#060610', display: 'flex',
+        alignItems: 'center', justifyContent: 'center', color: '#ff4444', fontFamily: 'monospace', fontSize: 18 }}>
         ⛔ Admin access required.{' '}
-        <a href="#" onClick={()=>{ window.location.hash='' }} style={{ color:'#ff6600',marginLeft:8 }}>
+        <a href="#" onClick={() => { window.location.hash = '' }} style={{ color: '#ff6600', marginLeft: 8 }}>
           Back to game
         </a>
       </div>
@@ -448,50 +497,51 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div style={{
-      display:'flex',height:'100vh',width:'100vw',overflow:'hidden',
-      background:'#07070f',fontFamily:'monospace',
-    }}>
+    <div
+      style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden',
+        background: '#07070f', fontFamily: 'monospace' }}
+      onClick={e => e.stopPropagation()}
+    >
       {/* Sidebar */}
       <div style={{
-        width:220,background:'rgba(255,255,255,0.03)',borderRight:'1px solid rgba(255,255,255,0.07)',
-        display:'flex',flexDirection:'column',flexShrink:0,
+        width: 230, background: 'rgba(255,255,255,0.03)', borderRight: '1px solid rgba(255,255,255,0.07)',
+        display: 'flex', flexDirection: 'column', flexShrink: 0,
       }}>
-        {/* Logo */}
-        <div style={{ padding:'24px 18px 16px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ color:'#ff6600',fontSize:10,letterSpacing:3,marginBottom:4 }}>OPEN WORLD</div>
-          <div style={{ color:'#fff',fontSize:15,fontWeight:'bold',letterSpacing:2 }}>CRIME CITY</div>
-          <div style={{ color:'#444',fontSize:10,marginTop:4,letterSpacing:1 }}>ADMIN DASHBOARD</div>
+        <div style={{ padding: '24px 18px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ color: '#ff6600', fontSize: 10, letterSpacing: 3, marginBottom: 4 }}>OPEN WORLD</div>
+          <div style={{ color: '#fff', fontSize: 15, fontWeight: 'bold', letterSpacing: 2 }}>CRIME CITY</div>
+          <div style={{ color: '#444', fontSize: 10, marginTop: 4, letterSpacing: 1 }}>ADMIN DASHBOARD</div>
         </div>
 
-        {/* Nav */}
-        <nav style={{ flex:1,padding:'12px 8px' }}>
+        <nav style={{ flex: 1, padding: '12px 8px' }}>
           {NAV.map(n => (
-            <button key={n.key} onClick={() => setSection(n.key)}
+            <button
+              key={n.key}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setSection(n.key) }}
               style={{
-                width:'100%',textAlign:'left',padding:'10px 12px',borderRadius:8,
-                background:section===n.key ? 'rgba(255,100,0,0.15)' : 'transparent',
-                border:`1px solid ${section===n.key ? 'rgba(255,100,0,0.3)' : 'transparent'}`,
-                color:section===n.key ? '#ff6600' : '#666',
-                cursor:'pointer',fontSize:13,display:'flex',alignItems:'center',gap:10,
-                marginBottom:2,transition:'all 0.15s',
+                width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 8,
+                background: section === n.key ? 'rgba(255,100,0,0.15)' : 'transparent',
+                border: `1px solid ${section === n.key ? 'rgba(255,100,0,0.3)' : 'transparent'}`,
+                color: section === n.key ? '#ff6600' : '#666',
+                cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 10,
+                marginBottom: 2, transition: 'all 0.15s',
               }}
             >
-              <span style={{ fontSize:16 }}>{n.icon}</span>
+              <span style={{ fontSize: 16 }}>{n.icon}</span>
               {n.label}
             </button>
           ))}
         </nav>
 
-        {/* Back to game */}
-        <div style={{ padding:'12px 8px',borderTop:'1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ padding: '12px 8px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           <a
             href="#"
-            onClick={(e) => { e.preventDefault(); window.location.hash = '' }}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.hash = '' }}
             style={{
-              display:'block',textAlign:'center',padding:'9px',borderRadius:8,
-              background:'rgba(255,100,0,0.1)',border:'1px solid rgba(255,100,0,0.2)',
-              color:'#ff6600',fontSize:12,textDecoration:'none',letterSpacing:1,
+              display: 'block', textAlign: 'center', padding: '9px', borderRadius: 8,
+              background: 'rgba(255,100,0,0.1)', border: '1px solid rgba(255,100,0,0.2)',
+              color: '#ff6600', fontSize: 12, textDecoration: 'none', letterSpacing: 1,
             }}
           >
             ◀ BACK TO GAME
@@ -500,22 +550,21 @@ export default function AdminDashboard() {
       </div>
 
       {/* Content area */}
-      <div style={{ flex:1,overflow:'auto',padding:'28px 32px' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '28px 32px' }}
+        onClick={e => e.stopPropagation()}>
         {section === 'overview' && <OverviewSection />}
-
         {section === 'models' && (
           <div>
-            <div style={{ color:'#fff',fontSize:18,fontWeight:'bold',marginBottom:6 }}>
+            <div style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 6 }}>
               3D Model Manager
             </div>
-            <div style={{ color:'#555',fontSize:13,marginBottom:22 }}>
-              Upload custom 3D models (.GLB, .GLTF, .FBX, .OBJ, .PLY). 
-              Uploaded models replace the in-game primitives automatically — no restart needed for GLB/GLTF.
+            <div style={{ color: '#555', fontSize: 13, marginBottom: 22 }}>
+              Upload custom 3D models (.GLB .GLTF .FBX .OBJ .PLY). Models activate in-game immediately — 
+              GLB/GLTF recommended for best compatibility. No restart required for GLB/GLTF.
             </div>
-            {CATEGORIES.map(c => <ModelUploadCard key={c.key} cat={c}/>)}
+            {CATEGORIES.map(c => <ModelUploadCard key={c.key} cat={c} />)}
           </div>
         )}
-
         {section === 'settings' && <SettingsSection />}
         {section === 'players' && <PlayersSection />}
       </div>

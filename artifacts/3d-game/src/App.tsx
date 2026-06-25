@@ -37,16 +37,16 @@ class ErrorBoundary extends Component<
 function NoWebGLFallback() {
   return (
     <div style={{
-      width:'100vw',height:'100vh',
-      background:'linear-gradient(135deg,#0a0a1a 0%,#1a1a3a 100%)',
-      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
-      color:'#fff',fontFamily:'monospace',textAlign:'center',padding:24,
+      width: '100vw', height: '100vh',
+      background: 'linear-gradient(135deg,#0a0a1a 0%,#1a1a3a 100%)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', fontFamily: 'monospace', textAlign: 'center', padding: 24,
     }}>
-      <div style={{fontSize:48,marginBottom:16}}>🎮</div>
-      <div style={{fontSize:26,fontWeight:'bold',color:'#ffcc00',marginBottom:12}}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>🎮</div>
+      <div style={{ fontSize: 26, fontWeight: 'bold', color: '#ffcc00', marginBottom: 12 }}>
         OPEN WORLD CRIME CITY
       </div>
-      <div style={{fontSize:15,color:'#ff8844',maxWidth:480}}>
+      <div style={{ fontSize: 15, color: '#ff8844', maxWidth: 480 }}>
         WebGL is required. Please use Chrome, Firefox, or Edge on a GPU-enabled device.
       </div>
     </div>
@@ -62,8 +62,8 @@ function WebGLCheck({ children }: { children: ReactNode }) {
     } catch { setSupported(false) }
   }, [])
   if (supported === null) return (
-    <div style={{width:'100vw',height:'100vh',background:'#0a0a1a',display:'flex',
-      alignItems:'center',justifyContent:'center',color:'#fff',fontFamily:'monospace'}}>
+    <div style={{ width: '100vw', height: '100vh', background: '#0a0a1a', display: 'flex',
+      alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: 'monospace' }}>
       Loading…
     </div>
   )
@@ -85,12 +85,12 @@ function LandscapeGuard({ children }: { children: ReactNode }) {
     }
   }, [])
   if (isMobile && isPortrait) return (
-    <div style={{position:'fixed',inset:0,zIndex:9999,background:'#0a0a1a',
-      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
-      color:'#fff',fontFamily:'monospace',textAlign:'center',gap:20}}>
-      <div style={{fontSize:72}}>↻</div>
-      <div style={{fontSize:22,fontWeight:'bold',color:'#ffcc00'}}>ROTATE YOUR DEVICE</div>
-      <div style={{fontSize:14,color:'#aaa',maxWidth:260}}>This game plays in landscape mode.</div>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#0a0a1a',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', fontFamily: 'monospace', textAlign: 'center', gap: 20 }}>
+      <div style={{ fontSize: 72 }}>↻</div>
+      <div style={{ fontSize: 22, fontWeight: 'bold', color: '#ffcc00' }}>ROTATE YOUR DEVICE</div>
+      <div style={{ fontSize: 14, color: '#aaa', maxWidth: 260 }}>This game plays in landscape mode.</div>
     </div>
   )
   return <>{children}</>
@@ -102,7 +102,7 @@ function useIsTouch() {
   return isTouch
 }
 
-// Desktop mouse drag → camera orbit (same touchState.camDx/camDy as touch)
+// Desktop mouse drag → camera orbit — only active when the game canvas is showing
 function useMouseCameraOrbit(enabled: boolean) {
   const isDragging = useRef(false)
   const lastX      = useRef(0)
@@ -110,6 +110,9 @@ function useMouseCameraOrbit(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return
     const onDown = (e: MouseEvent) => {
+      // Ignore clicks that originate from UI overlays (buttons, links, inputs, etc.)
+      const target = e.target as HTMLElement
+      if (target && target.tagName !== 'CANVAS') return
       isDragging.current = true
       lastX.current = e.clientX
       lastY.current = e.clientY
@@ -122,14 +125,20 @@ function useMouseCameraOrbit(enabled: boolean) {
       lastY.current = e.clientY
     }
     const onUp = () => { isDragging.current = false }
-    window.addEventListener('mousedown',     onDown)
-    window.addEventListener('mousemove',     onMove)
-    window.addEventListener('mouseup',       onUp)
-    window.addEventListener('contextmenu',   e => e.preventDefault())
+    const onCtxMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (target && target.tagName === 'CANVAS') e.preventDefault()
+    }
+    window.addEventListener('mousedown',   onDown)
+    window.addEventListener('mousemove',   onMove)
+    window.addEventListener('mouseup',     onUp)
+    window.addEventListener('contextmenu', onCtxMenu)
     return () => {
+      isDragging.current = false
       window.removeEventListener('mousedown',   onDown)
       window.removeEventListener('mousemove',   onMove)
       window.removeEventListener('mouseup',     onUp)
+      window.removeEventListener('contextmenu', onCtxMenu)
     }
   }, [enabled])
 }
@@ -139,15 +148,15 @@ function Game() {
   useMouseCameraOrbit(!isTouch)
   return (
     <LandscapeGuard>
-      <div style={{width:'100vw',height:'100vh',background:'#000',overflow:'hidden',position:'relative'}}>
+      <div style={{ width: '100vw', height: '100vh', background: '#000', overflow: 'hidden', position: 'relative' }}>
         <WebGLCheck>
           <ErrorBoundary fallback={<NoWebGLFallback />}>
             <KeyboardControls map={keyMap}>
               <Canvas
                 shadows
-                camera={{ position:[0,5,8], fov:68, near:0.1, far:600 }}
-                gl={{ antialias:true, powerPreference:'default', failIfMajorPerformanceCaveat:false }}
-                style={{ width:'100%', height:'100%' }}
+                camera={{ position: [0, 5, 8], fov: 68, near: 0.1, far: 600 }}
+                gl={{ antialias: true, powerPreference: 'default', failIfMajorPerformanceCaveat: false }}
+                style={{ width: '100%', height: '100%' }}
               >
                 <GameScene />
               </Canvas>
@@ -158,21 +167,21 @@ function Game() {
         {isTouch && <TouchControls />}
         {!isTouch && (
           <div style={{
-            position:'fixed',top:'50%',left:'50%',
-            transform:'translate(-50%,-50%)',
-            background:'rgba(0,0,0,0.82)',color:'#fff',
-            padding:'16px 28px',borderRadius:12,
-            fontFamily:'monospace',fontSize:15,textAlign:'center',
-            pointerEvents:'none',
-            animation:'fadeOut 0.5s ease-out 5s forwards',
-            zIndex:200,border:'1px solid #444',
+            position: 'fixed', top: '50%', left: '50%',
+            transform: 'translate(-50%,-50%)',
+            background: 'rgba(0,0,0,0.82)', color: '#fff',
+            padding: '16px 28px', borderRadius: 12,
+            fontFamily: 'monospace', fontSize: 15, textAlign: 'center',
+            pointerEvents: 'none',
+            animation: 'fadeOut 0.5s ease-out 5s forwards',
+            zIndex: 200, border: '1px solid #444',
           }}>
-            <div style={{fontSize:20,fontWeight:'bold',color:'#ffcc00',marginBottom:10}}>
+            <div style={{ fontSize: 20, fontWeight: 'bold', color: '#ffcc00', marginBottom: 10 }}>
               OPEN WORLD CRIME CITY
             </div>
-            <div style={{color:'#aaa',lineHeight:1.9}}>
-              WASD — Move &nbsp;|&nbsp; Mouse drag — Camera<br/>
-              Space — Shoot &nbsp;|&nbsp; E — Enter/Exit Vehicle<br/>
+            <div style={{ color: '#aaa', lineHeight: 1.9 }}>
+              WASD — Move &nbsp;|&nbsp; Mouse drag on canvas — Camera<br />
+              Space — Shoot &nbsp;|&nbsp; E — Enter/Exit Vehicle<br />
               Shift — Run &nbsp;|&nbsp; A/D — Steer vehicle
             </div>
           </div>
@@ -182,7 +191,7 @@ function Game() {
   )
 }
 
-// ─── Hash-based router ────────────────────────────────────────────────────────
+// ─── Hash-based router ─────────────────────────────────────────────────────────
 function useHash() {
   const [hash, setHash] = useState(() => window.location.hash)
   useEffect(() => {
@@ -198,6 +207,11 @@ export default function App() {
   const hash        = useHash()
 
   if (!currentUser) return <AuthScreen />
-  if (hash === '#/admin' && currentUser.role === 'admin') return <AdminDashboard />
+
+  // Dedicated standalone admin dashboard — full-screen, no game canvas
+  if ((hash === '#/admin' || hash === '#/admin/dashboard') && currentUser.role === 'admin') {
+    return <AdminDashboard />
+  }
+
   return <Game />
 }

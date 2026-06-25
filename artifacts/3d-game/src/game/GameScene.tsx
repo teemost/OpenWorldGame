@@ -4,6 +4,8 @@ import { useKeyboardControls, Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '../store/useGameStore'
 import { useAuthStore } from '../auth/useAuthStore'
+import { useModelStore, modelBlobURLs } from '../store/useModelStore'
+import { CustomModel } from './GameModels'
 import {
   CITY_BUILDINGS,
   INITIAL_VEHICLES,
@@ -251,15 +253,28 @@ function City() {
 function Vehicle({ vehicleId }: { vehicleId: string }) {
   const groupRef = useRef<THREE.Group>(null!)
   const vRef = vehicleRefs.get(vehicleId)!
+  const { modelRevision } = useModelStore()
+  const vehicleModel = modelBlobURLs.get('vehicle')
 
   useEffect(() => { vRef.mesh = groupRef.current; return () => { vRef.mesh = null } }, [vRef])
   useFrame(() => {
     if (!groupRef.current) return
     groupRef.current.position.set(vRef.pos.x, 0, vRef.pos.z)
+    // Only update rotation when it actually changes to avoid visual jitter
     groupRef.current.rotation.y = vRef.rot
   })
 
+  void modelRevision // subscribe to re-render when models change
+
   const c = vRef.color
+  if (vehicleModel) {
+    return (
+      <group ref={groupRef}>
+        <CustomModel url={vehicleModel.url} format={vehicleModel.format} scale={1.5} />
+      </group>
+    )
+  }
+
   return (
     <group ref={groupRef}>
       {/* Main chassis */}
@@ -353,6 +368,9 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
   const nRef = npcRefs.get(npcId)!
   const npcName = NPC_NAMES[npcIndex % NPC_NAMES.length]
   const npcColor = INITIAL_NPCS.find(n => n.id === npcId)?.color ?? '#888'
+  const { modelRevision } = useModelStore()
+  const npcModel = modelBlobURLs.get('npc')
+  void modelRevision
 
   useEffect(() => { nRef.mesh = groupRef.current; return () => { nRef.mesh = null } }, [nRef])
 
@@ -420,17 +438,29 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
   const skinTones = ['#ddb080','#c8956c','#a0724a','#7a4a28','#f0c090']
   const skin = skinTones[npcIndex % skinTones.length]
 
+  const npcTag = (
+    <Html position={[0, 2.6, 0]} center distanceFactor={10} occlude>
+      <div style={{
+        color: '#fff', fontSize: 11, fontFamily: 'monospace',
+        background: 'rgba(0,0,0,0.65)', padding: '2px 7px',
+        borderRadius: 4, whiteSpace: 'nowrap', pointerEvents: 'none',
+        border: '1px solid rgba(255,255,255,0.15)',
+      }}>{npcName}</div>
+    </Html>
+  )
+
+  if (npcModel) {
+    return (
+      <group ref={groupRef} position={[nRef.pos.x, 0, nRef.pos.z]}>
+        {npcTag}
+        <CustomModel url={npcModel.url} format={npcModel.format} scale={1} />
+      </group>
+    )
+  }
+
   return (
     <group ref={groupRef} position={[nRef.pos.x, 0, nRef.pos.z]}>
-      {/* Name tag */}
-      <Html position={[0, 2.6, 0]} center distanceFactor={10} occlude>
-        <div style={{
-          color: '#fff', fontSize: 11, fontFamily: 'monospace',
-          background: 'rgba(0,0,0,0.65)', padding: '2px 7px',
-          borderRadius: 4, whiteSpace: 'nowrap', pointerEvents: 'none',
-          border: '1px solid rgba(255,255,255,0.15)',
-        }}>{npcName}</div>
-      </Html>
+      {npcTag}
       {/* Torso */}
       <mesh position={[0,0.95,0]} castShadow>
         <boxGeometry args={[0.55,0.85,0.38]}/>
@@ -488,6 +518,8 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
   const groupRef = useRef<THREE.Group>(null!)
   const pRef = policeRefs.get(policeId)!
   const surname = POLICE_SURNAMES[policeIndex % POLICE_SURNAMES.length]
+  const { modelRevision } = useModelStore()
+  void modelRevision
 
   useEffect(() => { pRef.mesh = groupRef.current; return () => { pRef.mesh = null } }, [pRef])
 
@@ -532,20 +564,33 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
   const isSwat = sharedWantedLevel.value >= 4
   const uniformColor = isSwat ? '#111' : '#1e3a88'
   const hatColor = isSwat ? '#000' : '#0a1a66'
+  const policeModel = isSwat ? modelBlobURLs.get('swat') : modelBlobURLs.get('police')
+
+  const policeTag = (
+    <Html position={[0, 2.6, 0]} center distanceFactor={10} occlude>
+      <div style={{
+        color: '#aaddff', fontSize: 11, fontFamily: 'monospace',
+        background: 'rgba(0,20,60,0.75)', padding: '2px 7px',
+        borderRadius: 4, whiteSpace: 'nowrap', pointerEvents: 'none',
+        border: '1px solid rgba(100,150,255,0.35)',
+      }}>
+        {isSwat ? `SWAT ${surname}` : `Ofc. ${surname}`}
+      </div>
+    </Html>
+  )
+
+  if (policeModel) {
+    return (
+      <group ref={groupRef} position={[pRef.pos.x, 0, pRef.pos.z]}>
+        {policeTag}
+        <CustomModel url={policeModel.url} format={policeModel.format} scale={1} />
+      </group>
+    )
+  }
 
   return (
     <group ref={groupRef} position={[pRef.pos.x, 0, pRef.pos.z]}>
-      {/* Name tag */}
-      <Html position={[0, 2.6, 0]} center distanceFactor={10} occlude>
-        <div style={{
-          color: '#aaddff', fontSize: 11, fontFamily: 'monospace',
-          background: 'rgba(0,20,60,0.75)', padding: '2px 7px',
-          borderRadius: 4, whiteSpace: 'nowrap', pointerEvents: 'none',
-          border: '1px solid rgba(100,150,255,0.35)',
-        }}>
-          {isSwat ? `SWAT ${surname}` : `Ofc. ${surname}`}
-        </div>
-      </Html>
+      {policeTag}
       {/* Torso / vest */}
       <mesh position={[0,0.95,0]} castShadow>
         <boxGeometry args={[0.6,0.85,0.45]}/>
@@ -664,6 +709,10 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
   const playerName  = currentUser?.username ?? 'Player'
   const playerColor = currentUser?.characterColor ?? '#ff6600'
   const isAdmin     = currentUser?.role === 'admin'
+  const { modelRevision } = useModelStore()
+  const playerModel = modelBlobURLs.get('player')
+
+  void modelRevision // subscribe to model store updates
 
   const { takeDamage, setInVehicle, useAmmo, incrementWanted, addMoney, addScore } = useGameStore()
 
@@ -701,6 +750,16 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       const turnSpd = 1.9 * delta
       if (vLeft)  vRef.rot += turnSpd
       if (vRight) vRef.rot -= turnSpd
+
+      // ── Vehicle camera auto-align (follows vehicle direction) ───────────
+      // When the vehicle is moving, smoothly rotate the camera yaw to match
+      // the vehicle's facing direction so the car doesn't appear to spin.
+      if (Math.abs(vRef.speed) > 0.5) {
+        let angleDiff = vRef.rot - sharedCamYaw.value
+        while (angleDiff > Math.PI)  angleDiff -= Math.PI * 2
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2
+        sharedCamYaw.value += angleDiff * Math.min(1, 3.5 * delta)
+      }
 
       const accel = controls.run ? 24 : 15
       if (controls.forward)     vRef.speed += accel * delta
@@ -839,21 +898,33 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
   })
 
   const skinTone = '#f0b880'
+  const nameTag = (
+    <Html position={[0,2.8,0]} center distanceFactor={10} occlude>
+      <div style={{
+        color: isAdmin ? '#FFD700' : '#00ffaa',
+        fontSize: 12, fontFamily: 'monospace', fontWeight: 'bold',
+        background: isAdmin ? 'rgba(80,50,0,0.8)' : 'rgba(0,40,20,0.8)',
+        padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap',
+        pointerEvents: 'none',
+        border: `1px solid ${isAdmin?'rgba(255,200,0,0.5)':'rgba(0,255,150,0.3)'}`,
+      }}>
+        {isAdmin ? '👑 ' : ''}{playerName}
+      </div>
+    </Html>
+  )
+
+  if (playerModel) {
+    return (
+      <group ref={groupRef} position={[sharedPlayerPos.x,sharedPlayerPos.y,sharedPlayerPos.z]}>
+        {nameTag}
+        <CustomModel url={playerModel.url} format={playerModel.format} scale={1} />
+      </group>
+    )
+  }
+
   return (
     <group ref={groupRef} position={[sharedPlayerPos.x,sharedPlayerPos.y,sharedPlayerPos.z]}>
-      {/* Player name tag */}
-      <Html position={[0,2.8,0]} center distanceFactor={10} occlude>
-        <div style={{
-          color: isAdmin ? '#FFD700' : '#00ffaa',
-          fontSize: 12, fontFamily: 'monospace', fontWeight: 'bold',
-          background: isAdmin ? 'rgba(80,50,0,0.8)' : 'rgba(0,40,20,0.8)',
-          padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap',
-          pointerEvents: 'none',
-          border: `1px solid ${isAdmin?'rgba(255,200,0,0.5)':'rgba(0,255,150,0.3)'}`,
-        }}>
-          {isAdmin ? '👑 ' : ''}{playerName}
-        </div>
-      </Html>
+      {nameTag}
       {/* Torso */}
       <mesh position={[0,0.98,0]} castShadow>
         <boxGeometry args={[0.58,0.88,0.4]}/>
