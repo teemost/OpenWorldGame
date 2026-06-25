@@ -314,6 +314,29 @@ function SettingsSection() {
         <Slider label="Field of View"   value={s.fieldOfView}        min={50}  max={110} step={1} unit="°" onChange={v => setSettings({ fieldOfView: v })} />
       </SettingsCard>
 
+      <SettingsCard title="── CHARACTER MODEL SCALE">
+        <div style={{ color: '#777', fontSize: 11, marginBottom: 12, letterSpacing: 0.5 }}>
+          Sets the rendered height (in world units) for each character type. Changes apply instantly in-game.
+        </div>
+        <Slider label="Player Height"   value={s.playerModelScale}  min={0.5} max={4} step={0.05} unit=" m" onChange={v => setSettings({ playerModelScale: v })} />
+        <Slider label="NPC Height"      value={s.npcModelScale}     min={0.5} max={4} step={0.05} unit=" m" onChange={v => setSettings({ npcModelScale: v })} />
+        <Slider label="Police Height"   value={s.policeModelScale}  min={0.5} max={4} step={0.05} unit=" m" onChange={v => setSettings({ policeModelScale: v })} />
+        <Slider label="SWAT Height"     value={s.swatModelScale}    min={0.5} max={4} step={0.05} unit=" m" onChange={v => setSettings({ swatModelScale: v })} />
+        <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+          {([
+            ['Reset Player', { playerModelScale: 1.85 }],
+            ['Reset NPCs',   { npcModelScale: 1.15 }],
+            ['Reset Police', { policeModelScale: 1.15, swatModelScale: 1.15 }],
+          ] as [string, Partial<typeof s>][]).map(([label, patch]) => (
+            <button key={label} type="button" onClick={() => setSettings(patch)} style={{
+              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+              color: '#aaa', padding: '4px 10px', borderRadius: 5, cursor: 'pointer',
+              fontFamily: 'monospace', fontSize: 11,
+            }}>{label}</button>
+          ))}
+        </div>
+      </SettingsCard>
+
       <div style={{ background: 'rgba(255,150,0,0.08)', border: '1px solid rgba(255,150,0,0.2)',
         borderRadius: 8, padding: '12px 16px', fontSize: 12, color: '#cc8800', marginTop: 4 }}>
         ⚠️ NPC Count, Vehicle Count, and some settings require returning to the game and pressing RESPAWN to take full effect.

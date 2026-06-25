@@ -1119,11 +1119,13 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
     </Html>
   ) : null
 
+  const npcHeight = useModelStore(s => s.settings.npcModelScale)
+
   if (npcModel) {
     return (
       <group ref={groupRef} position={[nRef.pos.x, 0, nRef.pos.z]}>
         {npcTag}
-        <CustomModel url={npcModel.url} format={npcModel.format} targetHeight={1.15} />
+        <CustomModel url={npcModel.url} format={npcModel.format} targetHeight={npcHeight} />
       </group>
     )
   }
@@ -1139,7 +1141,7 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
           if (s === 'walking') return 'Walk' as const
           return 'Idle' as const
         }}
-        targetHeight={1.15}
+        targetHeight={npcHeight}
         disableAnimation
       />
     </group>
@@ -1216,11 +1218,13 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
     </Html>
   ) : null
 
+  const policeHeight = useModelStore(s => isSwat ? s.settings.swatModelScale : s.settings.policeModelScale)
+
   if (policeModel) {
     return (
       <group ref={groupRef} position={[pRef.pos.x, 0, pRef.pos.z]}>
         {policeTag}
-        <CustomModel url={policeModel.url} format={policeModel.format} targetHeight={1.15} />
+        <CustomModel url={policeModel.url} format={policeModel.format} targetHeight={policeHeight} />
       </group>
     )
   }
@@ -1234,7 +1238,7 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
           const dist = pRef.pos.distanceTo(sharedPlayerPos)
           return dist > 5 ? 'Run' as const : 'Idle' as const
         }}
-        targetHeight={1.15}
+        targetHeight={policeHeight}
       />
     </group>
   )
@@ -1516,12 +1520,13 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
   }
 
   const selectedModelPath = CHARACTER_MODEL_PATHS[currentUser?.characterModel ?? 'soldier'] ?? '/models/soldier.glb'
+  const playerHeight = useModelStore(s => s.settings.playerModelScale)
 
   if (playerModel) {
     return (
       <group ref={groupRef} position={[sharedPlayerPos.x,sharedPlayerPos.y,sharedPlayerPos.z]}>
         {nameTag}
-        <CustomModel url={playerModel.url} format={playerModel.format} scale={1} />
+        <CustomModel url={playerModel.url} format={playerModel.format} targetHeight={playerHeight} />
       </group>
     )
   }
@@ -1532,7 +1537,7 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       <AnimatedHumanoid
         modelPath={selectedModelPath}
         getAnimState={() => playerAnimState.value}
-        targetHeight={1.85}
+        targetHeight={playerHeight}
         colorTint={currentUser?.characterColor ?? null}
         skinTone={currentUser?.skinTone ?? null}
       />

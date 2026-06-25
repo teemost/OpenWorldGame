@@ -70,6 +70,11 @@ export interface GameSettings {
   showNameTags:         boolean
   minimapZoom:          number    // 0.5–3.0
   fieldOfView:          number    // 50–110 deg
+  // ── Character Model Scale ─────────────────────────────────────────────────
+  playerModelScale:     number    // 0.5–4.0 m (targetHeight)
+  npcModelScale:        number    // 0.5–4.0 m
+  policeModelScale:     number    // 0.5–4.0 m
+  swatModelScale:       number    // 0.5–4.0 m
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -113,6 +118,10 @@ export const DEFAULT_SETTINGS: GameSettings = {
   showNameTags:        true,
   minimapZoom:         1.0,
   fieldOfView:         68,
+  playerModelScale:    1.85,
+  npcModelScale:       1.15,
+  policeModelScale:    1.15,
+  swatModelScale:      1.15,
 }
 
 // In-memory blob URLs for current session (keyed by category)
