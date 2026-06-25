@@ -33,7 +33,7 @@ const sharedVehicleId = { value: '' }
 const sharedWantedLevel = { value: 0 }
 const sharedCamYaw   = { value: Math.PI }   // camera starts behind player
 const sharedCamPitch = { value: 0.25 }
-const playerAnimState = { value: 'Idle' as 'Idle' | 'Walk' | 'Run' }
+const playerAnimState = { value: 'Idle' as 'Idle' | 'Walk' | 'Run' | 'Sit' }
 
 // ─── NPC / Police names ───────────────────────────────────────────────────────
 const NPC_MALE_NAMES   = ['Marcus','Luis','Devon','Rico','Andre','Jerome','Bobby','Darius','Tank','Malik','Trevor','Slice','Ricky','Cleo','Ray']
@@ -887,6 +887,7 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       posRef.current.set(vRef.pos.x, 0.9, vRef.pos.z)
       rotRef.current.value = vRef.rot
       sharedPlayerPos.copy(posRef.current)
+      playerAnimState.value = 'Sit'
 
       if (controls.enter && enterCooldown.current <= 0) {
         enterCooldown.current = 0.5

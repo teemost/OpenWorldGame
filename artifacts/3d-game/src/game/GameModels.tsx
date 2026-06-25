@@ -182,7 +182,7 @@ function LoadingPlaceholder({ targetHeight }: { targetHeight: number }) {
 }
 
 // ─── Animated Humanoid — real GLB with per-frame animation blending ──────────
-type AnimState = 'Idle' | 'Walk' | 'Run'
+type AnimState = 'Idle' | 'Walk' | 'Run' | 'Sit'
 
 const SKIN_MAT_RE = /skin|head|face|hair/i
 
@@ -266,7 +266,9 @@ function AnimatedHumanoidInner({ modelPath, getAnimState, targetHeight = 1.85, c
       ? Object.keys(actions).find(n => /run/i.test(n))
       : state === 'Walk'
         ? Object.keys(actions).find(n => /walk/i.test(n))
-        : Object.keys(actions).find(n => /idle/i.test(n))
+        : state === 'Sit'
+          ? (Object.keys(actions).find(n => /sit/i.test(n)) ?? Object.keys(actions).find(n => /idle/i.test(n)))
+          : Object.keys(actions).find(n => /idle/i.test(n))
     const target = desired ?? Object.keys(actions)[0]
     if (target && target !== currentRef.current && actions[target]) {
       const from = actions[currentRef.current]

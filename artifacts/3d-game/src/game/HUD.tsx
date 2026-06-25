@@ -179,9 +179,13 @@ export default function HUD() {
           }} />
         </div>
 
-        {/* FPS counter — bottom-right */}
+      </div>
+
+      {/* ── Interactive buttons ── */}
+
+      {/* FPS counter + clickable Graphics quality button — bottom-right */}
+      <div style={{ position: 'fixed', bottom: 16, right: 14, zIndex: 300, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
         <div style={{
-          position: 'absolute', bottom: 16, right: 14,
           background: 'rgba(0,0,0,0.72)', borderRadius: 6,
           padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 8,
           fontFamily: 'monospace', fontSize: 12,
@@ -194,44 +198,22 @@ export default function HUD() {
             GFX: {QUALITY_LABELS[quality]}
           </span>
         </div>
-      </div>
-
-      {/* ── Interactive buttons ── */}
-
-      {/* Quality cycle button — right of FPS, same row */}
-      <div style={{ position: 'fixed', bottom: 16, right: 14, zIndex: 300 }}>
         <button
           type="button"
           onClick={e => { e.stopPropagation(); setQuality(NEXT_QUALITY[quality]) }}
-          title="Cycle graphics quality (Low / Medium / High)"
-          style={{
-            opacity: 0,           // invisible — overlays the FPS badge
-            position: 'absolute',
-            inset: 0,
-            cursor: 'pointer',
-            background: 'transparent',
-            border: 'none',
-          }}
-        />
-      </div>
-
-      {/* Visible quality button below FPS badge */}
-      <div style={{ position: 'fixed', bottom: 162, right: 14, zIndex: 300 }}>
-        <button
-          type="button"
-          onClick={e => { e.stopPropagation(); setQuality(NEXT_QUALITY[quality]) }}
+          onPointerDown={e => e.stopPropagation()}
           title="Cycle: Low → Medium → High"
           style={{
             background: 'rgba(0,0,0,0.72)',
-            border: `1px solid ${qColor}55`,
+            border: `2px solid ${qColor}`,
             color: qColor,
-            padding: '3px 10px', borderRadius: 4,
-            fontSize: 10, fontFamily: 'monospace',
+            padding: '4px 12px', borderRadius: 4,
+            fontSize: 11, fontFamily: 'monospace',
             cursor: 'pointer', letterSpacing: 1,
-            width: mapSize,
+            touchAction: 'manipulation',
           }}
         >
-          ⚙ GRAPHICS: {QUALITY_LABELS[quality]} (click to change)
+          ⚙ GFX: {QUALITY_LABELS[quality]} — tap to change
         </button>
       </div>
 
