@@ -24,11 +24,7 @@ const OUTFIT_COLORS = [
 ]
 
 const BUILTIN_CHARACTER_MODELS = [
-  { id: 'soldier',  label: 'Soldier',  emoji: '🪖', description: 'Combat ready',   accent: '#4a8f3f' },
-  { id: 'fembot',   label: 'Fembot',   emoji: '🤖', description: 'Cyber enforcer', accent: '#7a3fbf' },
-  { id: 'michelle', label: 'Michelle', emoji: '💃', description: 'Street dancer',  accent: '#bf3f6a' },
-  { id: 'xbot',     label: 'X-Bot',    emoji: '🦾', description: 'Mechanized',     accent: '#3f6abf' },
-  { id: 'robot',    label: 'Robot',    emoji: '🤖', description: 'Expressive AI',  accent: '#bf8f3f' },
+  { id: 'soldier', label: 'Soldier', emoji: '🪖', description: 'Combat ready', accent: '#4a8f3f' },
 ]
 
 const CATEGORY_META: Record<ModelCategory, { emoji: string; label: string; accent: string }> = {

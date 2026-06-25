@@ -14,11 +14,7 @@ const SkeletonUtils: { clone: (obj: THREE.Object3D) => THREE.Object3D } =
 const SKIN_MAT_RE = /skin|head|face|hair/i
 
 export const CHARACTER_MODEL_PATHS: Record<string, string> = {
-  soldier:  '/models/soldier.glb',
-  fembot:   '/models/fembot.glb',
-  michelle: '/models/michelle.glb',
-  xbot:     '/models/xbot.glb',
-  robot:    '/models/robot.glb',
+  soldier: '/models/soldier.glb',
 }
 
 function computePreviewFit(obj: THREE.Object3D, targetHeight: number) {

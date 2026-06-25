@@ -1121,7 +1121,7 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
 
   const npcCustomHeight = useModelStore(s => s.settings.npcModelScale)
   const npcBuiltinHeight = useModelStore(s =>
-    isFemale ? s.settings.fembotModelScale : s.settings.soldierModelScale
+    s.settings.soldierModelScale
   )
 
   if (npcModel) {
@@ -1152,7 +1152,7 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
     <group ref={groupRef} position={[nRef.pos.x, 0, nRef.pos.z]}>
       {npcTag}
       <AnimatedHumanoid
-        modelPath={isFemale ? '/models/fembot.glb' : '/models/soldier.glb'}
+        modelPath='/models/soldier.glb'
         getAnimState={() => {
           const s = nRef.state
           if (s === 'panicking' || s === 'fleeing') return 'Run' as const
@@ -1552,25 +1552,10 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
     </Html>
   )
 
-  const CHARACTER_MODEL_PATHS: Record<string, string> = {
-    soldier:  '/models/soldier.glb',
-    fembot:   '/models/fembot.glb',
-    michelle: '/models/michelle.glb',
-    xbot:     '/models/xbot.glb',
-    robot:    '/models/robot.glb',
-  }
-
-  const selectedModelPath = CHARACTER_MODEL_PATHS[currentUser?.characterModel ?? 'soldier'] ?? '/models/soldier.glb'
+  const selectedModelPath = '/models/soldier.glb'
   const selectedModelId   = currentUser?.characterModel ?? 'soldier'
-  const playerCustomHeight = useModelStore(s => s.settings.playerModelScale)
-  const playerBuiltinHeight = useModelStore(s => {
-    const st = s.settings
-    if (selectedModelId === 'fembot')   return st.fembotModelScale
-    if (selectedModelId === 'michelle') return st.michelleModelScale
-    if (selectedModelId === 'xbot')     return st.xbotModelScale
-    if (selectedModelId === 'robot')    return st.robotModelScale
-    return st.soldierModelScale
-  })
+  const playerCustomHeight  = useModelStore(s => s.settings.playerModelScale)
+  const playerBuiltinHeight = useModelStore(s => s.settings.soldierModelScale)
 
   if (playerModel) {
     return (
