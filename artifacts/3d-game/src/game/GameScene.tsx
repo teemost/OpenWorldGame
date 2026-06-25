@@ -1,11 +1,11 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, Suspense } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useKeyboardControls, Html, Sky } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '../store/useGameStore'
 import { useAuthStore } from '../auth/useAuthStore'
 import { useModelStore, modelBlobURLs } from '../store/useModelStore'
-import { CustomModel, AnimatedHumanoid } from './GameModels'
+import { CustomModel, AnimatedHumanoid, VehicleGLBMesh } from './GameModels'
 import {
   CITY_BUILDINGS,
   INITIAL_VEHICLES,
@@ -82,29 +82,12 @@ INITIAL_NPCS.forEach((n, i) => npcRefs.set(n.id, {
 }))
 
 // ─── Enhanced City ─────────────────────────────────────────────────────────────
+const TREE_MODELS = ['/models/tree.glb', '/models/pine_tree.glb', '/models/palm_tree.glb']
 function Tree({ x, z }: { x: number; z: number }) {
+  const idx = Math.floor(Math.abs(Math.sin(x * 17.3 + z * 11.7)) * 3)
   return (
     <group position={[x, 0, z]}>
-      {/* Bark */}
-      <mesh position={[0, 0.9, 0]} castShadow>
-        <cylinderGeometry args={[0.16, 0.24, 1.8, 8]} />
-        <meshStandardMaterial map={BARK_TEX} color="#5a3a18" roughness={0.97} metalness={0.0}/>
-      </mesh>
-      {/* Lower canopy */}
-      <mesh position={[0, 2.8, 0]} castShadow>
-        <sphereGeometry args={[1.35, 10, 8]} />
-        <meshStandardMaterial map={LEAF_TEX} color="#1e5c1e" roughness={0.96} metalness={0.0}/>
-      </mesh>
-      {/* Mid canopy — slightly brighter */}
-      <mesh position={[0.2, 3.6, 0.1]} castShadow>
-        <sphereGeometry args={[0.95, 9, 7]} />
-        <meshStandardMaterial map={LEAF_TEX} color="#267a26" roughness={0.95} metalness={0.0}/>
-      </mesh>
-      {/* Top canopy */}
-      <mesh position={[-0.1, 4.2, -0.1]} castShadow>
-        <sphereGeometry args={[0.65, 8, 6]} />
-        <meshStandardMaterial map={LEAF_TEX} color="#1e6a1e" roughness={0.96} metalness={0.0}/>
-      </mesh>
+      <CustomModel url={TREE_MODELS[idx]} format="glb" targetHeight={5.5} />
     </group>
   )
 }
@@ -149,18 +132,49 @@ function mkTex(
 // Deterministic pseudo-random (avoids non-reproducible Math.random in loops)
 const _r = (n: number) => Math.abs(Math.sin(n * 127.1 + 311.7))
 
-const ROAD_TEX = mkTex(512, (ctx, s) => {
-  ctx.fillStyle = '#1c1c1c'; ctx.fillRect(0, 0, s, s)
-  for (let i = 0; i < 7000; i++) {
-    const x = _r(i)*s, y = _r(i+0.3)*s, v = Math.floor(_r(i+0.6)*38)
+const ROAD_TEX = mkTex(1024, (ctx, s) => {
+  ctx.fillStyle = '#171717'; ctx.fillRect(0, 0, s, s)
+  // Fine aggregate
+  for (let i = 0; i < 22000; i++) {
+    const x = _r(i)*s, y = _r(i+0.3)*s, v = Math.floor(20 + _r(i+0.6)*50)
     ctx.fillStyle = `rgb(${v},${v},${v})`
-    ctx.fillRect(x, y, 1+_r(i+1), 1+_r(i+1.3))
+    ctx.fillRect(x, y, 1+_r(i+1)*1.5, 1+_r(i+1.3)*1.5)
   }
-  for (let i = 0; i < 90; i++) {
-    ctx.fillStyle = `rgba(80,80,80,0.35)`
+  // Coarser aggregate stones
+  for (let i = 0; i < 4000; i++) {
+    const x = _r(i+100)*s, y = _r(i+100.3)*s, r = 1.5+_r(i+100.5)*3.5
+    const v = Math.floor(28 + _r(i+100.8)*40)
+    ctx.fillStyle = `rgba(${v},${v},${v+3},0.65)`
     ctx.beginPath()
-    ctx.ellipse(_r(i+5)*s, _r(i+5.3)*s, 3+_r(i+5.6)*3, 1.5+_r(i+5.9), _r(i+6)*Math.PI, 0, Math.PI*2)
+    ctx.ellipse(x, y, r, r*0.55, _r(i+101)*Math.PI, 0, Math.PI*2)
     ctx.fill()
+  }
+  // Wear/oil stains
+  for (let i = 0; i < 140; i++) {
+    ctx.fillStyle = `rgba(0,0,0,${0.06+_r(i+5)*0.2})`
+    ctx.beginPath()
+    ctx.ellipse(_r(i+5)*s, _r(i+5.3)*s, 5+_r(i+5.6)*15, 2+_r(i+5.9)*8, _r(i+6)*Math.PI, 0, Math.PI*2)
+    ctx.fill()
+  }
+  // Tyre tracks
+  for (let i = 0; i < 60; i++) {
+    ctx.strokeStyle = `rgba(0,0,0,${0.12+_r(i+80)*0.15})`
+    ctx.lineWidth = 2+_r(i+80.5)*4
+    ctx.beginPath(); ctx.moveTo(_r(i+80.2)*s, 0); ctx.lineTo((_r(i+80.2)+_r(i+80.4)*0.1)*s, s)
+    ctx.stroke()
+  }
+  // Surface cracks
+  for (let i = 0; i < 50; i++) {
+    ctx.strokeStyle = `rgba(0,0,0,${0.25+_r(i+70)*0.35})`
+    ctx.lineWidth = 0.6
+    ctx.beginPath()
+    let cx = _r(i+70)*s, cy = _r(i+70.3)*s
+    ctx.moveTo(cx, cy)
+    for (let j = 0; j < 5; j++) {
+      cx += (_r(i+70.5+j*0.3)*30) - 15; cy += (_r(i+70.8+j*0.3)*30) - 15
+      ctx.lineTo(cx, cy)
+    }
+    ctx.stroke()
   }
 }, 3, 60)
 
@@ -419,6 +433,25 @@ function City() {
       {/* Street benches */}
       {[-60,-20,20,60].map(z=>(
         <StreetBench key={`bench1_${z}`} x={-83} z={z}/>
+      ))}
+      {/* GLB Buildings — outer city ring (CC0, poly.pizza/Quaternius) */}
+      {([
+        { url:'/models/building_b.glb', x:-112, z:-60, rot:0,            h:20 },
+        { url:'/models/building_c.glb', x:-112, z:  0, rot:0,            h:15 },
+        { url:'/models/building_f.glb', x:-112, z: 60, rot:0,            h:18 },
+        { url:'/models/building_b.glb', x: 112, z:-60, rot:Math.PI,      h:20 },
+        { url:'/models/building_f.glb', x: 112, z:  0, rot:Math.PI,      h:16 },
+        { url:'/models/building_c.glb', x: 112, z: 60, rot:Math.PI,      h:18 },
+        { url:'/models/building_c.glb', x:-60,  z:-112,rot: Math.PI/2,   h:14 },
+        { url:'/models/building_f.glb', x:  0,  z:-112,rot: Math.PI/2,   h:17 },
+        { url:'/models/building_b.glb', x: 60,  z:-112,rot: Math.PI/2,   h:22 },
+        { url:'/models/building_f.glb', x:-60,  z: 112,rot:-Math.PI/2,   h:18 },
+        { url:'/models/building_b.glb', x:  0,  z: 112,rot:-Math.PI/2,   h:20 },
+        { url:'/models/building_c.glb', x: 60,  z: 112,rot:-Math.PI/2,   h:14 },
+      ] as const).map((b,i)=>(
+        <group key={`glbB${i}`} position={[b.x, 0, b.z]} rotation-y={b.rot}>
+          <CustomModel url={b.url} format="glb" targetHeight={b.h} />
+        </group>
       ))}
     </group>
   )
@@ -971,7 +1004,9 @@ function Vehicle({ vehicleId }: { vehicleId: string }) {
 
   return (
     <group ref={groupRef}>
-      <CustomModel url={VEHICLE_GLB[style]} format="glb" targetHeight={1.5} />
+      <Suspense fallback={null}>
+        <VehicleGLBMesh url={VEHICLE_GLB[style]} targetHeight={1.5} />
+      </Suspense>
     </group>
   )
 }

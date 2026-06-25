@@ -102,6 +102,34 @@ function GLBMesh({ url, targetHeight }: { url: string; targetHeight: number }) {
   )
 }
 
+// ─── Vehicle GLB with enhanced PBR car materials + floor snap ────────────────
+export function VehicleGLBMesh({ url, targetHeight = 1.5 }: { url: string; targetHeight?: number }) {
+  const gltf = useLoader(GLTFLoader, url)
+
+  const { scene, fit } = useMemo(() => {
+    const clone = SkeletonUtils.clone(gltf.scene) as THREE.Object3D
+    clone.traverse(c => {
+      const mesh = c as THREE.Mesh
+      if (!mesh.isMesh) return
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+      mesh.frustumCulled = false
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      mats.forEach(m => {
+        if (!(m instanceof THREE.MeshStandardMaterial)) return
+        m.metalness = Math.max(m.metalness, 0.72)
+        m.roughness = Math.min(m.roughness, 0.22)
+        m.envMapIntensity = 3.0
+        m.needsUpdate = true
+      })
+    })
+    const fit = computeFit(clone, targetHeight)
+    return { scene: clone, fit }
+  }, [gltf.scene, targetHeight])
+
+  return <primitive object={scene} scale={fit.scale} position-y={fit.yOffset} />
+}
+
 // ─── OBJ ──────────────────────────────────────────────────────────────────────
 function OBJMesh({ url, targetHeight }: { url: string; targetHeight: number }) {
   const obj = useLoader(OBJLoader, url)
