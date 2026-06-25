@@ -715,6 +715,23 @@ function Player({ onShoot }: PlayerProps) {
     const CAM_DIST   = 5   // how far behind
     const CAM_HEIGHT = 1.6 // shoulder/head height offset
 
+    // Camera collision: step from desired camera pos toward player until clear
+    const safeCamera = (
+      originX: number, originY: number, originZ: number,
+      desiredX: number, desiredY: number, desiredZ: number
+    ) => {
+      const steps = 10
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps
+        const cx = desiredX + (originX - desiredX) * t
+        const cz = desiredZ + (originZ - desiredZ) * t
+        if (!isInsideBuilding(cx, cz, 0.3)) {
+          return { x: cx, y: desiredY + (originY - desiredY) * t, z: cz }
+        }
+      }
+      return { x: originX, y: originY, z: originZ }
+    }
+
     if (sharedInVehicle.value) {
       const vRef = vehicleRefs.get(sharedVehicleId.value)
       if (vRef) {
@@ -722,32 +739,24 @@ function Player({ onShoot }: PlayerProps) {
         const tx = vRef.pos.x
         const ty = 0.9
         const tz = vRef.pos.z
-        camera.position.set(
-          tx - Math.sin(rot) * CAM_DIST,
-          ty + CAM_HEIGHT,
-          tz - Math.cos(rot) * CAM_DIST
-        )
-        camera.lookAt(
-          tx + Math.sin(rot) * 3,
-          ty + 0.6,
-          tz + Math.cos(rot) * 3
-        )
+        const desiredX = tx - Math.sin(rot) * CAM_DIST
+        const desiredY = ty + CAM_HEIGHT
+        const desiredZ = tz - Math.cos(rot) * CAM_DIST
+        const cam = safeCamera(tx, ty + CAM_HEIGHT, tz, desiredX, desiredY, desiredZ)
+        camera.position.set(cam.x, cam.y, cam.z)
+        camera.lookAt(tx + Math.sin(rot) * 3, ty + 0.6, tz + Math.cos(rot) * 3)
       }
     } else {
       const rot = rotRef.current.value
       const px = posRef.current.x
       const py = posRef.current.y
       const pz = posRef.current.z
-      camera.position.set(
-        px - Math.sin(rot) * CAM_DIST,
-        py + CAM_HEIGHT,
-        pz - Math.cos(rot) * CAM_DIST
-      )
-      camera.lookAt(
-        px + Math.sin(rot) * 3,
-        py + 1.0,
-        pz + Math.cos(rot) * 3
-      )
+      const desiredX = px - Math.sin(rot) * CAM_DIST
+      const desiredY = py + CAM_HEIGHT
+      const desiredZ = pz - Math.cos(rot) * CAM_DIST
+      const cam = safeCamera(px, py + CAM_HEIGHT, pz, desiredX, desiredY, desiredZ)
+      camera.position.set(cam.x, cam.y, cam.z)
+      camera.lookAt(px + Math.sin(rot) * 3, py + 1.0, pz + Math.cos(rot) * 3)
     }
   })
 

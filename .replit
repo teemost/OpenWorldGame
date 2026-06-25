@@ -30,7 +30,6 @@ outputType = "webview"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "PORT=24982 BASE_PATH=/ pnpm --filter @workspace/3d-game run dev"
-waitForPort = 24982
 
 [agent]
 stack = "PNPM_WORKSPACE"
