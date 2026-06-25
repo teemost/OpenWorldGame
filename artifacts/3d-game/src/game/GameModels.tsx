@@ -5,7 +5,13 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
 import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
-import { SkeletonUtils } from 'three/examples/jsm/utils/SkeletonUtils.js'
+import * as _SkeletonUtilsMod from 'three/examples/jsm/utils/SkeletonUtils.js'
+// Three.js ≥0.160 exports as named; older builds use default. Handle both.
+const SkeletonUtils: { clone: (obj: THREE.Object3D) => THREE.Object3D } =
+  (_SkeletonUtilsMod as any).SkeletonUtils ??
+  (_SkeletonUtilsMod as any).default?.SkeletonUtils ??
+  (_SkeletonUtilsMod as any).default ??
+  _SkeletonUtilsMod
 
 // Compute bounding box and return scale + y-offset to fit targetHeight, grounded at y=0
 function computeFit(obj: THREE.Object3D, targetHeight: number): { scale: number; yOffset: number } {

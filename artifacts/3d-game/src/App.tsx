@@ -1,4 +1,4 @@
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useThree } from '@react-three/fiber'
 import { KeyboardControls } from '@react-three/drei'
 import { Component, ReactNode, useState, useEffect, useRef } from 'react'
 import GameScene, { Controls } from './game/GameScene'
@@ -8,6 +8,7 @@ import AuthScreen from './auth/AuthScreen'
 import AdminDashboard from './admin/AdminDashboard'
 import { useAuthStore } from './auth/useAuthStore'
 import { useModelStore } from './store/useModelStore'
+import { useGameStore, GraphicsQuality } from './store/useGameStore'
 import { touchState } from './game/touchState'
 import './index.css'
 
@@ -20,6 +21,27 @@ const keyMap = [
   { name: Controls.enter,   keys: ['KeyE'] },
   { name: Controls.run,     keys: ['ShiftLeft',  'ShiftRight'] },
 ]
+
+// ─── Dynamic quality applier (runs inside Canvas) ─────────────────────────────
+const PIXEL_RATIO: Record<GraphicsQuality, number> = {
+  low:    0.6,
+  medium: 1.0,
+  high:   Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 2),
+}
+
+function QualityApplier() {
+  const quality = useGameStore(s => s.quality)
+  const { gl } = useThree()
+
+  useEffect(() => {
+    gl.setPixelRatio(PIXEL_RATIO[quality])
+    gl.shadowMap.enabled = quality !== 'low'
+    // Force shadow map refresh
+    gl.shadowMap.needsUpdate = true
+  }, [quality, gl])
+
+  return null
+}
 
 class ErrorBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
@@ -166,6 +188,7 @@ function Game() {
                 style={{ width: '100%', height: '100%' }}
                 performance={{ min: 0.5 }}
               >
+                <QualityApplier />
                 <GameScene />
               </Canvas>
             </KeyboardControls>

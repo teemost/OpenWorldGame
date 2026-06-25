@@ -1,11 +1,33 @@
 import { useState } from 'react'
-import { useGameStore } from '../store/useGameStore'
+import { useGameStore, GraphicsQuality } from '../store/useGameStore'
 import { useAuthStore } from '../auth/useAuthStore'
+
+const QUALITY_LABELS: Record<GraphicsQuality, string> = {
+  low:    'LOW',
+  medium: 'MED',
+  high:   'HIGH',
+}
+
+const QUALITY_COLORS: Record<GraphicsQuality, string> = {
+  low:    '#ff6633',
+  medium: '#ffcc00',
+  high:   '#44ff88',
+}
+
+const NEXT_QUALITY: Record<GraphicsQuality, GraphicsQuality> = {
+  low: 'medium', medium: 'high', high: 'low',
+}
+
+function fpsColor(fps: number): string {
+  if (fps >= 55) return '#44ff88'
+  if (fps >= 35) return '#ffcc00'
+  return '#ff4444'
+}
 
 export default function HUD() {
   const {
     health, money, wantedLevel, score, isGameOver, ammo, inVehicle,
-    minimapDots, playerX, playerZ, resetGame,
+    minimapDots, playerX, playerZ, fps, quality, setQuality, resetGame,
   } = useGameStore()
   const { currentUser, logout, getAllUsers } = useAuthStore()
   const [showAdmin, setShowAdmin] = useState(false)
@@ -46,6 +68,8 @@ export default function HUD() {
       </div>
     )
   }
+
+  const qColor = QUALITY_COLORS[quality]
 
   return (
     <>
@@ -99,7 +123,7 @@ export default function HUD() {
           </div>
         </div>
 
-        {/* Bottom-left: Health & status */}
+        {/* Bottom-left: Health + Ammo + hint */}
         <div style={{ position: 'absolute', bottom: 20, left: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ background: 'rgba(0,0,0,0.72)', padding: '8px 12px', borderRadius: 6, minWidth: 190 }}>
             <div style={{ color: '#888', fontSize: 10, fontFamily: 'monospace', marginBottom: 4, letterSpacing: 1 }}>HEALTH</div>
@@ -157,11 +181,64 @@ export default function HUD() {
             textAlign: 'center', color: '#555', fontSize: 9, fontFamily: 'monospace',
           }}>MINIMAP</div>
         </div>
+
+        {/* FPS counter — bottom-right above minimap */}
+        <div style={{
+          position: 'absolute', bottom: 192, right: 14,
+          background: 'rgba(0,0,0,0.72)', borderRadius: 6,
+          padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 8,
+          fontFamily: 'monospace', fontSize: 12,
+        }}>
+          <span style={{ color: fpsColor(fps), fontWeight: 'bold', minWidth: 38, textAlign: 'right' }}>
+            {fps > 0 ? `${fps}` : '—'} FPS
+          </span>
+          <div style={{ width: 1, height: 14, background: '#333' }} />
+          <span style={{ color: qColor, letterSpacing: 1 }}>
+            GFX: {QUALITY_LABELS[quality]}
+          </span>
+        </div>
       </div>
 
-      {/* ── Interactive buttons (separate layer — pointer-events enabled) ── */}
+      {/* ── Interactive buttons ── */}
 
-      {/* Logout — top-right below score */}
+      {/* Quality cycle button — right of FPS, same row */}
+      <div style={{ position: 'fixed', bottom: 192, right: 14, zIndex: 300 }}>
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); setQuality(NEXT_QUALITY[quality]) }}
+          title="Cycle graphics quality (Low / Medium / High)"
+          style={{
+            opacity: 0,           // invisible — overlays the FPS badge
+            position: 'absolute',
+            inset: 0,
+            cursor: 'pointer',
+            background: 'transparent',
+            border: 'none',
+          }}
+        />
+      </div>
+
+      {/* Visible quality button below FPS badge */}
+      <div style={{ position: 'fixed', bottom: 162, right: 14, zIndex: 300 }}>
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); setQuality(NEXT_QUALITY[quality]) }}
+          title="Cycle: Low → Medium → High"
+          style={{
+            background: 'rgba(0,0,0,0.72)',
+            border: `1px solid ${qColor}55`,
+            color: qColor,
+            padding: '3px 10px', borderRadius: 4,
+            fontSize: 10, fontFamily: 'monospace',
+            cursor: 'pointer', letterSpacing: 1,
+            width: mapSize,
+          }}
+        >
+          ⚙ GRAPHICS: {QUALITY_LABELS[quality]} (click to change)
+        </button>
+      </div>
+
+      {/* Logout */}
       <div style={{ position: 'fixed', top: 82, right: 14, zIndex: 300 }}>
         <button
           type="button"
@@ -176,7 +253,7 @@ export default function HUD() {
         </button>
       </div>
 
-      {/* Admin panel toggle — top-center */}
+      {/* Admin panel toggle */}
       {isAdmin && (
         <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 400 }}>
           <button
@@ -194,7 +271,6 @@ export default function HUD() {
         </div>
       )}
 
-      {/* Admin dropdown — only when open */}
       {isAdmin && showAdmin && (
         <div
           onClick={e => e.stopPropagation()}
@@ -214,7 +290,6 @@ export default function HUD() {
             {username} · {currentUser?.email}
           </div>
 
-          {/* Links to full admin dashboard */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <a
               href="#/admin"

@@ -1050,6 +1050,30 @@ function MinimapCollector() {
   return null
 }
 
+// ─── FPS Collector ────────────────────────────────────────────────────────────
+function FPSCollector() {
+  const setFps    = useGameStore(s => s.setFps)
+  const fpsBuffer = useRef<number[]>([])
+  const lastTime  = useRef(performance.now())
+
+  useFrame(() => {
+    const now   = performance.now()
+    const delta = now - lastTime.current
+    lastTime.current = now
+    if (delta <= 0) return
+
+    fpsBuffer.current.push(1000 / delta)
+    if (fpsBuffer.current.length > 30) fpsBuffer.current.shift()
+
+    // Update store every 30 frames (≈0.5 s at 60 fps)
+    if (fpsBuffer.current.length === 30) {
+      const avg = fpsBuffer.current.reduce((a, b) => a + b, 0) / 30
+      setFps(Math.round(avg))
+    }
+  })
+  return null
+}
+
 // ─── Police Spawner ───────────────────────────────────────────────────────────
 const MAX_POLICE = 6
 let policeIdCounter = 0
@@ -1178,6 +1202,7 @@ export default function GameScene() {
       ))}
       <Player onShoot={handleShoot}/>
       <MinimapCollector/>
+      <FPSCollector/>
     </>
   )
 }

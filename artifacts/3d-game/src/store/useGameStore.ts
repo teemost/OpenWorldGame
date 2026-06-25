@@ -7,6 +7,8 @@ interface MinimapDot {
   size: number
 }
 
+export type GraphicsQuality = 'low' | 'medium' | 'high'
+
 interface GameStore {
   health: number
   money: number
@@ -16,10 +18,11 @@ interface GameStore {
   isGameOver: boolean
   inVehicle: boolean
   ammo: number
-  // Minimap data (written from scene, read by HUD)
   minimapDots: MinimapDot[]
   playerX: number
   playerZ: number
+  fps: number
+  quality: GraphicsQuality
 
   setHealth: (h: number) => void
   takeDamage: (amount: number) => void
@@ -35,6 +38,8 @@ interface GameStore {
   addAmmo: (amount: number) => void
   setMinimapDots: (dots: MinimapDot[]) => void
   setPlayerPos: (x: number, z: number) => void
+  setFps: (fps: number) => void
+  setQuality: (q: GraphicsQuality) => void
   resetGame: () => void
 }
 
@@ -50,6 +55,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   minimapDots: [],
   playerX: 5,
   playerZ: 5,
+  fps: 0,
+  quality: 'medium',
 
   setHealth: (h) => set({ health: Math.max(0, Math.min(100, h)) }),
   takeDamage: (amount) =>
@@ -76,6 +83,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   addAmmo: (amount) => set((s) => ({ ammo: s.ammo + amount })),
   setMinimapDots: (dots) => set({ minimapDots: dots }),
   setPlayerPos: (x, z) => set({ playerX: x, playerZ: z }),
+  setFps: (fps) => set({ fps }),
+  setQuality: (quality) => set({ quality }),
   resetGame: () =>
     set({
       health: 100,
