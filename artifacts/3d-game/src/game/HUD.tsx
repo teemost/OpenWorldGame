@@ -1033,25 +1033,27 @@ export default function HUD() {
         )}
 
         {/* ── BOTTOM-RIGHT: MENU Button ────────────────────────────────────── */}
-        <div style={{ position:'absolute', bottom:16, right:16, pointerEvents:'auto' }}>
-          <button
-            type="button"
-            onClick={e => { e.stopPropagation(); setPaused(!isPaused) }}
-            onPointerDown={e => e.stopPropagation()}
-            style={{
-              padding:'12px 22px', fontSize:13, fontFamily:'monospace',
-              background:'rgba(0,0,0,0.82)', color:'#888',
-              border:'1px solid rgba(255,255,255,0.18)', borderRadius:10,
-              cursor:'pointer', letterSpacing:1, transition:'all 0.12s',
-              touchAction:'manipulation', WebkitTapHighlightColor:'transparent',
-              minWidth:80, minHeight:44,
-            }}
-            onMouseEnter={e=>{e.currentTarget.style.color='#ccc'; e.currentTarget.style.borderColor='rgba(255,255,255,0.35)'}}
-            onMouseLeave={e=>{e.currentTarget.style.color='#888'; e.currentTarget.style.borderColor='rgba(255,255,255,0.18)'}}
-          >
-            ☰ MENU
-          </button>
-        </div>
+      </div>
+
+      {/* ── MENU button: fixed at zIndex 1000 so it sits above the TouchControls overlay (z:400) ── */}
+      <div style={{ position:'fixed', bottom:16, right:16, zIndex:1000, pointerEvents:'auto' }}>
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); setPaused(!isPaused) }}
+          onPointerDown={e => e.stopPropagation()}
+          style={{
+            padding:'12px 22px', fontSize:13, fontFamily:'monospace',
+            background:'rgba(0,0,0,0.85)', color:'#888',
+            border:'1px solid rgba(255,255,255,0.18)', borderRadius:10,
+            cursor:'pointer', letterSpacing:1, transition:'all 0.12s',
+            touchAction:'manipulation', WebkitTapHighlightColor:'transparent',
+            minWidth:80, minHeight:44,
+          }}
+          onMouseEnter={e=>{e.currentTarget.style.color='#ccc'; e.currentTarget.style.borderColor='rgba(255,255,255,0.35)'}}
+          onMouseLeave={e=>{e.currentTarget.style.color='#888'; e.currentTarget.style.borderColor='rgba(255,255,255,0.18)'}}
+        >
+          ☰ MENU
+        </button>
       </div>
     </>
   )
