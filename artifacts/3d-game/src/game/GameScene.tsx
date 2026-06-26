@@ -1615,6 +1615,25 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       }
     }
 
+    // ── Shoot joystick: override camera yaw with aim direction ──────────────
+    if (touchState.shootAiming && touchState.shootDist > 0.15) {
+      const cy   = sharedCamYaw.value
+      // Camera-relative basis vectors in world XZ
+      const fwdX = -Math.sin(cy);  const fwdZ = -Math.cos(cy)
+      const rgtX =  Math.cos(cy);  const rgtZ = -Math.sin(cy)
+      // Aim in camera-relative space: joystick right → world right, up → world forward
+      const aimX = touchState.shootJoyX * rgtX - touchState.shootJoyY * fwdX
+      const aimZ = touchState.shootJoyX * rgtZ - touchState.shootJoyY * fwdZ
+      const len  = Math.hypot(aimX, aimZ)
+      if (len > 0.01) {
+        const nx = aimX / len, nz = aimZ / len
+        // Set camera yaw so bullet travels in aim direction
+        sharedCamYaw.value = Math.atan2(-nx, -nz)
+        // Rotate player character to face the aim direction
+        rotRef.current.value = Math.atan2(nx, nz) + Math.PI
+      }
+    }
+
     // Shoot (works in both modes) — fires in camera forward direction
     if (controls.shoot && fireCooldown.current <= 0) {
       fireCooldown.current = 0.22

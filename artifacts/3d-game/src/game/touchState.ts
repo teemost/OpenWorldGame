@@ -19,4 +19,9 @@ export const touchState = {
   // Right-side drag: accumulated pixel delta since last frame, consumed by Player
   camDx: 0, // horizontal look (yaw)
   camDy: 0, // vertical look (pitch)
+  // Shoot joystick (right-side twin-stick aiming)
+  shootJoyX: 0,    // normalized -1..1, right = positive
+  shootJoyY: 0,    // normalized -1..1, down = positive (up = negative)
+  shootAiming: false,
+  shootDist: 0,    // normalized 0..1 drag distance
 }
