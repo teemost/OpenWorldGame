@@ -1329,6 +1329,154 @@ function ChatBar({ isPaused, isAdmin, onOpenAdmin }: {
   )
 }
 
+// ─── Weapon Wheel ─────────────────────────────────────────────────────────────
+function WeaponWheel({ items, activeId, onSelect, onClose }: {
+  items: InventoryItem[]; activeId: string | null
+  onSelect: (item: InventoryItem) => void; onClose: () => void
+}) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+  const SIZE = 320
+  const RADIUS = 112
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!ref.current) return
+      const r = ref.current.getBoundingClientRect()
+      const dx = e.clientX - (r.left + r.width / 2)
+      const dy = e.clientY - (r.top  + r.height / 2)
+      if (Math.sqrt(dx * dx + dy * dy) < 36) { setHoveredIdx(null); return }
+      const deg = (( Math.atan2(dy, dx) * 180 / Math.PI) + 90 + 360) % 360
+      setHoveredIdx(Math.floor(deg / (360 / items.length)) % items.length)
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [items.length])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.code === 'KeyQ') onClose() }
+    window.addEventListener('keyup', onKey)
+    return () => window.removeEventListener('keyup', onKey)
+  }, [onClose])
+
+  const hovered = hoveredIdx !== null ? items[hoveredIdx] : null
+  const activeItem = items.find(i => i.id === activeId) ?? null
+
+  return (
+    <div
+      onPointerDown={e => e.stopPropagation()}
+      onClick={() => { if (hovered) { onSelect(hovered); } onClose() }}
+      style={{
+        position:'fixed', inset:0, zIndex:3000,
+        display:'flex', alignItems:'center', justifyContent:'center',
+        background:'rgba(0,0,0,0.55)', backdropFilter:'blur(3px)',
+        fontFamily:'monospace',
+      }}
+    >
+      {/* Wheel ring */}
+      <div ref={ref} style={{ position:'relative', width:SIZE, height:SIZE }}>
+        {/* Outer ring glow */}
+        <div style={{
+          position:'absolute', inset:0, borderRadius:'50%',
+          border:'2px solid rgba(255,255,255,0.06)',
+          boxShadow:'0 0 40px rgba(255,100,0,0.08)',
+        }}/>
+
+        {/* Center disc */}
+        <div style={{
+          position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)',
+          width:72, height:72, borderRadius:'50%',
+          background:'rgba(4,6,12,0.95)',
+          border:`2px solid ${hovered ? (ITEM_TYPE_COLOR[hovered.type] ?? '#ff6600') : 'rgba(255,255,255,0.12)'}`,
+          boxShadow: hovered ? `0 0 20px ${ITEM_TYPE_COLOR[hovered.type]}55` : 'none',
+          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+          transition:'all 0.1s', zIndex:2,
+        }}>
+          <div style={{ fontSize:26 }}>{hovered?.icon ?? activeItem?.icon ?? '🔫'}</div>
+          <div style={{ color:'rgba(255,255,255,0.3)', fontSize:7, letterSpacing:1, marginTop:2 }}>
+            {hovered ? 'SELECT' : 'EQUIPPED'}
+          </div>
+        </div>
+
+        {/* Spoke lines */}
+        {items.map((_, i) => {
+          const angle = (i / items.length) * 360 - 90
+          return (
+            <div key={`spoke-${i}`} style={{
+              position:'absolute', top:'50%', left:'50%',
+              width:RADIUS - 36, height:1,
+              background:'rgba(255,255,255,0.05)',
+              transformOrigin:'0 50%',
+              transform:`rotate(${angle}deg)`,
+              marginTop:-0.5,
+            }}/>
+          )
+        })}
+
+        {/* Item slots */}
+        {items.map((item, i) => {
+          const angle = (i / items.length) * Math.PI * 2 - Math.PI / 2
+          const x = SIZE / 2 + Math.cos(angle) * RADIUS - 38
+          const y = SIZE / 2 + Math.sin(angle) * RADIUS - 38
+          const isHov  = hoveredIdx === i
+          const isAct  = item.id === activeId
+          const color  = ITEM_TYPE_COLOR[item.type] ?? '#888'
+          return (
+            <div key={item.id} style={{
+              position:'absolute', left:x, top:y,
+              width:76, height:76, borderRadius:14,
+              background: isHov
+                ? `linear-gradient(135deg, ${color}22, ${color}11)`
+                : isAct ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.88)',
+              border: isHov
+                ? `2px solid ${color}`
+                : isAct ? `2px solid ${color}66` : '1px solid rgba(255,255,255,0.1)',
+              boxShadow: isHov ? `0 0 24px ${color}55, inset 0 0 12px ${color}11` : 'none',
+              display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+              gap:3, transition:'all 0.08s', cursor:'pointer',
+            }}>
+              <div style={{ fontSize:26, lineHeight:1, filter: isHov ? `drop-shadow(0 0 8px ${color})` : 'none' }}>
+                {item.icon}
+              </div>
+              <div style={{
+                fontSize:7, letterSpacing:0.5, textAlign:'center', lineHeight:1.2,
+                color: isHov ? '#fff' : isAct ? color : '#555',
+                maxWidth:68, overflow:'hidden',
+              }}>
+                {item.name.length > 9 ? item.name.slice(0,9)+'…' : item.name}
+              </div>
+              {isAct && !isHov && (
+                <div style={{ width:6, height:6, borderRadius:'50%', background:color }}/>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Bottom info */}
+      {hovered && (
+        <div style={{
+          position:'absolute', bottom:'24%',
+          background:'rgba(0,0,0,0.92)', borderRadius:10, padding:'10px 24px',
+          border:`1px solid ${ITEM_TYPE_COLOR[hovered.type]}44`,
+          boxShadow:`0 0 20px ${ITEM_TYPE_COLOR[hovered.type]}22`,
+          textAlign:'center',
+        }}>
+          <div style={{ color:'#fff', fontSize:13, fontWeight:'bold', marginBottom:3 }}>{hovered.name}</div>
+          <div style={{ color:'#555', fontSize:10 }}>{hovered.description}</div>
+        </div>
+      )}
+
+      <div style={{
+        position:'absolute', bottom:'8%', color:'rgba(255,255,255,0.15)',
+        fontSize:10, letterSpacing:3,
+      }}>
+        HOVER · RELEASE Q TO EQUIP
+      </div>
+    </div>
+  )
+}
+
 // ─── Main HUD ─────────────────────────────────────────────────────────────────
 export default function HUD() {
   const {
@@ -1349,6 +1497,25 @@ export default function HUD() {
   const [showSettings, setShowSettings] = useState(false)
   const [showAdminMenu, setShowAdminMenu] = useState(false)
   const [playerYaw, setPlayerYaw] = useState(0)
+  const [showWeaponWheel, setShowWeaponWheel] = useState(false)
+  const [activeWeaponId, setActiveWeaponId] = useState<string | null>(null)
+
+  const weaponItems = inventory.filter(i => i.type === 'weapon' || i.type === 'equipment')
+
+  // Q key → weapon wheel
+  useEffect(() => {
+    if (!weaponItems.length) return
+    const onDown = (e: KeyboardEvent) => {
+      if (e.code === 'KeyQ' && !e.repeat && !isPaused && !showInventory) setShowWeaponWheel(true)
+    }
+    const onUp   = (e: KeyboardEvent) => {
+      if (e.code === 'KeyQ') setShowWeaponWheel(false)
+    }
+    window.addEventListener('keydown', onDown)
+    window.addEventListener('keyup',   onUp)
+    return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPaused, showInventory, weaponItems.length])
 
   // Track player facing direction for minimap arrow
   useEffect(() => {
@@ -1514,6 +1681,15 @@ export default function HUD() {
           onUse={useInventoryItem}
           onRemove={(id) => removeInventoryItem(id)}
           onClose={() => setShowInventory(false)}
+        />
+      )}
+
+      {showWeaponWheel && weaponItems.length > 0 && (
+        <WeaponWheel
+          items={weaponItems}
+          activeId={activeWeaponId}
+          onSelect={item => setActiveWeaponId(item.id)}
+          onClose={() => setShowWeaponWheel(false)}
         />
       )}
 
@@ -1800,7 +1976,20 @@ export default function HUD() {
           <div style={panel({ padding:'7px 12px', display:'flex', alignItems:'center', gap:8 })}>
             {inVehicle
               ? <><span style={{ fontSize:14 }}>🚗</span><span style={{ color:'#aabbff', fontSize:11 }}>IN VEHICLE</span></>
-              : <><span style={{ fontSize:13 }}>🔫</span><span style={{ color:'#ffaa33', fontSize:12, fontWeight:'bold' }}>{ammo}</span><span style={{ color:'#555', fontSize:10, marginLeft:2 }}>AMMO</span></>
+              : <>
+                  {(() => {
+                    const aw = activeWeaponId ? inventory.find(i => i.id === activeWeaponId) : null
+                    return (
+                      <>
+                        <span style={{ fontSize:13 }}>{aw?.icon ?? '🔫'}</span>
+                        <span style={{ color:'#ffaa33', fontSize:12, fontWeight:'bold' }}>{ammo}</span>
+                        <span style={{ color:'#555', fontSize:10, marginLeft:2 }}>AMMO</span>
+                        {aw && <span style={{ color:'rgba(255,255,255,0.25)', fontSize:9, marginLeft:4, letterSpacing:0.5 }}>{aw.name}</span>}
+                        {weaponItems.length > 0 && <span style={{ color:'rgba(255,255,255,0.12)', fontSize:8, marginLeft:2 }}>[Q]</span>}
+                      </>
+                    )
+                  })()}
+                </>
             }
           </div>
         </div>
@@ -1873,7 +2062,7 @@ export default function HUD() {
         }}>
           {[
             ['WASD', 'Move'], ['SHIFT', 'Sprint'], ['E', 'Interact'],
-            ['SPACE', 'Shoot'], ['ESC', 'Menu'],
+            ['SPACE', 'Shoot'], ['Q', 'Weapon Wheel'], ['ESC', 'Menu'],
           ].map(([key, desc]) => (
             <div key={key} style={{ display:'flex', alignItems:'center', gap:5 }}>
               <span style={{
