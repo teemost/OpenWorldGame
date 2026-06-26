@@ -1644,23 +1644,23 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       }
     }
 
-    // ── Shoot joystick: override camera yaw with aim direction ──────────────
-    if (touchState.shootAiming && touchState.shootDist > 0.15) {
-      const cy   = sharedCamYaw.value
-      // Camera-relative basis vectors in world XZ
-      const fwdX = -Math.sin(cy);  const fwdZ = -Math.cos(cy)
-      const rgtX =  Math.cos(cy);  const rgtZ = -Math.sin(cy)
-      // Aim in camera-relative space: joystick right → world right, up → world forward
-      const aimX = touchState.shootJoyX * rgtX - touchState.shootJoyY * fwdX
-      const aimZ = touchState.shootJoyX * rgtZ - touchState.shootJoyY * fwdZ
-      const len  = Math.hypot(aimX, aimZ)
-      if (len > 0.01) {
-        const nx = aimX / len, nz = aimZ / len
-        // Set camera yaw so bullet travels in aim direction
-        sharedCamYaw.value = Math.atan2(-nx, -nz)
-        // Rotate player character to face the aim direction
-        rotRef.current.value = Math.atan2(nx, nz) + Math.PI
+    // ── Shoot joystick: twin-stick rate-control camera rotation ─────────────
+    if (touchState.shootAiming) {
+      const jx = touchState.shootJoyX
+      const jy = touchState.shootJoyY
+      // Dead zone: ignore tiny stick wobble
+      const DEAD = 0.10
+      if (Math.abs(jx) > DEAD || Math.abs(jy) > DEAD) {
+        // Rate-control: joystick deflection → rotation speed (not absolute angle)
+        const AIM_SEN = 2.0 * delta * sensitivity
+        sharedCamYaw.value  += jx * AIM_SEN
+        sharedCamPitch.value = Math.max(
+          -0.08,
+          Math.min(0.58, sharedCamPitch.value - jy * AIM_SEN * 0.55),
+        )
       }
+      // Keep player facing camera-forward while aiming (crosshair = aim direction)
+      rotRef.current.value = sharedCamYaw.value + Math.PI
     }
 
     // Shoot (works in both modes) — fires in camera forward direction
