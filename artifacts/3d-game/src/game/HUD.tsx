@@ -798,12 +798,13 @@ function triggerEKey() {
   setTimeout(() => document.dispatchEvent(new KeyboardEvent('keyup', opts)), 100)
 }
 
-// ─── Prominent Enter / Exit Button ────────────────────────────────────────────
+// ─── Prominent Enter / Exit / Interact Button ──────────────────────────────────
 function InteractionButton({ prompt }: { prompt: string | null }) {
   const [pulse, setPulse] = useState(false)
+  const [tick,  setTick]  = useState(0)
 
   useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 700)
+    const id = setInterval(() => { setPulse(p => !p); setTick(t => t + 1) }, 600)
     return () => clearInterval(id)
   }, [])
 
@@ -811,73 +812,98 @@ function InteractionButton({ prompt }: { prompt: string | null }) {
 
   const isExit    = prompt.includes('Exit House')
   const isEnter   = prompt.includes('Enter —')
+  const isShop    = prompt.includes('Shop') || prompt.includes('Store') || prompt.includes('Pharmacy') || prompt.includes('Market')
   const isVehicle = prompt.includes('Enter Vehicle')
   const isRefuel  = prompt.includes('Refuel')
 
   if (!isExit && !isEnter && !isVehicle && !isRefuel) return null
 
-  // ── Big button: house enter / exit ─────────────────────────────────────────
+  // ── House enter / exit / shop ───────────────────────────────────────────────
   if (isExit || isEnter) {
-    const icon      = isExit ? '🚪' : '🏠'
-    const label     = isExit ? 'EXIT HOUSE' : 'ENTER HOUSE'
-    const color     = isExit ? '#ff6633' : '#ffcc00'
-    const bgColor   = isExit ? 'rgba(180,60,20,0.18)' : 'rgba(200,160,0,0.15)'
-    const houseLabel = isEnter
-      ? prompt.replace(/^\[ E \]\s+Enter — /, '').trim()
-      : ''
+    const isShopEntry = isEnter && isShop
+    const icon   = isExit ? '🚪' : isShopEntry ? '🏪' : '🏠'
+    const label  = isExit ? 'EXIT BUILDING' : isShopEntry ? 'ENTER SHOP' : 'ENTER HOUSE'
+    const color  = isExit ? '#ff6633' : isShopEntry ? '#00ccff' : '#ffcc00'
+    const bg     = isExit ? 'rgba(150,40,10,0.22)' : isShopEntry ? 'rgba(0,140,200,0.18)' : 'rgba(180,130,0,0.18)'
+    const placeName = isEnter ? prompt.replace(/^\[ E \]\s+Enter — /, '').trim() : ''
+
+    const glowSize = pulse ? 60 : 28
+    const borderAlpha = pulse ? 'cc' : '55'
 
     return (
       <div style={{
-        position: 'fixed', bottom: 140, left: '50%', transform: 'translateX(-50%)',
-        zIndex: 1500, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+        position: 'fixed', bottom: 130, left: '50%', transform: 'translateX(-50%)',
+        zIndex: 1500, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
         pointerEvents: 'auto',
       }}>
-        {houseLabel && (
+        {/* Location name badge */}
+        {placeName && (
           <div style={{
-            color: '#ffeeaa', fontSize: 11, fontFamily: 'monospace', letterSpacing: 1,
-            background: 'rgba(0,0,0,0.85)', padding: '4px 16px', borderRadius: 20,
-            border: '1px solid rgba(255,220,0,0.25)',
-          }}>{houseLabel}</div>
+            color: color, fontSize: 12, fontFamily: 'monospace', letterSpacing: 2,
+            background: 'rgba(0,0,0,0.88)', padding: '5px 20px', borderRadius: 24,
+            border: `1px solid ${color}44`,
+            boxShadow: `0 0 16px ${color}22`,
+            textTransform: 'uppercase',
+          }}>📍 {placeName}</div>
         )}
+
+        {/* Main action button */}
         <button
           type="button"
           onClick={e => { e.stopPropagation(); triggerEKey() }}
           onPointerDown={e => e.stopPropagation()}
           style={{
-            display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer',
-            background: bgColor,
-            border: `2.5px solid ${color}${pulse ? 'ee' : '55'}`,
-            borderRadius: 18, padding: '16px 36px',
-            backdropFilter: 'blur(10px)',
-            boxShadow: `0 0 ${pulse ? 50 : 22}px ${color}55, 0 6px 24px rgba(0,0,0,0.7)`,
-            transition: 'all 0.3s', outline: 'none',
+            display: 'flex', alignItems: 'center', gap: 18, cursor: 'pointer',
+            background: bg,
+            border: `2px solid ${color}${borderAlpha}`,
+            borderRadius: 20, padding: '14px 38px',
+            backdropFilter: 'blur(12px)',
+            boxShadow: `0 0 ${glowSize}px ${color}44, inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.8)`,
+            transition: 'box-shadow 0.4s, border-color 0.4s', outline: 'none',
             touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
           }}
         >
-          <span style={{ fontSize: 32 }}>{icon}</span>
-          <div style={{ textAlign: 'center' }}>
+          <span style={{ fontSize: 34, filter: pulse ? 'drop-shadow(0 0 8px currentColor)' : 'none', transition: 'filter 0.4s' }}>{icon}</span>
+          <div style={{ textAlign: 'left' }}>
             <div style={{
-              color, fontSize: 22, fontWeight: 'bold', fontFamily: 'monospace',
-              letterSpacing: 3, lineHeight: 1,
-              textShadow: `0 0 ${pulse ? 20 : 8}px ${color}88`,
+              color, fontSize: 20, fontWeight: 'bold', fontFamily: 'monospace',
+              letterSpacing: 3, lineHeight: 1.1,
+              textShadow: `0 0 ${pulse ? 18 : 6}px ${color}88`,
+              transition: 'text-shadow 0.4s',
             }}>{label}</div>
-            <div style={{ color: `${color}99`, fontSize: 11, fontFamily: 'monospace', letterSpacing: 2, marginTop: 5 }}>
-              TAP HERE  ·  OR PRESS{' '}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
               <span style={{
-                background: 'rgba(255,255,255,0.15)', border: `1px solid ${color}55`,
-                borderRadius: 4, padding: '1px 7px', color: '#fff',
+                background: 'rgba(255,255,255,0.14)', border: `1px solid ${color}66`,
+                borderRadius: 5, padding: '2px 9px', color: '#fff', fontSize: 11,
+                fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: 1,
               }}>E</span>
+              <span style={{ color: `${color}88`, fontSize: 10, fontFamily: 'monospace', letterSpacing: 1.5 }}>
+                or TAP THIS BUTTON
+              </span>
             </div>
           </div>
         </button>
+
+        {/* Subtle distance hint dots */}
+        <div style={{ display: 'flex', gap: 5 }}>
+          {[0,1,2].map(i => (
+            <div key={i} style={{
+              width: 5, height: 5, borderRadius: '50%',
+              background: color,
+              opacity: (tick + i) % 3 === 0 ? 0.9 : 0.15,
+              transition: 'opacity 0.3s',
+            }}/>
+          ))}
+        </div>
       </div>
     )
   }
 
-  // ── Compact: vehicle / refuel ───────────────────────────────────────────────
+  // ── Vehicle / refuel ────────────────────────────────────────────────────────
   const icon       = isVehicle ? '🚗' : '⛽'
   const actionText = isVehicle ? 'ENTER VEHICLE' : 'REFUEL  ·  $50'
   const color      = isVehicle ? '#88aaff' : '#ffcc00'
+  const glowPx     = pulse ? 36 : 18
 
   return (
     <button
@@ -887,23 +913,27 @@ function InteractionButton({ prompt }: { prompt: string | null }) {
       style={{
         position: 'fixed', bottom: 108, left: '50%', transform: 'translateX(-50%)',
         zIndex: 1500, pointerEvents: 'auto',
-        display: 'flex', alignItems: 'center', gap: 10,
-        background: 'rgba(0,0,0,0.82)', border: `2px solid ${color}66`,
-        borderRadius: 14, padding: '12px 28px',
-        backdropFilter: 'blur(6px)',
-        boxShadow: `0 0 24px ${color}33, 0 4px 16px rgba(0,0,0,0.7)`,
-        cursor: 'pointer', outline: 'none',
+        display: 'flex', alignItems: 'center', gap: 12,
+        background: 'rgba(0,0,0,0.88)',
+        border: `1.5px solid ${color}${pulse ? '99' : '44'}`,
+        borderRadius: 14, padding: '13px 30px',
+        backdropFilter: 'blur(8px)',
+        boxShadow: `0 0 ${glowPx}px ${color}33, 0 6px 20px rgba(0,0,0,0.8)`,
+        cursor: 'pointer', outline: 'none', transition: 'all 0.4s',
         touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
       }}
     >
-      <span style={{ fontSize: 22 }}>{icon}</span>
-      <span style={{ color, fontSize: 14, fontFamily: 'monospace', letterSpacing: 1, fontWeight: 'bold' }}>
-        {actionText}
-      </span>
-      <span style={{
-        background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.22)',
-        borderRadius: 4, padding: '2px 8px', color: '#bbb', fontSize: 10, fontFamily: 'monospace',
-      }}>E</span>
+      <span style={{ fontSize: 24 }}>{icon}</span>
+      <div style={{ textAlign: 'left' }}>
+        <div style={{ color, fontSize: 14, fontFamily: 'monospace', letterSpacing: 2, fontWeight: 'bold' }}>
+          {actionText}
+        </div>
+        <div style={{ color: `${color}66`, fontSize: 9, fontFamily: 'monospace', letterSpacing: 1, marginTop: 2 }}>
+          PRESS{' '}
+          <span style={{ background: 'rgba(255,255,255,0.12)', border: `1px solid ${color}44`, borderRadius: 3, padding: '0 5px', color: '#ccc' }}>E</span>
+          {' '}or tap
+        </div>
+      </div>
     </button>
   )
 }
@@ -1096,6 +1126,13 @@ export default function HUD() {
   const { currentUser, logout } = useAuthStore()
   const [showSettings, setShowSettings] = useState(false)
   const [showAdminMenu, setShowAdminMenu] = useState(false)
+  const [playerYaw, setPlayerYaw] = useState(0)
+
+  // Track player facing direction for minimap arrow
+  useEffect(() => {
+    const id = setInterval(() => setPlayerYaw(gameShared.cameraYaw), 100)
+    return () => clearInterval(id)
+  }, [])
 
   const MAP_SIZE = 148
   const mapScale = MAP_SIZE / 290
@@ -1249,60 +1286,178 @@ export default function HUD() {
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:100 }}>
 
         {/* ── TOP-LEFT: Minimap ────────────────────────────────────────────── */}
-        <div style={{
-          position:'absolute', top:16, left:16,
-          width:MAP_SIZE, height:MAP_SIZE,
-          background:'rgba(0,0,0,0.80)',
-          border:'2px solid rgba(255,255,255,0.18)',
-          borderRadius:'50%', overflow:'hidden',
-          boxShadow:'0 0 0 1px rgba(0,255,170,0.25), 0 4px 20px rgba(0,0,0,0.7)',
-          display: showMinimap ? 'block' : 'none',
-        }}>
-          {[-120,-80,-40,0,40,80,120].map(r=>(
-            <div key={`mv${r}`} style={{ position:'absolute', left:toMapX(r)-0.5, top:0, width:1, height:MAP_SIZE, background:'rgba(255,255,255,0.05)' }}/>
+        {showMinimap && (
+        <div style={{ position:'absolute', top:16, left:16 }}>
+
+          {/* Compass labels — outside the circle */}
+          {[
+            { label:'N', x: MAP_SIZE/2, y:-14, color:'#ff4444' },
+            { label:'S', x: MAP_SIZE/2, y:MAP_SIZE+4, color:'#aaa' },
+            { label:'W', x:-12, y:MAP_SIZE/2, color:'#aaa' },
+            { label:'E', x:MAP_SIZE+2, y:MAP_SIZE/2, color:'#aaa' },
+          ].map(c=>(
+            <div key={c.label} style={{
+              position:'absolute',
+              left:c.x, top:c.y,
+              transform:'translate(-50%,-50%)',
+              color:c.color, fontSize:9, fontWeight:'bold', fontFamily:'monospace',
+              letterSpacing:0, pointerEvents:'none', lineHeight:1,
+            }}>{c.label}</div>
           ))}
-          {[-120,-80,-40,0,40,80,120].map(r=>(
-            <div key={`mh${r}`} style={{ position:'absolute', left:0, top:toMapZ(r)-0.5, width:MAP_SIZE, height:1, background:'rgba(255,255,255,0.05)' }}/>
-          ))}
-          {/* Road lines on minimap */}
-          {[-120,-80,-40,0,40,80,120].map(r=>(
-            <div key={`mrv${r}`} style={{ position:'absolute', left:toMapX(r)-1, top:0, width:3, height:MAP_SIZE, background:'rgba(255,255,255,0.07)' }}/>
-          ))}
-          {[-120,-80,-40,0,40,80,120].map(r=>(
-            <div key={`mrh${r}`} style={{ position:'absolute', left:0, top:toMapZ(r)-1, width:MAP_SIZE, height:3, background:'rgba(255,255,255,0.07)' }}/>
-          ))}
-          {/* Gas station dots */}
-          {GAS_STATIONS.map(gs=>(
-            <div key={gs.id} style={{ position:'absolute', left:toMapX(gs.x)-4, top:toMapZ(gs.z)-4, width:8, height:8, background:'#ffcc00', borderRadius:2, border:'1px solid #ffaa00', opacity:0.9 }}/>
-          ))}
-          {/* House dots on minimap */}
-          {ENTERABLE_HOUSES.map(h=>(
-            <div key={h.id} style={{ position:'absolute', left:toMapX(h.x)-3, top:toMapZ(h.z)-3, width:6, height:6, background:'#ff9944', borderRadius:1, opacity:0.7 }}/>
-          ))}
-          {/* Shop dots */}
-          {SHOPS.map(s=>(
-            <div key={s.id} style={{ position:'absolute', left:toMapX(s.x)-3, top:toMapZ(s.z)-3, width:6, height:6, background: s.type==='ammo'?'#cc4422':s.type==='medic'?'#22aa44':'#6622cc', borderRadius:1 }}/>
-          ))}
-          {/* Entity dots */}
-          {minimapDots.map((dot,i)=>(
-            <div key={i} style={{ position:'absolute', left:toMapX(dot.x)-dot.size/2, top:toMapZ(dot.z)-dot.size/2, width:dot.size, height:dot.size, background:dot.color, borderRadius:'50%' }}/>
-          ))}
-          {/* Player dot */}
-          <div style={{ position:'absolute', left:toMapX(playerX)-6, top:toMapZ(playerZ)-6, width:12, height:12, background:'#00ffaa', borderRadius:'50%', border:'2px solid #fff', zIndex:10, boxShadow:'0 0 6px rgba(0,255,170,0.8)' }}/>
-          {/* Waypoint marker on minimap */}
-          {waypointX !== null && waypointZ !== null && (
+
+          {/* Map circle */}
+          <div style={{
+            position:'relative',
+            width:MAP_SIZE, height:MAP_SIZE,
+            background:'rgba(4,8,14,0.88)',
+            border:'2px solid rgba(255,255,255,0.2)',
+            borderRadius:'50%', overflow:'hidden',
+            boxShadow:'0 0 0 1px rgba(0,255,170,0.2), 0 0 28px rgba(0,255,170,0.06), 0 6px 24px rgba(0,0,0,0.8)',
+          }}>
+
+            {/* Zone fills — city districts */}
+            {[
+              { x:-145, z:-145, w:145, h:145, color:'rgba(60,20,80,0.20)', label:'DOWNTOWN' },
+              { x:0,    z:-145, w:145, h:145, color:'rgba(20,60,30,0.18)', label:'HARBOR' },
+              { x:-145, z:0,    w:145, h:145, color:'rgba(80,50,10,0.16)', label:'INDUSTRIAL' },
+              { x:0,    z:0,    w:145, h:145, color:'rgba(10,40,80,0.16)', label:'SUBURBS' },
+            ].map(z=>(
+              <div key={z.label} style={{
+                position:'absolute',
+                left:toMapX(z.x), top:toMapZ(z.z),
+                width:z.w * mapScale, height:z.h * mapScale,
+                background:z.color, pointerEvents:'none',
+              }}/>
+            ))}
+
+            {/* Main roads (thicker, brighter) */}
+            {[0].map(r=>(
+              <div key={`mainv${r}`} style={{ position:'absolute', left:toMapX(r)-2, top:0, width:5, height:MAP_SIZE, background:'rgba(255,255,255,0.14)' }}/>
+            ))}
+            {[0].map(r=>(
+              <div key={`mainh${r}`} style={{ position:'absolute', left:0, top:toMapZ(r)-2, width:MAP_SIZE, height:5, background:'rgba(255,255,255,0.14)' }}/>
+            ))}
+            {/* Side roads */}
+            {[-120,-80,-40,40,80,120].map(r=>(
+              <div key={`sv${r}`} style={{ position:'absolute', left:toMapX(r)-1, top:0, width:2, height:MAP_SIZE, background:'rgba(255,255,255,0.07)' }}/>
+            ))}
+            {[-120,-80,-40,40,80,120].map(r=>(
+              <div key={`sh${r}`} style={{ position:'absolute', left:0, top:toMapZ(r)-1, width:MAP_SIZE, height:2, background:'rgba(255,255,255,0.07)' }}/>
+            ))}
+
+            {/* Gas station markers — yellow square */}
+            {GAS_STATIONS.map(gs=>(
+              <div key={gs.id} style={{
+                position:'absolute', left:toMapX(gs.x)-4, top:toMapZ(gs.z)-4,
+                width:8, height:8, background:'#ffcc00', borderRadius:2,
+                border:'1px solid #ffee88', opacity:0.95,
+                boxShadow:'0 0 4px #ffcc0066',
+              }}/>
+            ))}
+            {/* House markers — orange diamond */}
+            {ENTERABLE_HOUSES.map(h=>(
+              <div key={h.id} style={{
+                position:'absolute', left:toMapX(h.x)-4, top:toMapZ(h.z)-4,
+                width:8, height:8, background:'#ff9944',
+                transform:'rotate(45deg)', borderRadius:1, opacity:0.75,
+              }}/>
+            ))}
+            {/* Shop markers — colored circle */}
+            {SHOPS.map(s=>(
+              <div key={s.id} style={{
+                position:'absolute', left:toMapX(s.x)-4, top:toMapZ(s.z)-4,
+                width:8, height:8, borderRadius:'50%',
+                background: s.type==='ammo'?'#cc4422': s.type==='medic'?'#22aa55':'#8844ee',
+                border:'1px solid rgba(255,255,255,0.25)',
+                boxShadow: `0 0 5px ${s.type==='ammo'?'#cc442266': s.type==='medic'?'#22aa5566':'#8844ee66'}`,
+              }}/>
+            ))}
+
+            {/* Entity dots (NPCs, vehicles) */}
+            {minimapDots.map((dot,i)=>(
+              <div key={i} style={{
+                position:'absolute',
+                left:toMapX(dot.x)-dot.size/2, top:toMapZ(dot.z)-dot.size/2,
+                width:dot.size, height:dot.size,
+                background:dot.color, borderRadius:'50%',
+              }}/>
+            ))}
+
+            {/* Waypoint marker */}
+            {waypointX !== null && waypointZ !== null && (
+              <div style={{
+                position:'absolute',
+                left: toMapX(waypointX) - 6, top: toMapZ(waypointZ) - 6,
+                width:12, height:12, background:'#ffdd00', zIndex:11,
+                transform:'rotate(45deg)', borderRadius:2,
+                border:'1.5px solid #fff',
+                boxShadow:'0 0 8px rgba(255,220,0,0.95)',
+              }}/>
+            )}
+
+            {/* Player direction arrow */}
             <div style={{
               position:'absolute',
-              left: toMapX(waypointX) - 5, top: toMapZ(waypointZ) - 5,
-              width:10, height:10,
-              background:'#ffdd00', zIndex:11,
-              transform:'rotate(45deg)',
-              border:'1.5px solid #fff',
-              boxShadow:'0 0 5px rgba(255,220,0,0.9)',
+              left: toMapX(playerX), top: toMapZ(playerZ),
+              width:0, height:0, zIndex:12,
+              transform:`translate(-50%,-50%) rotate(${playerYaw}rad)`,
+            }}>
+              {/* Arrow body */}
+              <div style={{
+                position:'absolute',
+                left:-4, top:-10,
+                width:8, height:14,
+                background:'rgba(0,255,170,0.9)',
+                clipPath:'polygon(50% 0%, 100% 100%, 50% 75%, 0% 100%)',
+                filter:'drop-shadow(0 0 4px rgba(0,255,170,0.8))',
+              }}/>
+            </div>
+
+            {/* Player glow dot center */}
+            <div style={{
+              position:'absolute',
+              left:toMapX(playerX)-4, top:toMapZ(playerZ)-4,
+              width:8, height:8,
+              background:'#00ffaa', borderRadius:'50%',
+              border:'2px solid #fff', zIndex:13,
+              boxShadow:'0 0 8px rgba(0,255,170,0.9)',
             }}/>
-          )}
-          <div style={{ position:'absolute', top:4, left:'50%', transform:'translateX(-50%)', color:'rgba(255,255,255,0.35)', fontSize:9, fontFamily:'monospace', letterSpacing:1, pointerEvents:'none' }}>N</div>
+
+            {/* Circular vignette overlay */}
+            <div style={{
+              position:'absolute', inset:0,
+              background:'radial-gradient(circle, transparent 40%, rgba(0,0,0,0.55) 100%)',
+              borderRadius:'50%', pointerEvents:'none', zIndex:20,
+            }}/>
+          </div>
+
+          {/* POI legend strip below minimap */}
+          <div style={{
+            marginTop:6, display:'flex', gap:6, alignItems:'center',
+            background:'rgba(0,0,0,0.7)', borderRadius:6, padding:'4px 8px',
+            border:'1px solid rgba(255,255,255,0.07)',
+          }}>
+            {[
+              { color:'#ffcc00', shape:'square', label:'⛽' },
+              { color:'#ff9944', shape:'diamond', label:'🏠' },
+              { color:'#22aa55', shape:'circle',  label:'💊' },
+              { color:'#cc4422', shape:'circle',  label:'🔫' },
+              { color:'#8844ee', shape:'circle',  label:'⚡' },
+            ].map(p=>(
+              <div key={p.label} style={{ display:'flex', alignItems:'center', gap:3 }}>
+                <div style={{
+                  width:7, height:7,
+                  background:p.color,
+                  borderRadius: p.shape==='circle' ? '50%' : p.shape==='diamond' ? '1px' : '1px',
+                  transform: p.shape==='diamond' ? 'rotate(45deg)' : 'none',
+                  flexShrink:0,
+                }}/>
+                <span style={{ color:'#555', fontSize:8, fontFamily:'monospace' }}>{p.label}</span>
+              </div>
+            ))}
+          </div>
         </div>
+        )}
 
         {/* ── LEFT SIDE: Health + Fuel + Ammo ─────────────────────────────── */}
         <div style={{ position:'absolute', top: MAP_SIZE + 26, left:16, display:'flex', flexDirection:'column', gap:6, width: MAP_SIZE }}>
@@ -1353,7 +1508,7 @@ export default function HUD() {
         </div>
 
         {/* ── TOP-RIGHT: Money / Score / Wanted ────────────────────────────── */}
-        <div style={{ position:'absolute', top:16, right:16, display:'flex', flexDirection:'column', alignItems:'flex-end', gap:5 }}>
+        <div style={{ position:'absolute', top:58, right:16, display:'flex', flexDirection:'column', alignItems:'flex-end', gap:5 }}>
           {/* Cash */}
           <div style={panel({ padding:'7px 14px' })}>
             <div style={{ color:'#44ff88', fontSize:24, fontWeight:'bold', letterSpacing:1, textAlign:'right' }}>
@@ -1453,21 +1608,21 @@ export default function HUD() {
         {/* ── BOTTOM-RIGHT: MENU Button ────────────────────────────────────── */}
       </div>
 
-      {/* ── MENU button: fixed at zIndex 1000 so it sits above the TouchControls overlay (z:400) ── */}
-      <div style={{ position:'fixed', bottom:16, right:16, zIndex:1000, pointerEvents:'auto' }}>
+      {/* ── MENU button: top-right, zIndex 1000 above TouchControls overlay (z:400) ── */}
+      <div style={{ position:'fixed', top:16, right:16, zIndex:1000, pointerEvents:'auto' }}>
         <button
           type="button"
           onClick={e => { e.stopPropagation(); setPaused(!isPaused) }}
           onPointerDown={e => e.stopPropagation()}
           style={{
-            padding:'12px 22px', fontSize:13, fontFamily:'monospace',
-            background:'rgba(0,0,0,0.85)', color:'#888',
-            border:'1px solid rgba(255,255,255,0.18)', borderRadius:10,
+            padding:'8px 18px', fontSize:12, fontFamily:'monospace',
+            background:'rgba(0,0,0,0.82)', color:'#888',
+            border:'1px solid rgba(255,255,255,0.18)', borderRadius:8,
             cursor:'pointer', letterSpacing:1, transition:'all 0.12s',
             touchAction:'manipulation', WebkitTapHighlightColor:'transparent',
-            minWidth:80, minHeight:44,
+            minWidth:70, minHeight:36,
           }}
-          onMouseEnter={e=>{e.currentTarget.style.color='#ccc'; e.currentTarget.style.borderColor='rgba(255,255,255,0.35)'}}
+          onMouseEnter={e=>{e.currentTarget.style.color='#ddd'; e.currentTarget.style.borderColor='rgba(255,255,255,0.4)'}}
           onMouseLeave={e=>{e.currentTarget.style.color='#888'; e.currentTarget.style.borderColor='rgba(255,255,255,0.18)'}}
         >
           ☰ MENU
