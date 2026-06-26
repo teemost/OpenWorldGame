@@ -37,6 +37,11 @@ interface GameStore {
   currentHouseId: string | null
   waypointX: number | null
   waypointZ: number | null
+  sensitivity: number
+  fov: number
+  showFps: boolean
+  showMinimap: boolean
+  godMode: boolean
 
   setHealth: (h: number) => void
   takeDamage: (amount: number) => void
@@ -71,6 +76,11 @@ interface GameStore {
   exitHouse: () => void
   setWaypoint: (x: number, z: number) => void
   clearWaypoint: () => void
+  setSensitivity: (v: number) => void
+  setFov: (v: number) => void
+  setShowFps: (v: boolean) => void
+  setShowMinimap: (v: boolean) => void
+  setGodMode: (v: boolean) => void
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -100,10 +110,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
   currentHouseId: null,
   waypointX: null,
   waypointZ: null,
+  sensitivity: 1.0,
+  fov: 68,
+  showFps: true,
+  showMinimap: true,
+  godMode: false,
 
   setHealth: (h) => set({ health: Math.max(0, Math.min(100, h)) }),
   takeDamage: (amount) =>
     set((s) => {
+      if (s.godMode) return {}
       const armorAbsorb = s.armor > 0 ? Math.min(s.armor, amount * 0.6) : 0
       const actualDmg = amount - armorAbsorb
       const armor = Math.max(0, s.armor - armorAbsorb)
@@ -113,7 +129,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   addMoney: (amount) => set((s) => ({ money: s.money + amount })),
   setWantedLevel: (w) => set({ wantedLevel: Math.max(0, Math.min(5, w)) }),
   incrementWanted: () =>
-    set((s) => ({ wantedLevel: Math.min(5, s.wantedLevel + 1) })),
+    set((s) => {
+      if (s.godMode) return {}
+      return { wantedLevel: Math.min(5, s.wantedLevel + 1) }
+    }),
   decrementWanted: () =>
     set((s) => ({ wantedLevel: Math.max(0, s.wantedLevel - 1) })),
   addScore: (amount) => set((s) => ({ score: s.score + amount })),
@@ -155,6 +174,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       interactionPrompt: null,
       waypointX: null,
       waypointZ: null,
+      godMode: false,
     }),
   initFromSettings: (health, money, ammo) =>
     set({ health, money, ammo }),
@@ -185,4 +205,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   exitHouse: () => set({ isInsideHouse: false, currentHouseId: null }),
   setWaypoint: (x, z) => set({ waypointX: x, waypointZ: z }),
   clearWaypoint: () => set({ waypointX: null, waypointZ: null }),
+  setSensitivity: (v) => set({ sensitivity: Math.max(0.2, Math.min(3.0, v)) }),
+  setFov: (v) => set({ fov: Math.max(45, Math.min(100, v)) }),
+  setShowFps: (v) => set({ showFps: v }),
+  setShowMinimap: (v) => set({ showMinimap: v }),
+  setGodMode: (v) => set({ godMode: v }),
 }))

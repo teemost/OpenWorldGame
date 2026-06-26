@@ -1428,6 +1428,7 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
 
   const { takeDamage, setInVehicle, useAmmo, incrementWanted, addMoney, addScore,
           drainFuel, addFuel, setInteractionPrompt, openStore, enterHouse, exitHouse } = useGameStore()
+  const sensitivity = useGameStore(s => s.sensitivity)
   const proximityFrameRef = useRef(0)
   const nearGasRef        = useRef(false)
   const nearHouseIdxRef   = useRef(-1)
@@ -1504,7 +1505,7 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
     }
 
     // ── Camera orbit from right-side drag / mouse ────────────────────────
-    const CAM_SEN = 0.0038
+    const CAM_SEN = 0.0038 * sensitivity
     if (touchState.camDx !== 0 || touchState.camDy !== 0) {
       sharedCamYaw.value   += touchState.camDx * CAM_SEN
       sharedCamPitch.value  = Math.max(-0.08, Math.min(0.58, sharedCamPitch.value - touchState.camDy * CAM_SEN))
@@ -1564,8 +1565,8 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       }
     } else {
       // ── On-foot: A/D orbits camera ──────────────────────────────────────
-      if (kb.left)  sharedCamYaw.value -= 1.6 * delta
-      if (kb.right) sharedCamYaw.value += 1.6 * delta
+      if (kb.left)  sharedCamYaw.value -= 1.6 * delta * sensitivity
+      if (kb.right) sharedCamYaw.value += 1.6 * delta * sensitivity
 
       // ── On-foot: camera-relative movement ──────────────────────────────
       const camYaw = sharedCamYaw.value

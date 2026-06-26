@@ -60,35 +60,86 @@ const panel = (extra: React.CSSProperties = {}): React.CSSProperties => ({
 })
 
 // ─── Settings Panel ────────────────────────────────────────────────────────────
-function SettingsPanel({ quality, setQuality, fps, onClose }: {
-  quality: GraphicsQuality; setQuality: (q: GraphicsQuality) => void; fps: number; onClose: () => void
+function SettingsSection({ title }: { title: string }) {
+  return (
+    <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:13, marginTop:4, marginBottom:10 }}>
+      <div style={{ color:'#444', fontSize:9, letterSpacing:2, fontFamily:'monospace' }}>{title}</div>
+    </div>
+  )
+}
+
+function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" onClick={e=>{ e.stopPropagation(); onToggle() }} onPointerDown={e=>e.stopPropagation()}
+      style={{
+        minWidth:50, padding:'4px 12px', borderRadius:20,
+        background: on ? 'rgba(0,204,255,0.15)' : 'rgba(255,255,255,0.04)',
+        border: on ? '1px solid rgba(0,204,255,0.5)' : '1px solid rgba(255,255,255,0.1)',
+        color: on ? '#00ccff' : '#444', fontSize:10, fontFamily:'monospace', cursor:'pointer',
+        letterSpacing:1, transition:'all 0.15s', touchAction:'manipulation',
+      }}>{on ? 'ON' : 'OFF'}</button>
+  )
+}
+
+function SettingsRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+      <span style={{ color:'#666', fontSize:10, letterSpacing:0.5 }}>{label}</span>
+      {children}
+    </div>
+  )
+}
+
+function SettingsPanel({ quality, setQuality, fps, onClose,
+  sensitivity, setSensitivity, fov, setFov,
+  showFps, setShowFps, showMinimap, setShowMinimap,
+}: {
+  quality: GraphicsQuality; setQuality: (q: GraphicsQuality) => void
+  fps: number; onClose: () => void
+  sensitivity: number; setSensitivity: (v: number) => void
+  fov: number; setFov: (v: number) => void
+  showFps: boolean; setShowFps: (v: boolean) => void
+  showMinimap: boolean; setShowMinimap: (v: boolean) => void
 }) {
   const qColor = QUALITY_COLORS[quality]
   const qualities: GraphicsQuality[] = ['low', 'medium', 'high']
+
   return (
     <div onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}
       style={{
         position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)',
-        width:360, zIndex:2200,
-        background:'rgba(6,8,14,0.97)', border:'1px solid rgba(0,200,255,0.25)',
-        borderRadius:14, padding:'22px 24px 20px', fontFamily:'monospace',
+        width:400, maxHeight:'90vh', overflowY:'auto', zIndex:2200,
+        background:'rgba(6,8,14,0.98)', border:'1px solid rgba(0,200,255,0.25)',
+        borderRadius:14, padding:'20px 22px', fontFamily:'monospace',
         boxShadow:'0 0 60px rgba(0,180,255,0.12),0 20px 60px rgba(0,0,0,0.9)',
       }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:18 }}>
+
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
         <div style={{ color:'#00ccff', fontSize:13, fontWeight:'bold', letterSpacing:2 }}>⚙ GAME SETTINGS</div>
         <button type="button" onClick={onClose} onPointerDown={e=>e.stopPropagation()}
           style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', color:'#888', borderRadius:6, padding:'3px 10px', cursor:'pointer', fontSize:12, fontFamily:'monospace' }}>
           ✕ CLOSE
         </button>
       </div>
-      <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:8, padding:'10px 14px', marginBottom:14, border:'1px solid rgba(255,255,255,0.06)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <span style={{ color:'#666', fontSize:11, letterSpacing:1 }}>FRAME RATE</span>
-        <span style={{ color:fpsColor(fps), fontSize:18, fontWeight:'bold' }}>
-          {fps > 0 ? fps : '—'} <span style={{ fontSize:11, color:'#555' }}>FPS</span>
+
+      {/* ── Performance ── */}
+      <SettingsSection title="PERFORMANCE" />
+
+      {/* FPS counter row */}
+      <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:8, padding:'9px 13px', marginBottom:12, border:'1px solid rgba(255,255,255,0.06)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <span style={{ color:'#666', fontSize:10, letterSpacing:1 }}>FRAME RATE</span>
+        <span style={{ color:fpsColor(fps), fontSize:16, fontWeight:'bold' }}>
+          {fps > 0 ? fps : '—'} <span style={{ fontSize:10, color:'#555' }}>FPS</span>
         </span>
       </div>
-      <div style={{ marginBottom:14 }}>
-        <div style={{ color:'#888', fontSize:10, letterSpacing:2, marginBottom:10 }}>GRAPHICS QUALITY</div>
+      <SettingsRow label="Show FPS counter">
+        <Toggle on={showFps} onToggle={() => setShowFps(!showFps)} />
+      </SettingsRow>
+
+      {/* Graphics quality */}
+      <div style={{ marginBottom:12 }}>
+        <div style={{ color:'#666', fontSize:10, letterSpacing:0.5, marginBottom:8 }}>GRAPHICS QUALITY</div>
         <div style={{ display:'flex', gap:8 }}>
           {qualities.map(q => {
             const sel = q === quality; const col = QUALITY_COLORS[q]
@@ -97,31 +148,232 @@ function SettingsPanel({ quality, setQuality, fps, onClose }: {
                 onClick={e=>{ e.stopPropagation(); setQuality(q) }}
                 onPointerDown={e=>e.stopPropagation()}
                 style={{
-                  flex:1, padding:'10px 4px', borderRadius:8,
+                  flex:1, padding:'9px 4px', borderRadius:8,
                   border: sel ? `2px solid ${col}` : '2px solid rgba(255,255,255,0.08)',
                   background: sel ? `${col}18` : 'rgba(255,255,255,0.03)',
-                  color: sel ? col : '#555', fontSize:12, fontFamily:'monospace',
+                  color: sel ? col : '#555', fontSize:11, fontFamily:'monospace',
                   fontWeight: sel ? 'bold' : 'normal', cursor:'pointer', letterSpacing:1, transition:'all 0.15s',
                 }}>{QUALITY_LABELS[q]}</button>
             )
           })}
         </div>
-        <div style={{ color:qColor, fontSize:10, textAlign:'center', marginTop:8, letterSpacing:0.5, opacity:0.8 }}>{QUALITY_DESC[quality]}</div>
+        <div style={{ color:qColor, fontSize:10, textAlign:'center', marginTop:7, letterSpacing:0.5, opacity:0.7 }}>{QUALITY_DESC[quality]}</div>
       </div>
-      <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:14 }}>
-        <div style={{ color:'#444', fontSize:10, letterSpacing:1, marginBottom:8 }}>CONTROLS</div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'4px 16px' }}>
-          {[
-            ['WASD / ↑↓←→','Move'],['SHIFT','Sprint/Boost'],['E','Interact'],
-            ['SPACE','Shoot'],['A/D','Camera orbit'],['E near door','Enter house'],
-            ['DRAG','Camera rotate'],['ESC','Pause game'],
-          ].map(([key,desc]) => (
-            <div key={key} style={{ display:'flex', alignItems:'center', gap:6, padding:'2px 0' }}>
-              <span style={{ background:'rgba(255,255,255,0.08)', borderRadius:3, padding:'1px 5px', fontSize:9, color:'#aaa', border:'1px solid rgba(255,255,255,0.1)', whiteSpace:'nowrap' }}>{key}</span>
-              <span style={{ color:'#555', fontSize:10 }}>{desc}</span>
-            </div>
+
+      {/* ── Camera ── */}
+      <SettingsSection title="CAMERA" />
+
+      {/* Sensitivity */}
+      <div style={{ marginBottom:12 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
+          <span style={{ color:'#666', fontSize:10 }}>Look Sensitivity</span>
+          <span style={{ color:'#00ccff', fontSize:11, fontWeight:'bold' }}>{sensitivity.toFixed(1)}×</span>
+        </div>
+        <input type="range" min={0.2} max={3.0} step={0.05} value={sensitivity}
+          onChange={e => setSensitivity(Number(e.target.value))}
+          onPointerDown={e=>e.stopPropagation()}
+          style={{ width:'100%', accentColor:'#00ccff', cursor:'pointer', height:4 }} />
+        <div style={{ display:'flex', justifyContent:'space-between', color:'#333', fontSize:9, marginTop:3 }}>
+          <span>0.2 SLOW</span><span>FAST 3.0</span>
+        </div>
+      </div>
+
+      {/* FOV */}
+      <div style={{ marginBottom:12 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
+          <span style={{ color:'#666', fontSize:10 }}>Field of View</span>
+          <span style={{ color:'#00ccff', fontSize:11, fontWeight:'bold' }}>{fov}°</span>
+        </div>
+        <input type="range" min={45} max={100} step={1} value={fov}
+          onChange={e => setFov(Number(e.target.value))}
+          onPointerDown={e=>e.stopPropagation()}
+          style={{ width:'100%', accentColor:'#00ccff', cursor:'pointer', height:4 }} />
+        <div style={{ display:'flex', justifyContent:'space-between', color:'#333', fontSize:9, marginTop:3 }}>
+          <span>45° NARROW</span><span>WIDE 100°</span>
+        </div>
+      </div>
+
+      {/* ── Display ── */}
+      <SettingsSection title="DISPLAY" />
+
+      <SettingsRow label="Minimap">
+        <Toggle on={showMinimap} onToggle={() => setShowMinimap(!showMinimap)} />
+      </SettingsRow>
+
+      {/* ── Controls Reference ── */}
+      <SettingsSection title="CONTROLS REFERENCE" />
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'5px 14px' }}>
+        {[
+          ['WASD / ↑↓←→','Move'],['SHIFT','Sprint / Boost'],
+          ['A / D','Camera orbit'],['DRAG right','Camera rotate'],
+          ['E','Interact / Enter'],['SPACE','Shoot'],
+          ['ESC','Pause menu'],['T / 💬','Chat & commands'],
+          ['E near door','Enter house/shop'],['F (map)','Set waypoint'],
+        ].map(([key,desc]) => (
+          <div key={key} style={{ display:'flex', alignItems:'center', gap:5, padding:'2px 0' }}>
+            <span style={{ background:'rgba(255,255,255,0.07)', borderRadius:3, padding:'1px 5px', fontSize:8, color:'#aaa', border:'1px solid rgba(255,255,255,0.1)', whiteSpace:'nowrap', flexShrink:0 }}>{key}</span>
+            <span style={{ color:'#444', fontSize:9 }}>{desc}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Admin Chat Menu ───────────────────────────────────────────────────────────
+function AdminChatMenu({ onClose }: { onClose: () => void }) {
+  const {
+    health, setHealth, money, addMoney, ammo, addAmmo, armor, addArmor,
+    wantedLevel, setWantedLevel, timeOfDay, setTimeOfDay, godMode, setGodMode,
+    addScore,
+  } = useGameStore()
+
+  function Row({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+        <span style={{ color:'#888', fontSize:10, letterSpacing:0.5, minWidth:80 }}>{label}</span>
+        <div style={{ display:'flex', gap:5, flexWrap:'wrap', justifyContent:'flex-end' }}>
+          {children}
+        </div>
+      </div>
+    )
+  }
+
+  function Btn({ label, onClick, color='#888' }: { label: string; onClick: () => void; color?: string }) {
+    return (
+      <button type="button" onClick={e=>{ e.stopPropagation(); onClick() }}
+        onPointerDown={e=>e.stopPropagation()}
+        style={{
+          padding:'4px 10px', borderRadius:6, cursor:'pointer',
+          background:`${color}15`, border:`1px solid ${color}44`,
+          color, fontSize:10, fontFamily:'monospace', letterSpacing:0.5,
+          touchAction:'manipulation', transition:'all 0.1s',
+        }}>
+        {label}
+      </button>
+    )
+  }
+
+  return (
+    <div onClick={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()}
+      style={{
+        position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)',
+        width:400, maxHeight:'88vh', overflowY:'auto', zIndex:2400,
+        background:'rgba(5,8,10,0.98)', fontFamily:'monospace',
+        border:'1px solid rgba(255,200,0,0.3)',
+        borderRadius:14, padding:'18px 20px',
+        boxShadow:'0 0 60px rgba(255,180,0,0.1),0 20px 60px rgba(0,0,0,0.95)',
+      }}>
+
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+        <div>
+          <div style={{ color:'#FFD700', fontSize:13, fontWeight:'bold', letterSpacing:2 }}>👑 ADMIN PANEL</div>
+          <div style={{ color:'#554400', fontSize:9, letterSpacing:1 }}>GAME MASTER CONTROLS</div>
+        </div>
+        <button type="button" onClick={onClose} onPointerDown={e=>e.stopPropagation()}
+          style={{ background:'rgba(255,200,0,0.08)', border:'1px solid rgba(255,200,0,0.25)', color:'#887700', borderRadius:6, padding:'3px 10px', cursor:'pointer', fontSize:12, fontFamily:'monospace' }}>
+          ✕ CLOSE
+        </button>
+      </div>
+
+      {/* Status row */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:6, marginBottom:16 }}>
+        {[
+          { label:'HP', val:`${Math.ceil(health)}`, color:'#44cc44' },
+          { label:'$', val:money.toLocaleString(), color:'#44ff88' },
+          { label:'AMMO', val:`${ammo}`, color:'#ffaa33' },
+          { label:'ARMOR', val:`${Math.ceil(armor)}`, color:'#4488ff' },
+        ].map(s=>(
+          <div key={s.label} style={{ background:'rgba(255,255,255,0.03)', borderRadius:7, padding:'7px 8px', textAlign:'center', border:'1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ color:s.color, fontSize:13, fontWeight:'bold' }}>{s.val}</div>
+            <div style={{ color:'#333', fontSize:8, letterSpacing:1 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Player ── */}
+      <div style={{ color:'#554400', fontSize:9, letterSpacing:2, marginBottom:10 }}>PLAYER</div>
+
+      <Row label="Health">
+        <Btn label="25" color="#cc4444" onClick={()=>setHealth(25)} />
+        <Btn label="50" color="#ccaa44" onClick={()=>setHealth(50)} />
+        <Btn label="75" color="#88cc44" onClick={()=>setHealth(75)} />
+        <Btn label="FULL" color="#44cc44" onClick={()=>setHealth(100)} />
+      </Row>
+      <Row label="Money">
+        <Btn label="+$500" color="#44ff88" onClick={()=>addMoney(500)} />
+        <Btn label="+$2K" color="#44ff88" onClick={()=>addMoney(2000)} />
+        <Btn label="+$10K" color="#44ff88" onClick={()=>addMoney(10000)} />
+        <Btn label="-$500" color="#ff4444" onClick={()=>addMoney(-500)} />
+      </Row>
+      <Row label="Ammo">
+        <Btn label="+50" color="#ffaa33" onClick={()=>addAmmo(50)} />
+        <Btn label="+150" color="#ffaa33" onClick={()=>addAmmo(150)} />
+        <Btn label="FULL" color="#ffaa33" onClick={()=>addAmmo(999)} />
+      </Row>
+      <Row label="Armor">
+        <Btn label="+25" color="#4488ff" onClick={()=>addArmor(25)} />
+        <Btn label="FULL" color="#4488ff" onClick={()=>addArmor(100)} />
+      </Row>
+      <Row label="Score">
+        <Btn label="+1K" color="#aaaaff" onClick={()=>addScore(1000)} />
+        <Btn label="+10K" color="#aaaaff" onClick={()=>addScore(10000)} />
+      </Row>
+
+      {/* ── World ── */}
+      <div style={{ borderTop:'1px solid rgba(255,200,0,0.1)', paddingTop:12, marginTop:4, color:'#554400', fontSize:9, letterSpacing:2, marginBottom:10 }}>WORLD</div>
+
+      {/* Time of day */}
+      <div style={{ marginBottom:12 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
+          <span style={{ color:'#888', fontSize:10 }}>Time of Day</span>
+          <span style={{ color:'#FFD700', fontSize:11, fontWeight:'bold' }}>
+            {Math.floor(timeOfDay).toString().padStart(2,'0')}:{Math.round((timeOfDay%1)*60).toString().padStart(2,'0')}
+          </span>
+        </div>
+        <input type="range" min={0} max={23.9} step={0.1} value={timeOfDay}
+          onChange={e=>setTimeOfDay(Number(e.target.value))}
+          onPointerDown={e=>e.stopPropagation()}
+          style={{ width:'100%', accentColor:'#FFD700', cursor:'pointer', height:4 }} />
+        <div style={{ display:'flex', justifyContent:'space-between', color:'#333', fontSize:9, marginTop:3 }}>
+          <span>00:00 MIDNIGHT</span><span>NOON 12:00</span><span>23:00</span>
+        </div>
+      </div>
+
+      {/* Wanted level */}
+      <div style={{ marginBottom:12 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+          <span style={{ color:'#888', fontSize:10 }}>Wanted Level</span>
+          <span style={{ color: wantedLevel > 0 ? '#ff4444' : '#444', fontSize:11, fontWeight:'bold' }}>
+            {'★'.repeat(wantedLevel)}{'☆'.repeat(5-wantedLevel)}
+          </span>
+        </div>
+        <div style={{ display:'flex', gap:5 }}>
+          {[0,1,2,3,4,5].map(w=>(
+            <button key={w} type="button"
+              onClick={e=>{ e.stopPropagation(); setWantedLevel(w) }}
+              onPointerDown={e=>e.stopPropagation()}
+              style={{
+                flex:1, padding:'5px 2px', borderRadius:5, cursor:'pointer',
+                background: wantedLevel === w ? (w===0?'rgba(68,204,68,0.2)':'rgba(255,68,68,0.2)') : 'rgba(255,255,255,0.03)',
+                border: wantedLevel === w ? (w===0?'1px solid #44cc44':'1px solid #ff4444') : '1px solid rgba(255,255,255,0.08)',
+                color: wantedLevel === w ? (w===0?'#44cc44':'#ff6666') : '#333',
+                fontSize:11, fontFamily:'monospace',
+              }}>{w}</button>
           ))}
         </div>
+      </div>
+
+      {/* ── Cheats ── */}
+      <div style={{ borderTop:'1px solid rgba(255,200,0,0.1)', paddingTop:12, marginTop:4, color:'#554400', fontSize:9, letterSpacing:2, marginBottom:10 }}>CHEATS</div>
+
+      <Row label="God Mode">
+        <Toggle on={godMode} onToggle={()=>setGodMode(!godMode)} />
+      </Row>
+
+      <div style={{ marginTop:8, color:'#332200', fontSize:9, textAlign:'center', letterSpacing:1 }}>
+        /admin · AUTHORIZED PERSONNEL ONLY
       </div>
     </div>
   )
@@ -666,16 +918,19 @@ const RP_COMMANDS: Record<string, (arg: string) => string> = {
   deal:    (a) => `💊 ${a || 'Dealing on the street corner…'}`,
   yell:    (a) => a.toUpperCase(),
   rp:      (a) => `[RP] ${a}`,
-  help:    () =>  '📋 Commands: /me /rob /arrest /deal /yell /rp /help',
 }
 
 let chatIdCounter = 0
 
-function ChatBar({ isPaused }: { isPaused: boolean }) {
+function ChatBar({ isPaused, isAdmin, onOpenAdmin }: {
+  isPaused: boolean
+  isAdmin: boolean
+  onOpenAdmin: () => void
+}) {
   const [open,     setOpen]    = useState(false)
   const [input,    setInput]   = useState('')
   const [msgs,     setMsgs]    = useState<ChatMsg[]>([
-    { id: 0, text: '📋 Type /help for roleplay commands', type: 'system', at: Date.now() },
+    { id: 0, text: `📋 /help for commands${isAdmin ? '  ·  /admin for GM panel' : ''}`, type: 'system', at: Date.now() },
   ])
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -703,11 +958,24 @@ function ChatBar({ isPaused }: { isPaused: boolean }) {
       const parts = raw.slice(1).split(' ')
       const cmd   = parts[0].toLowerCase()
       const arg   = parts.slice(1).join(' ')
-      const fn    = RP_COMMANDS[cmd]
-      if (fn) {
-        msg = { id: ++chatIdCounter, text: fn(arg), type: cmd === 'yell' ? 'yell' : cmd === 'me' ? 'me' : 'cmd', at: Date.now() }
+
+      if (cmd === 'admin') {
+        if (isAdmin) {
+          onOpenAdmin()
+          setOpen(false)
+          return
+        }
+        msg = { id: ++chatIdCounter, text: '🚫 Access denied — admins only', type: 'system', at: Date.now() }
+      } else if (cmd === 'help') {
+        const adminHint = isAdmin ? ' /admin' : ''
+        msg = { id: ++chatIdCounter, text: `📋 Commands: /me /rob /arrest /deal /yell /rp${adminHint} /help`, type: 'system', at: Date.now() }
       } else {
-        msg = { id: ++chatIdCounter, text: `❌ Unknown command: /${cmd}  (try /help)`, type: 'system', at: Date.now() }
+        const fn = RP_COMMANDS[cmd]
+        if (fn) {
+          msg = { id: ++chatIdCounter, text: fn(arg), type: cmd === 'yell' ? 'yell' : cmd === 'me' ? 'me' : 'cmd', at: Date.now() }
+        } else {
+          msg = { id: ++chatIdCounter, text: `❌ Unknown command: /${cmd}  (try /help)`, type: 'system', at: Date.now() }
+        }
       }
     } else {
       msg = { id: ++chatIdCounter, text: raw, type: 'chat', at: Date.now() }
@@ -822,9 +1090,12 @@ export default function HUD() {
     showStore, currentShopType, closeStore,
     addAmmo, addFuel, addArmor, addMoney, setHealth,
     waypointX, waypointZ, setWaypoint, clearWaypoint,
+    sensitivity, setSensitivity, fov, setFov,
+    showFps, setShowFps, showMinimap, setShowMinimap,
   } = useGameStore()
   const { currentUser, logout } = useAuthStore()
   const [showSettings, setShowSettings] = useState(false)
+  const [showAdminMenu, setShowAdminMenu] = useState(false)
 
   const MAP_SIZE = 148
   const mapScale = MAP_SIZE / 290
@@ -893,10 +1164,22 @@ export default function HUD() {
   return (
     <>
       {/* ── Overlays ──────────────────────────────────────────────────────── */}
+      {showAdminMenu && (
+        <>
+          <div onClick={()=>setShowAdminMenu(false)} style={{ position:'fixed', inset:0, zIndex:2399, background:'rgba(0,0,0,0.6)' }}/>
+          <AdminChatMenu onClose={()=>setShowAdminMenu(false)} />
+        </>
+      )}
+
       {showSettings && !isPaused && (
         <>
           <div onClick={()=>setShowSettings(false)} style={{ position:'fixed', inset:0, zIndex:2199, background:'rgba(0,0,0,0.5)' }}/>
-          <SettingsPanel quality={quality} setQuality={setQuality} fps={fps} onClose={()=>setShowSettings(false)}/>
+          <SettingsPanel quality={quality} setQuality={setQuality} fps={fps} onClose={()=>setShowSettings(false)}
+            sensitivity={sensitivity} setSensitivity={setSensitivity}
+            fov={fov} setFov={setFov}
+            showFps={showFps} setShowFps={setShowFps}
+            showMinimap={showMinimap} setShowMinimap={setShowMinimap}
+          />
         </>
       )}
 
@@ -916,7 +1199,12 @@ export default function HUD() {
       {isPaused && showSettings && (
         <>
           <div onClick={()=>{ setShowSettings(false) }} style={{ position:'fixed', inset:0, zIndex:2199, background:'rgba(0,0,0,0.5)' }}/>
-          <SettingsPanel quality={quality} setQuality={setQuality} fps={fps} onClose={()=>setShowSettings(false)}/>
+          <SettingsPanel quality={quality} setQuality={setQuality} fps={fps} onClose={()=>setShowSettings(false)}
+            sensitivity={sensitivity} setSensitivity={setSensitivity}
+            fov={fov} setFov={setFov}
+            showFps={showFps} setShowFps={setShowFps}
+            showMinimap={showMinimap} setShowMinimap={setShowMinimap}
+          />
         </>
       )}
 
@@ -944,7 +1232,7 @@ export default function HUD() {
 
       {/* ── Chat / Roleplay command bar (top center) ────────────────────────── */}
       {!showFullMap && (
-        <ChatBar isPaused={isPaused} />
+        <ChatBar isPaused={isPaused} isAdmin={isAdmin} onOpenAdmin={()=>setShowAdminMenu(true)} />
       )}
 
       {/* ── GPS Arrow (camera-relative bearing to active waypoint) ─────────── */}
@@ -968,6 +1256,7 @@ export default function HUD() {
           border:'2px solid rgba(255,255,255,0.18)',
           borderRadius:'50%', overflow:'hidden',
           boxShadow:'0 0 0 1px rgba(0,255,170,0.25), 0 4px 20px rgba(0,0,0,0.7)',
+          display: showMinimap ? 'block' : 'none',
         }}>
           {[-120,-80,-40,0,40,80,120].map(r=>(
             <div key={`mv${r}`} style={{ position:'absolute', left:toMapX(r)-0.5, top:0, width:1, height:MAP_SIZE, background:'rgba(255,255,255,0.05)' }}/>
@@ -1105,9 +1394,13 @@ export default function HUD() {
           {/* Quality + FPS */}
           <div style={panel({ padding:'6px 12px', display:'flex', alignItems:'center', gap:7 })}>
             <span style={{ color:qColor, fontSize:9, letterSpacing:1 }}>{QUALITY_LABELS[quality]}</span>
-            <span style={{ color:'#333', fontSize:9 }}>|</span>
-            <span style={{ color:fpsColor(fps), fontSize:11, fontWeight:'bold' }}>{fps > 0 ? fps : '—'}</span>
-            <span style={{ color:'#444', fontSize:9 }}>FPS</span>
+            {showFps && (
+              <>
+                <span style={{ color:'#333', fontSize:9 }}>|</span>
+                <span style={{ color:fpsColor(fps), fontSize:11, fontWeight:'bold' }}>{fps > 0 ? fps : '—'}</span>
+                <span style={{ color:'#444', fontSize:9 }}>FPS</span>
+              </>
+            )}
           </div>
           {/* Admin badge */}
           {isAdmin && (

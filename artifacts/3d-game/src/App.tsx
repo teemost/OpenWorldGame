@@ -43,6 +43,18 @@ function QualityApplier() {
   return null
 }
 
+function FOVApplier() {
+  const fov = useGameStore(s => s.fov)
+  const { camera } = useThree()
+  useEffect(() => {
+    if (camera instanceof THREE.PerspectiveCamera) {
+      camera.fov = fov
+      camera.updateProjectionMatrix()
+    }
+  }, [fov, camera])
+  return null
+}
+
 class ErrorBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
   { hasError: boolean }
@@ -201,6 +213,7 @@ function Game() {
                 }}
               >
                 <QualityApplier />
+                <FOVApplier />
                 <GameScene />
               </Canvas>
             </KeyboardControls>
