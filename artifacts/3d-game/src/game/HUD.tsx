@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useGameStore, GraphicsQuality, ShopType } from '../store/useGameStore'
+import { useGameStore, GraphicsQuality, ShopType, InventoryItem } from '../store/useGameStore'
 import { useAuthStore } from '../auth/useAuthStore'
 import { GAS_STATIONS, ENTERABLE_HOUSES, SHOPS } from './cityData'
 import { gameShared } from './gameShared'
@@ -379,9 +379,229 @@ function AdminChatMenu({ onClose }: { onClose: () => void }) {
   )
 }
 
+// ─── Inventory Overlay ─────────────────────────────────────────────────────────
+const ITEM_TYPE_COLOR: Record<string, string> = {
+  weapon: '#ff6633', ammo: '#ffcc00', consumable: '#44cc88', equipment: '#4488ff',
+}
+const ITEM_TYPE_LABEL: Record<string, string> = {
+  weapon: 'WEAPON', ammo: 'AMMO', consumable: 'ITEM', equipment: 'GEAR',
+}
+
+function InventoryOverlay({ inventory, ammo, health, armor, money, onUse, onRemove, onClose }: {
+  inventory: InventoryItem[]
+  ammo: number; health: number; armor: number; money: number
+  onUse: (id: string) => void
+  onRemove: (id: string) => void
+  onClose: () => void
+}) {
+  const [selected, setSelected] = useState<InventoryItem | null>(null)
+  const [filter, setFilter] = useState<string>('all')
+
+  const categories = ['all', 'weapon', 'ammo', 'consumable', 'equipment']
+  const filtered = filter === 'all' ? inventory : inventory.filter(i => i.type === filter)
+
+  const GRID_SLOTS = 20
+  const slots = Array.from({ length: GRID_SLOTS }, (_, i) => filtered[i] ?? null)
+
+  const canUse = (item: InventoryItem) =>
+    (item.type === 'consumable') ||
+    (item.type === 'equipment' && item.id === 'id_card')
+
+  return (
+    <div onClick={onClose} style={{
+      position:'fixed', inset:0, zIndex:2100,
+      background:'rgba(0,0,0,0.88)', backdropFilter:'blur(6px)',
+      display:'flex', alignItems:'center', justifyContent:'center',
+    }}>
+      <div onClick={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()}
+        style={{
+          background:'rgba(4,8,18,0.98)', border:'1px solid rgba(0,180,255,0.2)',
+          borderRadius:18, padding:'28px 32px', width:680, maxWidth:'96vw',
+          fontFamily:'monospace', maxHeight:'90vh', display:'flex', flexDirection:'column',
+          boxShadow:'0 0 80px rgba(0,120,255,0.12), 0 20px 60px rgba(0,0,0,0.9)',
+        }}>
+
+        {/* Header */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:18 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <span style={{ fontSize:20 }}>🎒</span>
+            <div>
+              <div style={{ color:'#00aaff', fontSize:15, fontWeight:'bold', letterSpacing:3 }}>INVENTORY</div>
+              <div style={{ color:'#333', fontSize:8, letterSpacing:2 }}>{inventory.length} ITEM TYPES</div>
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <div style={{ display:'flex', gap:8, fontSize:11, color:'#555' }}>
+              <span>❤️ <span style={{ color:'#44cc44' }}>{Math.ceil(health)}</span></span>
+              <span>🛡 <span style={{ color:'#4488ff' }}>{Math.ceil(armor)}</span></span>
+              <span>🔫 <span style={{ color:'#ffaa33' }}>{ammo}</span></span>
+              <span>💰 <span style={{ color:'#44ff88' }}>${money.toLocaleString()}</span></span>
+            </div>
+            <button type="button" onClick={onClose} onPointerDown={e=>e.stopPropagation()}
+              style={{
+                background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)',
+                color:'#888', borderRadius:6, padding:'4px 12px', cursor:'pointer',
+                fontSize:12, fontFamily:'monospace', transition:'all 0.12s',
+              }}
+              onMouseEnter={e=>{e.currentTarget.style.color='#ccc'}}
+              onMouseLeave={e=>{e.currentTarget.style.color='#888'}}
+            >✕ CLOSE</button>
+          </div>
+        </div>
+
+        {/* Category filter */}
+        <div style={{ display:'flex', gap:6, marginBottom:16 }}>
+          {categories.map(cat => (
+            <button key={cat} type="button"
+              onClick={e=>{ e.stopPropagation(); setFilter(cat); setSelected(null) }}
+              onPointerDown={e=>e.stopPropagation()}
+              style={{
+                padding:'4px 14px', borderRadius:20, fontSize:9, fontFamily:'monospace',
+                letterSpacing:1, cursor:'pointer', transition:'all 0.12s',
+                border: filter === cat
+                  ? `1px solid ${cat === 'all' ? '#00aaff' : ITEM_TYPE_COLOR[cat]}88`
+                  : '1px solid rgba(255,255,255,0.08)',
+                background: filter === cat
+                  ? `${cat === 'all' ? '#00aaff' : ITEM_TYPE_COLOR[cat]}18`
+                  : 'rgba(255,255,255,0.03)',
+                color: filter === cat
+                  ? (cat === 'all' ? '#00aaff' : ITEM_TYPE_COLOR[cat])
+                  : '#444',
+              }}
+            >{cat === 'all' ? '⊞ ALL' : (ITEM_TYPE_LABEL[cat] ?? cat.toUpperCase())}</button>
+          ))}
+        </div>
+
+        <div style={{ display:'flex', gap:20, flex:1, minHeight:0 }}>
+          {/* Grid */}
+          <div style={{ flex:1 }}>
+            <div style={{
+              display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:8,
+            }}>
+              {slots.map((item, idx) => {
+                const isSelected = item && selected?.id === item.id
+                const typeColor = item ? ITEM_TYPE_COLOR[item.type] : 'transparent'
+                return (
+                  <div key={idx}
+                    onClick={e=>{ e.stopPropagation(); if (item) setSelected(item) }}
+                    onPointerDown={e=>e.stopPropagation()}
+                    style={{
+                      width:'100%', aspectRatio:'1',
+                      background: item
+                        ? (isSelected ? `${typeColor}22` : 'rgba(255,255,255,0.04)')
+                        : 'rgba(255,255,255,0.015)',
+                      border: isSelected
+                        ? `2px solid ${typeColor}88`
+                        : item
+                          ? `1px solid ${typeColor}33`
+                          : '1px solid rgba(255,255,255,0.04)',
+                      borderRadius:10,
+                      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                      cursor: item ? 'pointer' : 'default',
+                      transition:'all 0.12s',
+                      position:'relative',
+                      padding:6,
+                    }}
+                  >
+                    {item ? (
+                      <>
+                        <div style={{ fontSize:24, lineHeight:1, marginBottom:4 }}>{item.icon}</div>
+                        <div style={{ color:'#ccc', fontSize:8, textAlign:'center', letterSpacing:0.3, lineHeight:1.2 }}>
+                          {item.name.length > 10 ? item.name.slice(0,10)+'…' : item.name}
+                        </div>
+                        {item.stackable && (
+                          <div style={{
+                            position:'absolute', top:4, right:6,
+                            color: typeColor, fontSize:9, fontWeight:'bold',
+                          }}>×{item.quantity}</div>
+                        )}
+                        <div style={{
+                          position:'absolute', bottom:3, left:3,
+                          background:`${typeColor}33`, borderRadius:3,
+                          padding:'1px 4px', fontSize:7, color:typeColor, letterSpacing:0.5,
+                        }}>{ITEM_TYPE_LABEL[item.type]}</div>
+                      </>
+                    ) : (
+                      <div style={{ color:'rgba(255,255,255,0.04)', fontSize:18 }}>□</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Detail panel */}
+          <div style={{
+            width:190, flexShrink:0,
+            background:'rgba(255,255,255,0.025)', borderRadius:12,
+            border:'1px solid rgba(255,255,255,0.07)',
+            padding:'16px 14px', display:'flex', flexDirection:'column',
+          }}>
+            {selected ? (
+              <>
+                <div style={{ textAlign:'center', fontSize:40, marginBottom:10 }}>{selected.icon}</div>
+                <div style={{
+                  display:'inline-block', alignSelf:'center',
+                  background:`${ITEM_TYPE_COLOR[selected.type]}22`,
+                  border:`1px solid ${ITEM_TYPE_COLOR[selected.type]}44`,
+                  borderRadius:4, padding:'2px 10px', fontSize:8,
+                  color:ITEM_TYPE_COLOR[selected.type], letterSpacing:2, marginBottom:8,
+                }}>{ITEM_TYPE_LABEL[selected.type]}</div>
+                <div style={{ color:'#eee', fontSize:13, fontWeight:'bold', textAlign:'center', marginBottom:6 }}>
+                  {selected.name}
+                </div>
+                <div style={{ color:'#555', fontSize:10, textAlign:'center', lineHeight:1.5, marginBottom:16 }}>
+                  {selected.description}
+                </div>
+                {selected.stackable && (
+                  <div style={{ color:'#888', fontSize:10, textAlign:'center', marginBottom:12 }}>
+                    Qty: <span style={{ color:'#fff', fontWeight:'bold' }}>{selected.quantity}</span>
+                  </div>
+                )}
+                <div style={{ marginTop:'auto', display:'flex', flexDirection:'column', gap:7 }}>
+                  {canUse(selected) && (
+                    <button type="button"
+                      onClick={e=>{ e.stopPropagation(); onUse(selected.id); if (selected.quantity <= 1) setSelected(null) }}
+                      onPointerDown={e=>e.stopPropagation()}
+                      style={{
+                        padding:'9px', borderRadius:8, fontSize:11, fontFamily:'monospace',
+                        letterSpacing:1, cursor:'pointer', transition:'all 0.12s',
+                        border:`1px solid ${ITEM_TYPE_COLOR[selected.type]}66`,
+                        background:`${ITEM_TYPE_COLOR[selected.type]}22`,
+                        color:ITEM_TYPE_COLOR[selected.type], fontWeight:'bold',
+                      }}>⚡ USE ITEM</button>
+                  )}
+                  <button type="button"
+                    onClick={e=>{ e.stopPropagation(); onRemove(selected.id); setSelected(null) }}
+                    onPointerDown={e=>e.stopPropagation()}
+                    style={{
+                      padding:'7px', borderRadius:8, fontSize:10, fontFamily:'monospace',
+                      letterSpacing:1, cursor:'pointer', transition:'all 0.12s',
+                      border:'1px solid rgba(255,80,80,0.3)',
+                      background:'rgba(255,40,40,0.07)',
+                      color:'rgba(255,100,100,0.7)',
+                    }}>🗑 DROP</button>
+                </div>
+              </>
+            ) : (
+              <div style={{ color:'#2a2a2a', fontSize:11, textAlign:'center', marginTop:'auto', marginBottom:'auto', lineHeight:1.8 }}>
+                Select an item<br/>to inspect
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ color:'#222', fontSize:9, textAlign:'center', marginTop:14, letterSpacing:1 }}>
+          CLICK OUTSIDE TO CLOSE · USE CONSUMABLES FOR INSTANT EFFECTS
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Game Menu / Pause ─────────────────────────────────────────────────────────
-function GameMenu({ onResume, onFullMap, onSettings, onLogout, username, score, money, level }: {
-  onResume: () => void; onFullMap: () => void; onSettings: () => void; onLogout: () => void
+function GameMenu({ onResume, onFullMap, onInventory, onSettings, onLogout, username, score, money, level }: {
+  onResume: () => void; onFullMap: () => void; onInventory: () => void; onSettings: () => void; onLogout: () => void
   username: string; score: number; money: number; level: number
 }) {
   const [hoveredBtn, setHoveredBtn] = useState<string | null>(null)
@@ -426,10 +646,11 @@ function GameMenu({ onResume, onFullMap, onSettings, onLogout, username, score, 
 
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           {[
-            { label:'▶  RESUME GAME',   action: onResume,   color:'#00cc66', icon:'▶' },
-            { label:'🗺  CITY MAP',      action: onFullMap,  color:'#00aaff', icon:'🗺' },
-            { label:'⚙  SETTINGS',      action: onSettings, color:'#ffcc00', icon:'⚙' },
-            { label:'🚪 EXIT TO MENU',   action: onLogout,   color:'#ff4444', icon:'🚪' },
+            { label:'▶  RESUME GAME',   action: onResume,    color:'#00cc66' },
+            { label:'🗺  CITY MAP',      action: onFullMap,   color:'#00aaff' },
+            { label:'🎒 INVENTORY',      action: onInventory, color:'#aa88ff' },
+            { label:'⚙  SETTINGS',      action: onSettings,  color:'#ffcc00' },
+            { label:'🚪 EXIT TO MENU',   action: onLogout,    color:'#ff4444' },
           ].map(btn => (
             <button key={btn.label} type="button"
               onClick={e=>{ e.stopPropagation(); btn.action() }}
@@ -1122,6 +1343,7 @@ export default function HUD() {
     waypointX, waypointZ, setWaypoint, clearWaypoint,
     sensitivity, setSensitivity, fov, setFov,
     showFps, setShowFps, showMinimap, setShowMinimap,
+    inventory, showInventory, setShowInventory, useInventoryItem, removeInventoryItem, addInventoryItem,
   } = useGameStore()
   const { currentUser, logout } = useAuthStore()
   const [showSettings, setShowSettings] = useState(false)
@@ -1161,6 +1383,20 @@ export default function HUD() {
     else if (item.id === 'med_armor') { setHealth(Math.min(100, health + 50)); addArmor(30) }
     else if (item.id === 'armor50')    addArmor(50)
     else if (item.id === 'armor100')   addArmor(100)
+
+    const invMap: Record<string, InventoryItem> = {
+      ammo30:    { id:'inv_ammo30',   name:'Pistol Clip',   icon:'🟡', quantity:1, type:'ammo',      description:'+30 ammo. Standard pistol magazine.', stackable:true },
+      ammo60:    { id:'inv_ammo60',   name:'Rifle Mag',     icon:'🟠', quantity:1, type:'ammo',      description:'+60 ammo. Rifle magazine.', stackable:true },
+      ammo150:   { id:'inv_ammo150',  name:'Full Arsenal',  icon:'🔴', quantity:1, type:'ammo',      description:'+150 ammo. Full supply crate.', stackable:true },
+      ammo200:   { id:'inv_ammo200',  name:'Ammo Crate',   icon:'📦', quantity:1, type:'ammo',      description:'+200 ammo. Heavy crate.', stackable:true },
+      hp30:      { id:'inv_hp30',     name:'Bandages',      icon:'🩹', quantity:1, type:'consumable', description:'+30 HP when used.', stackable:true, useValue:30 },
+      hp70:      { id:'inv_hp70',     name:'Med Pack',      icon:'💊', quantity:1, type:'consumable', description:'+70 HP when used.', stackable:true, useValue:70 },
+      hp100:     { id:'inv_hp100',    name:'Full Heal',     icon:'💉', quantity:1, type:'consumable', description:'Full HP restore when used.', stackable:true, useValue:100 },
+      armor50:   { id:'inv_armor50',  name:'Light Armor',   icon:'🦺', quantity:1, type:'equipment',  description:'+50 armor protection.', stackable:false },
+      armor100:  { id:'inv_armor100', name:'Heavy Armor',   icon:'🛡', quantity:1, type:'equipment',  description:'+100 full body armor.', stackable:false },
+    }
+    const invItem = invMap[item.id]
+    if (invItem) addInventoryItem(invItem)
   }
 
   // ── Game Over ──────────────────────────────────────────────────────────────
@@ -1220,10 +1456,11 @@ export default function HUD() {
         </>
       )}
 
-      {isPaused && !showFullMap && !showSettings && (
+      {isPaused && !showFullMap && !showSettings && !showInventory && (
         <GameMenu
           onResume={()=>setPaused(false)}
           onFullMap={()=>setShowFullMap(true)}
+          onInventory={()=>{ setShowInventory(true); setPaused(false) }}
           onSettings={()=>{ setShowSettings(true); setPaused(false) }}
           onLogout={logout}
           username={username}
@@ -1267,6 +1504,19 @@ export default function HUD() {
         />
       )}
 
+      {showInventory && (
+        <InventoryOverlay
+          inventory={inventory}
+          ammo={ammo}
+          health={health}
+          armor={armor}
+          money={money}
+          onUse={useInventoryItem}
+          onRemove={(id) => removeInventoryItem(id)}
+          onClose={() => setShowInventory(false)}
+        />
+      )}
+
       {/* ── Chat / Roleplay command bar (top center) ────────────────────────── */}
       {!showFullMap && (
         <ChatBar isPaused={isPaused} isAdmin={isAdmin} onOpenAdmin={()=>setShowAdminMenu(true)} />
@@ -1287,7 +1537,7 @@ export default function HUD() {
 
         {/* ── TOP-LEFT: Minimap ────────────────────────────────────────────── */}
         {showMinimap && (
-        <div style={{ position:'absolute', top:16, left:16 }}>
+        <div style={{ position:'absolute', top:16, left:16, pointerEvents:'auto' }}>
 
           {/* Compass labels — outside the circle */}
           {[
@@ -1305,15 +1555,19 @@ export default function HUD() {
             }}>{c.label}</div>
           ))}
 
-          {/* Map circle */}
-          <div style={{
-            position:'relative',
-            width:MAP_SIZE, height:MAP_SIZE,
-            background:'rgba(4,8,14,0.88)',
-            border:'2px solid rgba(255,255,255,0.2)',
-            borderRadius:'50%', overflow:'hidden',
-            boxShadow:'0 0 0 1px rgba(0,255,170,0.2), 0 0 28px rgba(0,255,170,0.06), 0 6px 24px rgba(0,0,0,0.8)',
-          }}>
+          {/* Map circle — clickable to expand */}
+          <div
+            onClick={()=>setShowFullMap(true)}
+            title="Click to open full map"
+            style={{
+              position:'relative',
+              width:MAP_SIZE, height:MAP_SIZE,
+              background:'rgba(4,8,14,0.88)',
+              border:'2px solid rgba(255,255,255,0.2)',
+              borderRadius:'50%', overflow:'hidden',
+              boxShadow:'0 0 0 1px rgba(0,255,170,0.2), 0 0 28px rgba(0,255,170,0.06), 0 6px 24px rgba(0,0,0,0.8)',
+              cursor:'pointer',
+            }}>
 
             {/* Zone fills — city districts */}
             {[
@@ -1382,6 +1636,27 @@ export default function HUD() {
                 background:dot.color, borderRadius:'50%',
               }}/>
             ))}
+
+            {/* Waypoint trace line — from player to waypoint */}
+            {waypointX !== null && waypointZ !== null && (
+              <svg style={{
+                position:'absolute', inset:0, width:'100%', height:'100%',
+                zIndex:10, pointerEvents:'none', overflow:'hidden',
+              }}>
+                <line
+                  x1={toMapX(playerX)} y1={toMapZ(playerZ)}
+                  x2={toMapX(waypointX)} y2={toMapZ(waypointZ)}
+                  stroke="#ffdd00" strokeWidth="1.5"
+                  strokeDasharray="5,4" opacity="0.75"
+                  strokeLinecap="round"
+                />
+                <circle
+                  cx={toMapX(waypointX)} cy={toMapZ(waypointZ)}
+                  r="5" fill="none"
+                  stroke="#ffdd00" strokeWidth="1.5" opacity="0.6"
+                />
+              </svg>
+            )}
 
             {/* Waypoint marker */}
             {waypointX !== null && waypointZ !== null && (
@@ -1455,7 +1730,30 @@ export default function HUD() {
                 <span style={{ color:'#555', fontSize:8, fontFamily:'monospace' }}>{p.label}</span>
               </div>
             ))}
+            <div style={{ marginLeft:'auto', color:'#333', fontSize:7, letterSpacing:1, fontFamily:'monospace', whiteSpace:'nowrap' }}>
+              TAP MAP ⬆
+            </div>
           </div>
+
+          {/* Inventory quick button below minimap */}
+          <button
+            type="button"
+            onClick={e=>{ e.stopPropagation(); setShowInventory(true) }}
+            onPointerDown={e=>e.stopPropagation()}
+            style={{
+              marginTop:5, width:'100%',
+              padding:'5px 0', fontSize:10, fontFamily:'monospace',
+              background:'rgba(100,60,255,0.15)', color:'#aa88ff',
+              border:'1px solid rgba(150,100,255,0.25)', borderRadius:6,
+              cursor:'pointer', letterSpacing:1, transition:'all 0.12s',
+              display:'flex', alignItems:'center', justifyContent:'center', gap:5,
+              touchAction:'manipulation',
+            }}
+            onMouseEnter={e=>{ e.currentTarget.style.background='rgba(120,80,255,0.25)'; e.currentTarget.style.color='#cc99ff' }}
+            onMouseLeave={e=>{ e.currentTarget.style.background='rgba(100,60,255,0.15)'; e.currentTarget.style.color='#aa88ff' }}
+          >
+            🎒 <span>BAG ({inventory.length})</span>
+          </button>
         </div>
         )}
 

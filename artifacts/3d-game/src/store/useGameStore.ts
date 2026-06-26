@@ -10,6 +10,25 @@ interface MinimapDot {
 export type GraphicsQuality = 'low' | 'medium' | 'high'
 export type ShopType = 'ammo' | 'medic' | 'weapons'
 
+export interface InventoryItem {
+  id: string
+  name: string
+  icon: string
+  quantity: number
+  type: 'weapon' | 'ammo' | 'consumable' | 'equipment'
+  description: string
+  stackable: boolean
+  useValue?: number
+}
+
+const DEFAULT_INVENTORY: InventoryItem[] = [
+  { id: 'pistol',    name: 'Glock 17',      icon: '🔫', quantity: 1, type: 'weapon',    description: 'Standard 9mm sidearm. 15-round capacity.', stackable: false },
+  { id: 'knife',     name: 'Combat Knife',  icon: '🔪', quantity: 1, type: 'weapon',    description: 'Silent melee weapon. No ammo needed.', stackable: false },
+  { id: 'bandages',  name: 'Bandages',      icon: '🩹', quantity: 2, type: 'consumable', description: 'Restores 20 HP. Quick field patch.', stackable: true, useValue: 20 },
+  { id: 'radio',     name: 'Police Scanner',icon: '📻', quantity: 1, type: 'equipment',  description: 'Track police movements. Reduces wanted surprise.', stackable: false },
+  { id: 'id_card',   name: 'Fake ID',       icon: '🪪', quantity: 1, type: 'equipment',  description: 'Reduces wanted level by 1 when used.', stackable: false, useValue: 1 },
+]
+
 interface GameStore {
   health: number
   money: number
@@ -42,6 +61,8 @@ interface GameStore {
   showFps: boolean
   showMinimap: boolean
   godMode: boolean
+  inventory: InventoryItem[]
+  showInventory: boolean
 
   setHealth: (h: number) => void
   takeDamage: (amount: number) => void
@@ -81,6 +102,10 @@ interface GameStore {
   setShowFps: (v: boolean) => void
   setShowMinimap: (v: boolean) => void
   setGodMode: (v: boolean) => void
+  addInventoryItem: (item: InventoryItem) => void
+  removeInventoryItem: (id: string, qty?: number) => void
+  useInventoryItem: (id: string) => void
+  setShowInventory: (v: boolean) => void
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -115,6 +140,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   showFps: true,
   showMinimap: true,
   godMode: false,
+  inventory: DEFAULT_INVENTORY,
+  showInventory: false,
 
   setHealth: (h) => set({ health: Math.max(0, Math.min(100, h)) }),
   takeDamage: (amount) =>
@@ -175,6 +202,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       waypointX: null,
       waypointZ: null,
       godMode: false,
+      showInventory: false,
+      inventory: DEFAULT_INVENTORY,
     }),
   initFromSettings: (health, money, ammo) =>
     set({ health, money, ammo }),
@@ -210,4 +239,51 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setShowFps: (v) => set({ showFps: v }),
   setShowMinimap: (v) => set({ showMinimap: v }),
   setGodMode: (v) => set({ godMode: v }),
+
+  addInventoryItem: (item) =>
+    set((s) => {
+      const existing = s.inventory.find(i => i.id === item.id)
+      if (existing && item.stackable) {
+        return {
+          inventory: s.inventory.map(i =>
+            i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i
+          ),
+        }
+      }
+      if (existing) return {}
+      return { inventory: [...s.inventory, item] }
+    }),
+
+  removeInventoryItem: (id, qty = 1) =>
+    set((s) => {
+      const item = s.inventory.find(i => i.id === id)
+      if (!item) return {}
+      if (item.quantity <= qty) {
+        return { inventory: s.inventory.filter(i => i.id !== id) }
+      }
+      return {
+        inventory: s.inventory.map(i =>
+          i.id === id ? { ...i, quantity: i.quantity - qty } : i
+        ),
+      }
+    }),
+
+  useInventoryItem: (id) => {
+    const { inventory, health, wantedLevel } = get()
+    const item = inventory.find(i => i.id === id)
+    if (!item || item.quantity <= 0) return
+    if (item.type === 'consumable') {
+      if (item.useValue) {
+        get().setHealth(Math.min(100, health + item.useValue))
+      }
+      get().removeInventoryItem(id, 1)
+    } else if (item.type === 'equipment' && item.id === 'id_card') {
+      if (wantedLevel > 0) {
+        get().decrementWanted()
+        get().removeInventoryItem(id, 1)
+      }
+    }
+  },
+
+  setShowInventory: (v) => set({ showInventory: v }),
 }))

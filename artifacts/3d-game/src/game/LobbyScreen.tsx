@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useAuthStore } from '../auth/useAuthStore'
 
 const TIPS = [
@@ -24,6 +24,151 @@ const DISTRICTS = [
   { name: 'East Hills', icon: '⛰️', desc: 'Upscale hill mansions' },
   { name: 'West Docks', icon: '🚢', desc: 'Shipping warehouses' },
 ]
+
+function CharacterPreview({ color, skinTone, username, level }: {
+  color: string; skinTone?: string; username: string; level: number
+}) {
+  const bobRef = useRef<HTMLDivElement>(null)
+  const [bobFrame, setBobFrame] = useState(0)
+
+  useEffect(() => {
+    const id = setInterval(() => setBobFrame(f => (f + 1) % 60), 40)
+    return () => clearInterval(id)
+  }, [])
+
+  const bob = Math.sin(bobFrame * 0.21) * 3
+  const armSwingL = Math.sin(bobFrame * 0.21) * 14
+  const armSwingR = -armSwingL
+  const legSwingL = -armSwingL * 0.7
+  const legSwingR = armSwingL * 0.7
+  const skin = skinTone || '#e8b48a'
+
+  return (
+    <div ref={bobRef} style={{
+      position: 'relative',
+      width: 80, height: 150,
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      filter: `drop-shadow(0 0 18px ${color}66)`,
+      transform: `translateY(${bob}px)`,
+      transition: 'filter 0.3s',
+      flexShrink: 0,
+    }}>
+      {/* Head */}
+      <div style={{
+        width: 28, height: 28, borderRadius: '50%',
+        background: skin,
+        border: `2px solid ${color}88`,
+        boxShadow: `0 0 10px ${color}44`,
+        position: 'relative', zIndex: 3,
+      }}>
+        {/* Eyes */}
+        <div style={{ position:'absolute', top:8, left:5, width:5, height:5, borderRadius:'50%', background:'rgba(20,20,40,0.9)' }}/>
+        <div style={{ position:'absolute', top:8, right:5, width:5, height:5, borderRadius:'50%', background:'rgba(20,20,40,0.9)' }}/>
+        {/* Hair */}
+        <div style={{ position:'absolute', top:-4, left:1, right:1, height:10, borderRadius:'50% 50% 0 0', background: color, opacity:0.9 }}/>
+      </div>
+
+      {/* Neck */}
+      <div style={{ width:8, height:5, background:skin, zIndex:2 }} />
+
+      {/* Torso + arms row */}
+      <div style={{ position:'relative', width:42, height:38, zIndex:2 }}>
+        {/* Torso */}
+        <div style={{
+          position:'absolute', left:'50%', transform:'translateX(-50%)',
+          width:28, height:38, top:0,
+          background: `linear-gradient(160deg, ${color}, ${color}bb)`,
+          borderRadius:'5px 5px 4px 4px',
+          border:`1px solid ${color}55`,
+        }}>
+          {/* Badge/detail */}
+          <div style={{ position:'absolute', top:8, left:6, right:6, height:3, background:'rgba(255,255,255,0.15)', borderRadius:2 }}/>
+          <div style={{ position:'absolute', top:14, left:8, width:6, height:6, background:'rgba(255,255,255,0.1)', borderRadius:'50%' }}/>
+        </div>
+        {/* Left arm */}
+        <div style={{
+          position:'absolute', left:0, top:4,
+          width:8, height:28, borderRadius:4,
+          background:color, opacity:0.88,
+          transformOrigin:'top center',
+          transform:`rotate(${armSwingL}deg)`,
+          transition:'transform 0.05s',
+        }}/>
+        {/* Right arm */}
+        <div style={{
+          position:'absolute', right:0, top:4,
+          width:8, height:28, borderRadius:4,
+          background:color, opacity:0.88,
+          transformOrigin:'top center',
+          transform:`rotate(${armSwingR}deg)`,
+          transition:'transform 0.05s',
+        }}/>
+      </div>
+
+      {/* Waist belt */}
+      <div style={{ width:28, height:5, background:'rgba(0,0,0,0.5)', borderRadius:2, zIndex:2 }}/>
+
+      {/* Legs */}
+      <div style={{ position:'relative', width:32, height:40, zIndex:1 }}>
+        {/* Left leg */}
+        <div style={{
+          position:'absolute', left:2, top:0,
+          width:11, height:38, borderRadius:'2px 2px 4px 4px',
+          background:`${color}cc`,
+          transformOrigin:'top center',
+          transform:`rotate(${legSwingL}deg)`,
+          transition:'transform 0.05s',
+        }}/>
+        {/* Right leg */}
+        <div style={{
+          position:'absolute', right:2, top:0,
+          width:11, height:38, borderRadius:'2px 2px 4px 4px',
+          background:`${color}cc`,
+          transformOrigin:'top center',
+          transform:`rotate(${legSwingR}deg)`,
+          transition:'transform 0.05s',
+        }}/>
+        {/* Left shoe */}
+        <div style={{
+          position:'absolute', left:-1, bottom:0,
+          width:14, height:7, borderRadius:'2px 4px 4px 2px',
+          background:'#1a1a2e',
+          transformOrigin:'top center',
+          transform:`rotate(${legSwingL}deg)`,
+          transition:'transform 0.05s',
+        }}/>
+        {/* Right shoe */}
+        <div style={{
+          position:'absolute', right:-1, bottom:0,
+          width:14, height:7, borderRadius:'4px 2px 2px 4px',
+          background:'#1a1a2e',
+          transformOrigin:'top center',
+          transform:`rotate(${legSwingR}deg)`,
+          transition:'transform 0.05s',
+        }}/>
+      </div>
+
+      {/* Shadow */}
+      <div style={{
+        width:36, height:8, borderRadius:'50%',
+        background:'rgba(0,0,0,0.35)',
+        marginTop:4,
+        transform:`scaleX(${1 - Math.abs(bob) * 0.02})`,
+        filter:'blur(3px)',
+      }}/>
+
+      {/* Name tag */}
+      <div style={{
+        position:'absolute', bottom:-20, left:'50%', transform:'translateX(-50%)',
+        background:'rgba(0,0,0,0.7)', border:`1px solid ${color}44`,
+        borderRadius:4, padding:'2px 8px', whiteSpace:'nowrap',
+        color:'#fff', fontSize:9, letterSpacing:1, fontFamily:'monospace',
+      }}>
+        Lv{level} {username.slice(0, 8)}
+      </div>
+    </div>
+  )
+}
 
 interface Props {
   onEnter: () => void
@@ -180,34 +325,73 @@ export default function LobbyScreen({ onEnter }: Props) {
               backdropFilter: 'blur(8px)',
             }}>
               <div style={{ color: '#555', fontSize: 9, letterSpacing: 2, marginBottom: 12 }}>PLAYER</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+
+              {/* Character preview + info row */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 14 }}>
+                {/* Animated character */}
                 <div style={{
-                  width: 46, height: 46, borderRadius: '50%',
-                  background: currentUser.characterColor,
-                  border: '2px solid rgba(255,255,255,0.25)',
+                  background: 'rgba(0,0,0,0.4)', border: `1px solid ${currentUser.characterColor}33`,
+                  borderRadius: 10, padding: '12px 8px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 20, fontWeight: 'bold', color: 'rgba(0,0,0,0.6)',
-                  flexShrink: 0,
-                  boxShadow: `0 0 16px ${currentUser.characterColor}55`,
+                  minWidth: 80, minHeight: 140,
+                  boxShadow: `inset 0 0 20px rgba(0,0,0,0.5), 0 0 12px ${currentUser.characterColor}22`,
                 }}>
-                  {currentUser.username[0]?.toUpperCase()}
+                  <CharacterPreview
+                    color={currentUser.characterColor}
+                    skinTone={(currentUser as any).skinTone}
+                    username={currentUser.username}
+                    level={currentUser.level}
+                  />
                 </div>
-                <div>
-                  <div style={{ color: '#fff', fontSize: 15, fontWeight: 'bold' }}>
+
+                {/* Info */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: '#fff', fontSize: 15, fontWeight: 'bold', marginBottom: 3 }}>
                     {currentUser.role === 'admin' ? '👑 ' : ''}{currentUser.username}
                   </div>
-                  <div style={{ color: '#ff8844', fontSize: 11, marginTop: 2 }}>
+                  <div style={{ color: currentUser.characterColor, fontSize: 11, marginBottom: 10, fontWeight: 'bold' }}>
                     Level {currentUser.level}
+                  </div>
+
+                  {/* Character color badge */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <div style={{
+                      width: 12, height: 12, borderRadius: '50%',
+                      background: currentUser.characterColor,
+                      border: '1px solid rgba(255,255,255,0.3)',
+                      boxShadow: `0 0 6px ${currentUser.characterColor}88`,
+                    }}/>
+                    <span style={{ color: '#555', fontSize: 9, letterSpacing: 1 }}>
+                      {currentUser.role === 'admin' ? 'ADMINISTRATOR' : 'CIVILIAN'}
+                    </span>
+                  </div>
+
+                  {/* Stat mini-badges */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {[
+                      { icon: '🏆', label: 'SCORE', value: currentUser.totalScore.toLocaleString(), color: '#00ffaa' },
+                      { icon: '💰', label: 'CASH', value: `$${currentUser.totalMoney.toLocaleString()}`, color: '#44ff88' },
+                    ].map(s => (
+                      <div key={s.label} style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        background: 'rgba(255,255,255,0.04)', borderRadius: 5,
+                        padding: '5px 8px', border: '1px solid rgba(255,255,255,0.05)',
+                      }}>
+                        <span style={{ fontSize: 11 }}>{s.icon}</span>
+                        <span style={{ color: '#444', fontSize: 8, letterSpacing: 1, flex: 1 }}>{s.label}</span>
+                        <span style={{ color: s.color, fontSize: 12, fontWeight: 'bold' }}>{s.value}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
               {/* XP bar */}
-              <div style={{ marginBottom: 12 }}>
+              <div style={{ marginBottom: 4 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ color: '#444', fontSize: 8, letterSpacing: 2 }}>XP</span>
+                  <span style={{ color: '#444', fontSize: 8, letterSpacing: 2 }}>XP PROGRESS</span>
                   <span style={{ color: '#888', fontSize: 9 }}>{currentUser.totalScore % 1000} / 1000</span>
                 </div>
-                <div style={{ height: 5, background: '#111', borderRadius: 4 }}>
+                <div style={{ height: 6, background: '#111', borderRadius: 4, overflow: 'hidden' }}>
                   <div style={{
                     width: `${levelProgress}%`, height: '100%', borderRadius: 4,
                     background: 'linear-gradient(90deg, #ff6600, #ffaa00)',
@@ -215,20 +399,6 @@ export default function LobbyScreen({ onEnter }: Props) {
                     transition: 'width 0.5s',
                   }} />
                 </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
-                {[
-                  { label: 'SCORE', value: currentUser.totalScore.toLocaleString(), color: '#00ffaa' },
-                  { label: 'CASH', value: `$${currentUser.totalMoney.toLocaleString()}`, color: '#44ff88' },
-                ].map(item => (
-                  <div key={item.label} style={{
-                    background: 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '8px 10px', textAlign: 'center',
-                    border: '1px solid rgba(255,255,255,0.05)',
-                  }}>
-                    <div style={{ color: '#444', fontSize: 8, letterSpacing: 1, marginBottom: 3 }}>{item.label}</div>
-                    <div style={{ color: item.color, fontSize: 13, fontWeight: 'bold' }}>{item.value}</div>
-                  </div>
-                ))}
               </div>
             </div>
 
