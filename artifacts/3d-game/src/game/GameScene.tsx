@@ -18,6 +18,7 @@ import {
 } from './cityData'
 import { touchState } from './touchState'
 import { GasStation, ShopBuilding, EnterableHouse, InteriorRoom } from './WorldObjects'
+import { gameShared } from './gameShared'
 
 export enum Controls {
   forward = 'forward',
@@ -1600,16 +1601,43 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
       posRef.current.y = 0
       sharedPlayerPos.copy(posRef.current)
 
-      // Enter vehicle
+      // E key interactions: interior exit → house entry → shop → vehicle
       if (controls.enter && enterCooldown.current <= 0) {
         enterCooldown.current = 0.5
-        for (const [id, vRef] of vehicleRefs) {
-          if (!vRef.occupied && posRef.current.distanceTo(vRef.pos) < 4.5) {
-            vRef.occupied = true; sharedInVehicle.value = true
-            sharedVehicleId.value = id; setInVehicle(true)
-            posRef.current.copy(vRef.pos); posRef.current.y = 0.9
-            rotRef.current.value = vRef.rot
-            sharedPlayerPos.copy(posRef.current); break
+        if (sharedIsInInterior.value) {
+          // Exit house interior — only if near the exit door
+          const intX = 600 + interiorHouseIdx.value * 30
+          if (Math.sqrt((posRef.current.x - (intX - 6)) ** 2 + (posRef.current.z - 2.5) ** 2) < 3.5) {
+            sharedIsInInterior.value = false
+            exitHouse()
+            posRef.current.copy(interiorReturnPos)
+            posRef.current.y = 0.9
+            sharedPlayerPos.copy(posRef.current)
+          }
+        } else if (nearHouseIdxRef.current >= 0) {
+          // Enter house
+          const h = ENTERABLE_HOUSES[nearHouseIdxRef.current]
+          interiorHouseIdx.value = h.interiorIdx
+          interiorReturnPos.set(h.doorX, 0.9, h.doorZ)
+          sharedIsInInterior.value = true
+          enterHouse(h.id)
+          const intX = 600 + h.interiorIdx * 30
+          posRef.current.set(intX, 0.9, 2.5)
+          sharedPlayerPos.copy(posRef.current)
+        } else if (nearShopIdxRef.current >= 0) {
+          // Open shop
+          const s = SHOPS[nearShopIdxRef.current]
+          openStore(s.type)
+        } else {
+          // Enter vehicle
+          for (const [id, vRef] of vehicleRefs) {
+            if (!vRef.occupied && posRef.current.distanceTo(vRef.pos) < 4.5) {
+              vRef.occupied = true; sharedInVehicle.value = true
+              sharedVehicleId.value = id; setInVehicle(true)
+              posRef.current.copy(vRef.pos); posRef.current.y = 0.9
+              rotRef.current.value = vRef.rot
+              sharedPlayerPos.copy(posRef.current); break
+            }
           }
         }
       }
@@ -1881,6 +1909,9 @@ function MinimapCollector() {
     for(const[,p] of policeRefs) if(p.health>0) dots.push({x:p.pos.x,z:p.pos.z,color:'#4466ff',size:4})
     setMinimapDots(dots)
     setPlayerPos(sharedPlayerPos.x,sharedPlayerPos.z)
+    gameShared.cameraYaw = sharedCamYaw.value
+    gameShared.playerX   = sharedPlayerPos.x
+    gameShared.playerZ   = sharedPlayerPos.z
   })
   return null
 }

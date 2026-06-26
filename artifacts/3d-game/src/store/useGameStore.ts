@@ -35,6 +35,8 @@ interface GameStore {
   currentShopType: ShopType | null
   isInsideHouse: boolean
   currentHouseId: string | null
+  waypointX: number | null
+  waypointZ: number | null
 
   setHealth: (h: number) => void
   takeDamage: (amount: number) => void
@@ -67,6 +69,8 @@ interface GameStore {
   closeStore: () => void
   enterHouse: (id: string) => void
   exitHouse: () => void
+  setWaypoint: (x: number, z: number) => void
+  clearWaypoint: () => void
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -94,6 +98,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   currentShopType: null,
   isInsideHouse: false,
   currentHouseId: null,
+  waypointX: null,
+  waypointZ: null,
 
   setHealth: (h) => set({ health: Math.max(0, Math.min(100, h)) }),
   takeDamage: (amount) =>
@@ -147,6 +153,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isInsideHouse: false,
       currentHouseId: null,
       interactionPrompt: null,
+      waypointX: null,
+      waypointZ: null,
     }),
   initFromSettings: (health, money, ammo) =>
     set({ health, money, ammo }),
@@ -175,4 +183,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   closeStore: () => set({ showStore: false, currentShopType: null }),
   enterHouse: (id) => set({ isInsideHouse: true, currentHouseId: id }),
   exitHouse: () => set({ isInsideHouse: false, currentHouseId: null }),
+  setWaypoint: (x, z) => set({ waypointX: x, waypointZ: z }),
+  clearWaypoint: () => set({ waypointX: null, waypointZ: null }),
 }))

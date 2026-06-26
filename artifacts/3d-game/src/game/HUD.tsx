@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useGameStore, GraphicsQuality, ShopType } from '../store/useGameStore'
 import { useAuthStore } from '../auth/useAuthStore'
 import { GAS_STATIONS, ENTERABLE_HOUSES, SHOPS } from './cityData'
+import { gameShared } from './gameShared'
 
 const QUALITY_LABELS: Record<GraphicsQuality, string> = { low:'LOW', medium:'MED', high:'HIGH' }
 const QUALITY_COLORS: Record<GraphicsQuality, string> = { low:'#ff6633', medium:'#ffcc00', high:'#44ff88' }
@@ -204,13 +205,17 @@ function GameMenu({ onResume, onFullMap, onSettings, onLogout, username, score, 
 }
 
 // ─── Full Map Overlay ──────────────────────────────────────────────────────────
-function FullMapOverlay({ dots, playerX, playerZ, onClose }: {
+function FullMapOverlay({ dots, playerX, playerZ, onClose, waypointX, waypointZ, onSetWaypoint, onClearWaypoint }: {
   dots: Array<{x:number;z:number;color:string;size:number}>
   playerX: number; playerZ: number; onClose: () => void
+  waypointX: number | null; waypointZ: number | null
+  onSetWaypoint: (x: number, z: number) => void
+  onClearWaypoint: () => void
 }) {
   const MAP_SIZE = 500
   const WORLD_RANGE = 190
   const toMap = (v: number) => MAP_SIZE / 2 + (v / WORLD_RANGE) * (MAP_SIZE / 2)
+  const toWorld = (mapV: number) => (mapV - MAP_SIZE / 2) / (MAP_SIZE / 2) * WORLD_RANGE
 
   const DISTRICT_LABELS = [
     { label: 'DOWNTOWN', x: 0, z: 0, color: '#ff8844' },
@@ -220,6 +225,15 @@ function FullMapOverlay({ dots, playerX, playerZ, onClose }: {
     { label: 'WEST DOCKS', x: -150, z: 0, color: '#44ccaa' },
   ]
 
+  function handleMapClick(e: React.MouseEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const mapX = e.clientX - rect.left
+    const mapZ = e.clientY - rect.top
+    const worldX = toWorld(mapX)
+    const worldZ = toWorld(mapZ)
+    onSetWaypoint(worldX, worldZ)
+  }
+
   return (
     <div onClick={onClose} style={{
       position:'fixed', inset:0, zIndex:2100, background:'rgba(0,0,0,0.92)',
@@ -227,15 +241,29 @@ function FullMapOverlay({ dots, playerX, playerZ, onClose }: {
     }}>
       <div onClick={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()}
         style={{ position:'relative', fontFamily:'monospace' }}>
-        <div style={{ color:'#00ccff', fontSize:13, letterSpacing:4, marginBottom:10, textAlign:'center' }}>
-          🗺 CRIME CITY — FULL MAP
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+          <div style={{ color:'#00ccff', fontSize:13, letterSpacing:4 }}>
+            🗺 CRIME CITY — FULL MAP
+          </div>
+          {waypointX !== null && (
+            <button type="button" onClick={e=>{ e.stopPropagation(); onClearWaypoint() }}
+              style={{
+                background:'rgba(255,200,0,0.12)', border:'1px solid rgba(255,200,0,0.4)',
+                borderRadius:6, color:'#ffdd00', fontSize:10, fontFamily:'monospace',
+                padding:'3px 10px', cursor:'pointer', letterSpacing:1,
+                touchAction:'manipulation',
+              }}>✕ CLEAR WAYPOINT</button>
+          )}
         </div>
-        <div style={{
-          width:MAP_SIZE, height:MAP_SIZE, position:'relative',
-          background:'rgba(4,8,18,0.97)', border:'2px solid rgba(0,150,255,0.35)',
-          borderRadius:12, overflow:'hidden',
-          boxShadow:'0 0 40px rgba(0,100,255,0.15)',
-        }}>
+        <div
+          onClick={handleMapClick}
+          style={{
+            width:MAP_SIZE, height:MAP_SIZE, position:'relative',
+            background:'rgba(4,8,18,0.97)', border:'2px solid rgba(0,150,255,0.35)',
+            borderRadius:12, overflow:'hidden',
+            boxShadow:'0 0 40px rgba(0,100,255,0.15)',
+            cursor:'crosshair',
+          }}>
           {/* Background ground color */}
           <div style={{ position:'absolute', inset:0, background:'#0a1018' }} />
 
@@ -254,7 +282,6 @@ function FullMapOverlay({ dots, playerX, playerZ, onClose }: {
           {[-120,-80,-40,0,40,80,120].map(r=>(
             <div key={`rh${r}`} style={{ position:'absolute', left:0, top:toMap(r)-2, width:MAP_SIZE, height:5, background:'rgba(255,255,255,0.10)' }}/>
           ))}
-          {/* Outer ring roads at ±120 (already in above set) */}
 
           {/* District labels */}
           {DISTRICT_LABELS.map(d => (
@@ -271,6 +298,7 @@ function FullMapOverlay({ dots, playerX, playerZ, onClose }: {
             <div key={gs.id} title="Gas Station" style={{
               position:'absolute', left:toMap(gs.x)-10, top:toMap(gs.z)-10,
               width:20, height:20, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13,
+              pointerEvents:'none',
             }}>⛽</div>
           ))}
           {/* Shops */}
@@ -278,6 +306,7 @@ function FullMapOverlay({ dots, playerX, playerZ, onClose }: {
             <div key={s.id} title={s.label} style={{
               position:'absolute', left:toMap(s.x)-10, top:toMap(s.z)-10,
               width:20, height:20, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12,
+              pointerEvents:'none',
             }}>
               {s.type === 'ammo' ? '🔫' : s.type === 'medic' ? '💊' : '⚡'}
             </div>
@@ -287,6 +316,7 @@ function FullMapOverlay({ dots, playerX, playerZ, onClose }: {
             <div key={h.id} title={h.label} style={{
               position:'absolute', left:toMap(h.x)-7, top:toMap(h.z)-7,
               width:14, height:14, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10,
+              pointerEvents:'none',
             }}>🏠</div>
           ))}
 
@@ -298,20 +328,32 @@ function FullMapOverlay({ dots, playerX, playerZ, onClose }: {
               top:  toMap(dot.z) - dot.size * 0.5,
               width: dot.size, height: dot.size,
               background: dot.color, borderRadius:'50%', opacity:0.8,
+              pointerEvents:'none',
             }}/>
           ))}
           {/* Player marker */}
           <div style={{
             position:'absolute', left:toMap(playerX)-8, top:toMap(playerZ)-8,
             width:16, height:16, background:'#00ffaa', borderRadius:'50%',
-            border:'2px solid #fff', zIndex:10,
+            border:'2px solid #fff', zIndex:10, pointerEvents:'none',
             boxShadow:'0 0 10px rgba(0,255,170,0.8)',
           }}/>
+          {/* Waypoint marker on full map */}
+          {waypointX !== null && waypointZ !== null && (
+            <div style={{
+              position:'absolute',
+              left: toMap(waypointX) - 10, top: toMap(waypointZ) - 10,
+              width: 20, height: 20, zIndex: 12, pointerEvents: 'none',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize: 16,
+              filter: 'drop-shadow(0 0 6px rgba(255,220,0,1))',
+            }}>📍</div>
+          )}
           {/* Compass */}
-          <div style={{ position:'absolute', top:8, left:'50%', transform:'translateX(-50%)', color:'rgba(255,255,255,0.3)', fontSize:9, letterSpacing:2 }}>N</div>
-          <div style={{ position:'absolute', bottom:8, left:'50%', transform:'translateX(-50%)', color:'rgba(255,255,255,0.15)', fontSize:9, letterSpacing:2 }}>S</div>
-          <div style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.15)', fontSize:9 }}>W</div>
-          <div style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.15)', fontSize:9 }}>E</div>
+          <div style={{ position:'absolute', top:8, left:'50%', transform:'translateX(-50%)', color:'rgba(255,255,255,0.3)', fontSize:9, letterSpacing:2, pointerEvents:'none' }}>N</div>
+          <div style={{ position:'absolute', bottom:8, left:'50%', transform:'translateX(-50%)', color:'rgba(255,255,255,0.15)', fontSize:9, letterSpacing:2, pointerEvents:'none' }}>S</div>
+          <div style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.15)', fontSize:9, pointerEvents:'none' }}>W</div>
+          <div style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.15)', fontSize:9, pointerEvents:'none' }}>E</div>
         </div>
 
         {/* Legend */}
@@ -319,6 +361,7 @@ function FullMapOverlay({ dots, playerX, playerZ, onClose }: {
           {[
             ['⛽','Gas (8)'],['🔫','Ammo'],['💊','Pharmacy'],['⚡','Weapons'],
             ['🏠',`Houses (${ENTERABLE_HOUSES.length})`],['●','You'],
+            ['📍','Waypoint'],
           ].map(([ic,lb])=>(
             <span key={lb} style={{ display:'flex', alignItems:'center', gap:3 }}>
               <span style={{ fontSize: ic === '●' ? 8 : 11 }}>{ic}</span>
@@ -326,10 +369,70 @@ function FullMapOverlay({ dots, playerX, playerZ, onClose }: {
             </span>
           ))}
         </div>
-        <div style={{ textAlign:'center', marginTop:8, color:'#282828', fontSize:10, letterSpacing:2 }}>
-          CLICK ANYWHERE TO CLOSE
+        <div style={{ textAlign:'center', marginTop:6, color:'#333', fontSize:10, letterSpacing:1 }}>
+          TAP MAP TO SET WAYPOINT · CLICK OUTSIDE TO CLOSE
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── GPS Arrow ─────────────────────────────────────────────────────────────────
+function GPSArrow({ waypointX, waypointZ, onClear }: {
+  waypointX: number; waypointZ: number; onClear: () => void
+}) {
+  const arrowRef = useRef<HTMLDivElement>(null)
+  const distRef  = useRef<HTMLSpanElement>(null)
+  const rafRef   = useRef<number | undefined>(undefined)
+
+  useEffect(() => {
+    const tick = () => {
+      if (arrowRef.current && distRef.current) {
+        const px  = gameShared.playerX
+        const pz  = gameShared.playerZ
+        const dx  = waypointX - px
+        const dz  = waypointZ - pz
+        const dist = Math.sqrt(dx * dx + dz * dz)
+        const yaw  = gameShared.cameraYaw
+        const fwd  = -dx * Math.sin(yaw) - dz * Math.cos(yaw)
+        const rgt  =  dx * Math.cos(yaw) - dz * Math.sin(yaw)
+        const angle = Math.atan2(rgt, fwd)
+        arrowRef.current.style.transform = `rotate(${angle}rad)`
+        distRef.current.textContent = dist < 1000 ? `${Math.round(dist)}m` : `${(dist / 1000).toFixed(1)}km`
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  }, [waypointX, waypointZ])
+
+  return (
+    <div style={{
+      position:'fixed', left: 22, top: 172,
+      zIndex: 900, pointerEvents:'auto',
+      display:'flex', flexDirection:'column', alignItems:'center', gap: 2,
+      background:'rgba(0,0,0,0.65)', borderRadius: 10,
+      border:'1px solid rgba(255,210,0,0.35)',
+      padding:'6px 8px',
+      boxShadow:'0 0 12px rgba(255,210,0,0.2)',
+      width: 60,
+    }}>
+      <span style={{ color:'rgba(255,210,0,0.5)', fontSize:7, fontFamily:'monospace', letterSpacing:1 }}>GPS</span>
+      <div ref={arrowRef} style={{
+        fontSize: 22, lineHeight: 1, color:'#ffdd00',
+        filter:'drop-shadow(0 0 5px rgba(255,220,0,0.9))',
+        transformOrigin:'center',
+      }}>▲</div>
+      <span ref={distRef} style={{
+        color:'#ffdd00', fontSize:9, fontFamily:'monospace', fontWeight:'bold', letterSpacing:0.5,
+      }} />
+      <button type="button" onClick={onClear}
+        onPointerDown={e=>e.stopPropagation()}
+        style={{
+          marginTop:2, background:'transparent', border:'none',
+          color:'rgba(255,180,0,0.5)', fontSize:9, fontFamily:'monospace',
+          cursor:'pointer', padding:'1px 4px', touchAction:'manipulation',
+        }}>✕</button>
     </div>
   )
 }
@@ -718,6 +821,7 @@ export default function HUD() {
     interactionPrompt,
     showStore, currentShopType, closeStore,
     addAmmo, addFuel, addArmor, addMoney, setHealth,
+    waypointX, waypointZ, setWaypoint, clearWaypoint,
   } = useGameStore()
   const { currentUser, logout } = useAuthStore()
   const [showSettings, setShowSettings] = useState(false)
@@ -822,6 +926,10 @@ export default function HUD() {
           playerX={playerX}
           playerZ={playerZ}
           onClose={()=>{ setShowFullMap(false); setPaused(false) }}
+          waypointX={waypointX}
+          waypointZ={waypointZ}
+          onSetWaypoint={(x,z)=>{ setWaypoint(x,z); setShowFullMap(false); setPaused(false) }}
+          onClearWaypoint={clearWaypoint}
         />
       )}
 
@@ -837,6 +945,11 @@ export default function HUD() {
       {/* ── Chat / Roleplay command bar (top center) ────────────────────────── */}
       {!showFullMap && (
         <ChatBar isPaused={isPaused} />
+      )}
+
+      {/* ── GPS Arrow (camera-relative bearing to active waypoint) ─────────── */}
+      {!isPaused && !showFullMap && waypointX !== null && waypointZ !== null && (
+        <GPSArrow waypointX={waypointX} waypointZ={waypointZ} onClear={clearWaypoint} />
       )}
 
       {/* ── Prominent interaction button (ENTER/EXIT house, vehicle, refuel) ── */}
@@ -887,6 +1000,18 @@ export default function HUD() {
           ))}
           {/* Player dot */}
           <div style={{ position:'absolute', left:toMapX(playerX)-6, top:toMapZ(playerZ)-6, width:12, height:12, background:'#00ffaa', borderRadius:'50%', border:'2px solid #fff', zIndex:10, boxShadow:'0 0 6px rgba(0,255,170,0.8)' }}/>
+          {/* Waypoint marker on minimap */}
+          {waypointX !== null && waypointZ !== null && (
+            <div style={{
+              position:'absolute',
+              left: toMapX(waypointX) - 5, top: toMapZ(waypointZ) - 5,
+              width:10, height:10,
+              background:'#ffdd00', zIndex:11,
+              transform:'rotate(45deg)',
+              border:'1.5px solid #fff',
+              boxShadow:'0 0 5px rgba(255,220,0,0.9)',
+            }}/>
+          )}
           <div style={{ position:'absolute', top:4, left:'50%', transform:'translateX(-50%)', color:'rgba(255,255,255,0.35)', fontSize:9, fontFamily:'monospace', letterSpacing:1, pointerEvents:'none' }}>N</div>
         </div>
 
