@@ -1117,8 +1117,8 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
         nRef.moveTimer = 0
         nRef.dir += (npcId.charCodeAt(3) % 7 - 3) * 0.5
       }
-      nRef.pos.x = Math.max(-108, Math.min(108, nRef.pos.x + Math.sin(nRef.dir) * nRef.speed * delta))
-      nRef.pos.z = Math.max(-108, Math.min(108, nRef.pos.z + Math.cos(nRef.dir) * nRef.speed * delta))
+      nRef.pos.x = Math.max(-130, Math.min(130, nRef.pos.x + Math.sin(nRef.dir) * nRef.speed * delta))
+      nRef.pos.z = Math.max(-130, Math.min(130, nRef.pos.z + Math.cos(nRef.dir) * nRef.speed * delta))
       groupRef.current.position.set(nRef.pos.x, 0, nRef.pos.z)
       groupRef.current.rotation.y = nRef.dir
       return
@@ -1162,8 +1162,8 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
       }
     }
 
-    const nx = Math.max(-108, Math.min(108, nRef.pos.x + Math.sin(nRef.dir) * speed * delta))
-    const nz = Math.max(-108, Math.min(108, nRef.pos.z + Math.cos(nRef.dir) * speed * delta))
+    const nx = Math.max(-130, Math.min(130, nRef.pos.x + Math.sin(nRef.dir) * speed * delta))
+    const nz = Math.max(-130, Math.min(130, nRef.pos.z + Math.cos(nRef.dir) * speed * delta))
     if (!isInsideBuilding(nx, nz, 0.4)) { nRef.pos.x = nx; nRef.pos.z = nz }
     else nRef.dir += Math.PI * 0.5
 
@@ -1372,7 +1372,7 @@ function Bullet({ bullet, onExpire, onHitNPC, onHitPolice }: {
     bullet.age += delta
     if (bullet.age > 2.5) { onExpire(bullet.id); return }
     bullet.pos.addScaledVector(bullet.dir, 48 * delta)
-    if (Math.abs(bullet.pos.x) > 125 || Math.abs(bullet.pos.z) > 125) { onExpire(bullet.id); return }
+    if (Math.abs(bullet.pos.x) > 165 || Math.abs(bullet.pos.z) > 165) { onExpire(bullet.id); return }
     if (isInsideBuilding(bullet.pos.x, bullet.pos.z, 0.1)) { onExpire(bullet.id); return }
 
     if (bullet.owner === 'player') {
@@ -1458,7 +1458,8 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
 
       if (sharedIsInInterior.value) {
         const intX = 600 + interiorHouseIdx.value * 30
-        if (Math.sqrt((px - intX) ** 2 + pz ** 2) < 4) prompt = '[ E ]  Exit House'
+        // Exit door is on the left wall at (-6, 0, 2.5) in room-local space → (intX-6, 0, 2.5) world
+        if (Math.sqrt((px - (intX - 6)) ** 2 + (pz - 2.5) ** 2) < 3.5) prompt = '[ E ]  Exit House'
       } else if (sharedInVehicle.value) {
         for (let gi = 0; gi < GAS_STATIONS.length; gi++) {
           const gs = GAS_STATIONS[gi]
@@ -1541,8 +1542,8 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
 
       const dx = Math.sin(vRef.rot) * vRef.speed * delta
       const dz = Math.cos(vRef.rot) * vRef.speed * delta
-      const nx = Math.max(-108, Math.min(108, vRef.pos.x + dx))
-      const nz = Math.max(-108, Math.min(108, vRef.pos.z + dz))
+      const nx = Math.max(-155, Math.min(155, vRef.pos.x + dx))
+      const nz = Math.max(-155, Math.min(155, vRef.pos.z + dz))
       if (!isInsideBuilding(nx, nz, 1.6)) { vRef.pos.x = nx; vRef.pos.z = nz }
       else vRef.speed *= -0.3
 
@@ -1591,8 +1592,8 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
         rotRef.current.value = Math.atan2(moveX, moveZ) + Math.PI
       }
 
-      newX = Math.max(-108, Math.min(108, newX))
-      newZ = Math.max(-108, Math.min(108, newZ))
+      newX = Math.max(-155, Math.min(155, newX))
+      newZ = Math.max(-155, Math.min(155, newZ))
       const resolved = resolveCollision(posRef.current, newX, newZ, 0.55)
       posRef.current.x = resolved.x
       posRef.current.z = resolved.z

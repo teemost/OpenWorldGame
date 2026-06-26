@@ -57,7 +57,7 @@ export interface ShopData {
   label: string
 }
 
-// Pre-calculated city buildings (no Math.random in render)
+// ─── City Buildings ────────────────────────────────────────────────────────────
 export const CITY_BUILDINGS: BuildingData[] = [
   // Downtown skyscrapers (center)
   { id: 'b0', x: -8, z: -8, width: 12, depth: 12, height: 52, color: '#2a3a4a' },
@@ -145,34 +145,106 @@ export const CITY_BUILDINGS: BuildingData[] = [
   { id: 'sub5', x: 90, z: -55, width: 10, depth: 10, height: 4, color: '#aaccbb' },
   { id: 'sub6', x: 55, z: 90, width: 10, depth: 10, height: 5, color: '#bbaacc' },
   { id: 'sub7', x: -55, z: -90, width: 10, depth: 10, height: 5, color: '#ccaabb' },
+
+  // ── EXTENDED MAP: Harbor District (south, z > 130) ──────────────────────────
+  { id: 'har0', x: -30, z: 150, width: 24, depth: 18, height: 10, color: '#5a6a7a' },
+  { id: 'har1', x: 10, z: 155, width: 18, depth: 14, height: 8, color: '#6a7a8a' },
+  { id: 'har2', x: 45, z: 148, width: 20, depth: 16, height: 12, color: '#4a5a6a' },
+  { id: 'har3', x: -65, z: 148, width: 16, depth: 20, height: 7, color: '#7a8a6a' },
+  { id: 'har4', x: -15, z: 170, width: 30, depth: 12, height: 6, color: '#5a7a6a' },
+  { id: 'har5', x: 25, z: 168, width: 14, depth: 10, height: 5, color: '#6a5a7a' },
+
+  // ── EXTENDED MAP: Airport District (north, z < -130) ───────────────────────
+  { id: 'air0', x: 0, z: -155, width: 40, depth: 16, height: 8, color: '#ddd8c8' },
+  { id: 'air1', x: -50, z: -150, width: 18, depth: 12, height: 6, color: '#ccc8b8' },
+  { id: 'air2', x: 55, z: -150, width: 18, depth: 12, height: 6, color: '#ccc8b8' },
+  { id: 'air3', x: -20, z: -172, width: 60, depth: 8, height: 5, color: '#e8e0d0' },
+  { id: 'air4', x: 30, z: -165, width: 14, depth: 18, height: 10, color: '#d8d0c0' },
+
+  // ── EXTENDED MAP: East Hills (x > 130) ─────────────────────────────────────
+  { id: 'hil0', x: 148, z: -30, width: 14, depth: 14, height: 6, color: '#a08870' },
+  { id: 'hil1', x: 148, z: 10, width: 12, depth: 12, height: 5, color: '#907860' },
+  { id: 'hil2', x: 148, z: 50, width: 14, depth: 14, height: 7, color: '#a08870' },
+  { id: 'hil3', x: 165, z: -20, width: 10, depth: 10, height: 4, color: '#b09880' },
+  { id: 'hil4', x: 165, z: 30, width: 10, depth: 10, height: 4, color: '#b09880' },
+
+  // ── EXTENDED MAP: West Docks (x < -130) ────────────────────────────────────
+  { id: 'doc0', x: -148, z: -20, width: 20, depth: 14, height: 9, color: '#7a8888' },
+  { id: 'doc1', x: -148, z: 20, width: 18, depth: 12, height: 7, color: '#8a9898' },
+  { id: 'doc2', x: -148, z: -55, width: 16, depth: 16, height: 8, color: '#6a7878' },
+  { id: 'doc3', x: -165, z: 0, width: 22, depth: 18, height: 6, color: '#7a8898' },
+  { id: 'doc4', x: -165, z: 40, width: 14, depth: 10, height: 5, color: '#8a9888' },
+
+  // ── EXTENDED MAP: Residential Suburbs (corners, extended) ──────────────────
+  { id: 'res0', x: -140, z: 90, width: 10, depth: 10, height: 5, color: '#c8b8a8' },
+  { id: 'res1', x: -140, z: 110, width: 10, depth: 10, height: 4, color: '#d8c8b8' },
+  { id: 'res2', x: 140, z: 90, width: 10, depth: 10, height: 5, color: '#c8b8a8' },
+  { id: 'res3', x: 140, z: -90, width: 10, depth: 10, height: 5, color: '#d8c8b8' },
+  { id: 'res4', x: -90, z: -140, width: 10, depth: 10, height: 4, color: '#c8b8a8' },
+  { id: 'res5', x: 90, z: -140, width: 10, depth: 10, height: 5, color: '#d8c8b8' },
+  { id: 'res6', x: 90, z: 140, width: 10, depth: 10, height: 4, color: '#c8b8a8' },
+  { id: 'res7', x: -90, z: 140, width: 10, depth: 10, height: 5, color: '#d8c8b8' },
 ]
 
-// Gas stations at the four outer corners
+// ─── Gas Stations (8 total, spread across extended map) ───────────────────────
 export const GAS_STATIONS: GasStationData[] = [
+  // Original 4 (inner ring)
   { id: 'gs0', x: -115, z: 10, rot: 0 },
   { id: 'gs1', x: 115, z: -10, rot: Math.PI },
   { id: 'gs2', x: 10, z: -115, rot: Math.PI / 2 },
   { id: 'gs3', x: -10, z: 115, rot: -Math.PI / 2 },
+  // Extended map gas stations
+  { id: 'gs4', x: -30, z: 140, rot: Math.PI },      // Harbor District
+  { id: 'gs5', x: 50, z: -140, rot: Math.PI / 2 },  // Airport District
+  { id: 'gs6', x: 140, z: 20, rot: -Math.PI / 2 },  // East Hills
+  { id: 'gs7', x: -140, z: -30, rot: 0 },            // West Docks
 ]
 
-// Enterable houses with door trigger positions and interior slot index
+// ─── Enterable Houses (18 total) ──────────────────────────────────────────────
 export const ENTERABLE_HOUSES: HouseData[] = [
+  // Original 6 (inner ring)
   { id: 'h0', x: -115, z: 35, width: 10, depth: 12, height: 5, color: '#cc9977', doorX: -109, doorZ: 35, label: 'Johnson Residence', interiorIdx: 0 },
   { id: 'h1', x: -115, z: -35, width: 10, depth: 12, height: 5, color: '#99aa77', doorX: -109, doorZ: -35, label: 'Garcia Family', interiorIdx: 1 },
   { id: 'h2', x: 115, z: 35, width: 10, depth: 12, height: 5, color: '#7799aa', doorX: 109, doorZ: 35, label: 'Chen Apartment', interiorIdx: 2 },
   { id: 'h3', x: 115, z: -35, width: 10, depth: 12, height: 5, color: '#aa9977', doorX: 109, doorZ: -35, label: 'Williams Place', interiorIdx: 3 },
   { id: 'h4', x: 35, z: -115, width: 12, depth: 10, height: 5, color: '#aa7799', doorX: 35, doorZ: -109, label: 'Corner House', interiorIdx: 4 },
   { id: 'h5', x: -35, z: 115, width: 12, depth: 10, height: 5, color: '#77aa99', doorX: -35, doorZ: 109, label: 'Harbor View', interiorIdx: 5 },
+
+  // Extended ring houses
+  { id: 'h6', x: -90, z: 0, width: 10, depth: 12, height: 5, color: '#bb8866', doorX: -84, doorZ: 0, label: 'Martinez House', interiorIdx: 6 },
+  { id: 'h7', x: 90, z: 0, width: 10, depth: 12, height: 5, color: '#6688bb', doorX: 84, doorZ: 0, label: 'Thompson Flat', interiorIdx: 7 },
+  { id: 'h8', x: 0, z: -90, width: 12, depth: 10, height: 5, color: '#88bb66', doorX: 0, doorZ: -84, label: 'Nguyen Home', interiorIdx: 8 },
+  { id: 'h9', x: 0, z: 90, width: 12, depth: 10, height: 5, color: '#bb6688', doorX: 0, doorZ: 84, label: 'Brooks Apartment', interiorIdx: 9 },
+
+  // Harbor District houses
+  { id: 'h10', x: -80, z: 130, width: 10, depth: 12, height: 5, color: '#7a9a8a', doorX: -74, doorZ: 130, label: 'Dockside Cottage', interiorIdx: 10 },
+  { id: 'h11', x: 70, z: 130, width: 10, depth: 12, height: 5, color: '#8a7a9a', doorX: 76, doorZ: 130, label: 'Seaside Loft', interiorIdx: 11 },
+
+  // Airport District houses
+  { id: 'h12', x: -80, z: -130, width: 10, depth: 12, height: 5, color: '#aa9988', doorX: -74, doorZ: -130, label: 'Runway View', interiorIdx: 0 },
+  { id: 'h13', x: 70, z: -130, width: 10, depth: 12, height: 5, color: '#88aaaa', doorX: 76, doorZ: -130, label: 'Terminal House', interiorIdx: 1 },
+
+  // East Hills houses
+  { id: 'h14', x: 130, z: -50, width: 12, depth: 10, height: 6, color: '#ccaa88', doorX: 130, doorZ: -44, label: 'Hill Manor', interiorIdx: 2 },
+  { id: 'h15', x: 130, z: 55, width: 12, depth: 10, height: 6, color: '#aa88cc', doorX: 130, doorZ: 61, label: 'East View Villa', interiorIdx: 3 },
+
+  // West Docks houses
+  { id: 'h16', x: -130, z: -60, width: 12, depth: 10, height: 5, color: '#88aacc', doorX: -130, doorZ: -54, label: 'Dock Worker Home', interiorIdx: 4 },
+  { id: 'h17', x: -130, z: 60, width: 12, depth: 10, height: 5, color: '#ccaa66', doorX: -130, doorZ: 66, label: 'Waterfront Apt', interiorIdx: 5 },
 ]
 
-// Shops — placed in accessible road-adjacent locations
+// ─── Shops (6 total) ──────────────────────────────────────────────────────────
 export const SHOPS: ShopData[] = [
   { id: 's0', x: -25, z: -58, rot: 0, type: 'ammo', label: 'Ammo Store' },
   { id: 's1', x: 25, z: 58, rot: Math.PI, type: 'medic', label: 'City Pharmacy' },
   { id: 's2', x: 58, z: -25, rot: -Math.PI / 2, type: 'weapons', label: 'Black Market' },
+  // Extended shops
+  { id: 's3', x: -58, z: 25, rot: Math.PI / 2, type: 'medic', label: 'Med Clinic' },
+  { id: 's4', x: 25, z: -130, rot: Math.PI, type: 'ammo', label: 'Airport Arms' },
+  { id: 's5', x: -25, z: 135, rot: 0, type: 'weapons', label: 'Harbor Market' },
 ]
 
-// Pre-calculated vehicle positions
+// ─── Pre-calculated vehicle positions ─────────────────────────────────────────
 export const INITIAL_VEHICLES: VehicleInitData[] = [
   { id: 'v0', x: -55, z: -20, rot: 0, color: '#cc3333' },
   { id: 'v1', x: -55, z: 20, rot: 0, color: '#3344cc' },
@@ -191,9 +263,14 @@ export const INITIAL_VEHICLES: VehicleInitData[] = [
   { id: 'v13', x: 110, z: 0, rot: -Math.PI / 2, color: '#228855' },
   { id: 'v14', x: 0, z: -110, rot: 0, color: '#552288' },
   { id: 'v15', x: 0, z: 110, rot: Math.PI, color: '#885522' },
+  // Extended map vehicles
+  { id: 'v16', x: -50, z: 138, rot: 0, color: '#ff8800' },
+  { id: 'v17', x: 50, z: -135, rot: Math.PI, color: '#0088ff' },
+  { id: 'v18', x: 135, z: 0, rot: -Math.PI / 2, color: '#00cc44' },
+  { id: 'v19', x: -135, z: 0, rot: Math.PI / 2, color: '#cc0044' },
 ]
 
-// Pre-calculated NPC positions
+// ─── Pre-calculated NPC positions ─────────────────────────────────────────────
 export const INITIAL_NPCS: NPCInitData[] = [
   { id: 'npc0',  x: -65, z: -65, color: '#cc8844', speed: 1.5, gender: 'male'   },
   { id: 'npc1',  x: -65, z: -35, color: '#aa4488', speed: 1.8, gender: 'female' },
@@ -222,12 +299,9 @@ export const INITIAL_NPCS: NPCInitData[] = [
   { id: 'npc24', x: 0,   z: 0,   color: '#cc4444', speed: 2.0, gender: 'male'   },
 ]
 
-// All buildings used for collision (includes outer ring and special)
-const ALL_COLLISION_BUILDINGS = CITY_BUILDINGS
-
-// Collision detection against buildings
+// ─── Collision detection ───────────────────────────────────────────────────────
 export function isInsideBuilding(x: number, z: number, radius = 0.6): boolean {
-  for (const b of ALL_COLLISION_BUILDINGS) {
+  for (const b of CITY_BUILDINGS) {
     const halfW = b.width / 2 + radius
     const halfD = b.depth / 2 + radius
     if (x >= b.x - halfW && x <= b.x + halfW && z >= b.z - halfD && z <= b.z + halfD) {
