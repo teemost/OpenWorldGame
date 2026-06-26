@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useGameStore, GraphicsQuality, ShopType } from '../store/useGameStore'
 import { useAuthStore } from '../auth/useAuthStore'
 import { GAS_STATIONS, ENTERABLE_HOUSES, SHOPS } from './cityData'
@@ -436,12 +436,19 @@ function StoreOverlay({ type, money, onBuy, onClose }: {
   )
 }
 
+// Dispatch a synthetic 'E' keypress so touch buttons trigger the same logic as the keyboard
+function triggerEKey() {
+  const opts = { key: 'e', code: 'KeyE', bubbles: true }
+  document.dispatchEvent(new KeyboardEvent('keydown', opts))
+  setTimeout(() => document.dispatchEvent(new KeyboardEvent('keyup', opts)), 100)
+}
+
 // ─── Prominent Enter / Exit Button ────────────────────────────────────────────
-function InteractionButton({ prompt, onPress }: { prompt: string | null; onPress: () => void }) {
+function InteractionButton({ prompt }: { prompt: string | null }) {
   const [pulse, setPulse] = useState(false)
 
   useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 750)
+    const id = setInterval(() => setPulse(p => !p), 700)
     return () => clearInterval(id)
   }, [])
 
@@ -451,111 +458,251 @@ function InteractionButton({ prompt, onPress }: { prompt: string | null; onPress
   const isEnter   = prompt.includes('Enter —')
   const isVehicle = prompt.includes('Enter Vehicle')
   const isRefuel  = prompt.includes('Refuel')
-  const isShop    = prompt.includes('Enter —') && !isEnter
 
   if (!isExit && !isEnter && !isVehicle && !isRefuel) return null
 
-  // For house enter/exit → big prominent button
+  // ── Big button: house enter / exit ─────────────────────────────────────────
   if (isExit || isEnter) {
-    const icon   = isExit ? '🚪' : '🏠'
-    const label  = isExit ? 'EXIT HOUSE' : 'ENTER HOUSE'
-    const color  = isExit ? '#ff6633' : '#ffcc00'
-    const bgColor = isExit ? 'rgba(180,60,20,0.15)' : 'rgba(200,160,0,0.12)'
-    const houseLabel = isEnter ? prompt.replace('[ E ]  Enter — ', '').replace('[ E ]  Enter — ', '') : ''
+    const icon      = isExit ? '🚪' : '🏠'
+    const label     = isExit ? 'EXIT HOUSE' : 'ENTER HOUSE'
+    const color     = isExit ? '#ff6633' : '#ffcc00'
+    const bgColor   = isExit ? 'rgba(180,60,20,0.18)' : 'rgba(200,160,0,0.15)'
+    const houseLabel = isEnter
+      ? prompt.replace(/^\[ E \]\s+Enter — /, '').trim()
+      : ''
+
     return (
       <div style={{
-        position: 'fixed',
-        bottom: 130,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 1200,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 6,
-        pointerEvents: 'none',
+        position: 'fixed', bottom: 140, left: '50%', transform: 'translateX(-50%)',
+        zIndex: 1500, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+        pointerEvents: 'auto',
       }}>
         {houseLabel && (
           <div style={{
-            color: '#ffeeaa',
-            fontSize: 12,
-            fontFamily: 'monospace',
-            background: 'rgba(0,0,0,0.8)',
-            padding: '4px 14px',
-            borderRadius: 20,
-            border: '1px solid rgba(255,220,0,0.3)',
-            letterSpacing: 1,
-          }}>
-            {houseLabel}
-          </div>
+            color: '#ffeeaa', fontSize: 11, fontFamily: 'monospace', letterSpacing: 1,
+            background: 'rgba(0,0,0,0.85)', padding: '4px 16px', borderRadius: 20,
+            border: '1px solid rgba(255,220,0,0.25)',
+          }}>{houseLabel}</div>
         )}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 14,
-          background: bgColor,
-          border: `2px solid ${color}${pulse ? 'cc' : '55'}`,
-          borderRadius: 16,
-          padding: '14px 32px',
-          backdropFilter: 'blur(8px)',
-          boxShadow: `0 0 ${pulse ? 40 : 20}px ${color}44, 0 4px 20px rgba(0,0,0,0.6)`,
-          transition: 'all 0.3s',
-        }}>
-          <span style={{ fontSize: 28 }}>{icon}</span>
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); triggerEKey() }}
+          onPointerDown={e => e.stopPropagation()}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer',
+            background: bgColor,
+            border: `2.5px solid ${color}${pulse ? 'ee' : '55'}`,
+            borderRadius: 18, padding: '16px 36px',
+            backdropFilter: 'blur(10px)',
+            boxShadow: `0 0 ${pulse ? 50 : 22}px ${color}55, 0 6px 24px rgba(0,0,0,0.7)`,
+            transition: 'all 0.3s', outline: 'none',
+            touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+          }}
+        >
+          <span style={{ fontSize: 32 }}>{icon}</span>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ color, fontSize: 20, fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: 2, lineHeight: 1 }}>
-              {label}
-            </div>
             <div style={{
-              color: `${color}88`,
-              fontSize: 11,
-              fontFamily: 'monospace',
-              letterSpacing: 2,
-              marginTop: 3,
-            }}>
-              PRESS  <span style={{
-                background: 'rgba(255,255,255,0.12)',
-                border: `1px solid ${color}55`,
-                borderRadius: 4,
-                padding: '1px 8px',
-                color: '#fff',
+              color, fontSize: 22, fontWeight: 'bold', fontFamily: 'monospace',
+              letterSpacing: 3, lineHeight: 1,
+              textShadow: `0 0 ${pulse ? 20 : 8}px ${color}88`,
+            }}>{label}</div>
+            <div style={{ color: `${color}99`, fontSize: 11, fontFamily: 'monospace', letterSpacing: 2, marginTop: 5 }}>
+              TAP HERE  ·  OR PRESS{' '}
+              <span style={{
+                background: 'rgba(255,255,255,0.15)', border: `1px solid ${color}55`,
+                borderRadius: 4, padding: '1px 7px', color: '#fff',
               }}>E</span>
             </div>
           </div>
-        </div>
+        </button>
       </div>
     )
   }
 
-  // For vehicle / refuel → smaller compact prompt
-  const icon    = isVehicle ? '🚗' : '⛽'
+  // ── Compact: vehicle / refuel ───────────────────────────────────────────────
+  const icon       = isVehicle ? '🚗' : '⛽'
   const actionText = isVehicle ? 'ENTER VEHICLE' : 'REFUEL  ·  $50'
-  const color   = isVehicle ? '#88aaff' : '#ffcc00'
+  const color      = isVehicle ? '#88aaff' : '#ffcc00'
 
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: 100,
-      left: '50%',
-      transform: 'translateX(-50%)',
-      zIndex: 1200,
-      pointerEvents: 'none',
-      display: 'flex', alignItems: 'center', gap: 10,
-      background: 'rgba(0,0,0,0.80)',
-      border: `1px solid ${color}44`,
-      borderRadius: 12,
-      padding: '10px 24px',
-      backdropFilter: 'blur(6px)',
-      boxShadow: `0 0 20px ${color}22, 0 4px 14px rgba(0,0,0,0.6)`,
-    }}>
-      <span style={{ fontSize: 20 }}>{icon}</span>
-      <span style={{ color, fontSize: 13, fontFamily: 'monospace', letterSpacing: 1, fontWeight: 'bold' }}>
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); triggerEKey() }}
+      onPointerDown={e => e.stopPropagation()}
+      style={{
+        position: 'fixed', bottom: 108, left: '50%', transform: 'translateX(-50%)',
+        zIndex: 1500, pointerEvents: 'auto',
+        display: 'flex', alignItems: 'center', gap: 10,
+        background: 'rgba(0,0,0,0.82)', border: `2px solid ${color}66`,
+        borderRadius: 14, padding: '12px 28px',
+        backdropFilter: 'blur(6px)',
+        boxShadow: `0 0 24px ${color}33, 0 4px 16px rgba(0,0,0,0.7)`,
+        cursor: 'pointer', outline: 'none',
+        touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+      }}
+    >
+      <span style={{ fontSize: 22 }}>{icon}</span>
+      <span style={{ color, fontSize: 14, fontFamily: 'monospace', letterSpacing: 1, fontWeight: 'bold' }}>
         {actionText}
       </span>
       <span style={{
-        background: 'rgba(255,255,255,0.1)',
-        border: `1px solid rgba(255,255,255,0.2)`,
-        borderRadius: 4, padding: '2px 8px',
-        color: '#aaa', fontSize: 10, fontFamily: 'monospace',
+        background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.22)',
+        borderRadius: 4, padding: '2px 8px', color: '#bbb', fontSize: 10, fontFamily: 'monospace',
       }}>E</span>
+    </button>
+  )
+}
+
+// ─── Chat / Roleplay Command Bar ───────────────────────────────────────────────
+interface ChatMsg { id: number; text: string; type: 'chat'|'me'|'yell'|'cmd'|'system'; at: number }
+
+const RP_COMMANDS: Record<string, (arg: string) => string> = {
+  me:      (a) => `✦ ${a}`,
+  rob:     (a) => `🔫 ${a ? `Robbing ${a}!` : 'Attempting a robbery!'}`,
+  arrest:  (a) => `🚔 ${a ? `Arresting ${a}!` : 'Making an arrest!'}`,
+  deal:    (a) => `💊 ${a || 'Dealing on the street corner…'}`,
+  yell:    (a) => a.toUpperCase(),
+  rp:      (a) => `[RP] ${a}`,
+  help:    () =>  '📋 Commands: /me /rob /arrest /deal /yell /rp /help',
+}
+
+let chatIdCounter = 0
+
+function ChatBar({ isPaused }: { isPaused: boolean }) {
+  const [open,     setOpen]    = useState(false)
+  const [input,    setInput]   = useState('')
+  const [msgs,     setMsgs]    = useState<ChatMsg[]>([
+    { id: 0, text: '📋 Type /help for roleplay commands', type: 'system', at: Date.now() },
+  ])
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Auto-clear old messages
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = Date.now()
+      setMsgs(prev => prev.filter(m => now - m.at < 10000))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Focus when opening
+  useEffect(() => {
+    if (open) inputRef.current?.focus()
+  }, [open])
+
+  function submit() {
+    const raw = input.trim()
+    if (!raw) { setOpen(false); return }
+    setInput('')
+
+    let msg: ChatMsg
+    if (raw.startsWith('/')) {
+      const parts = raw.slice(1).split(' ')
+      const cmd   = parts[0].toLowerCase()
+      const arg   = parts.slice(1).join(' ')
+      const fn    = RP_COMMANDS[cmd]
+      if (fn) {
+        msg = { id: ++chatIdCounter, text: fn(arg), type: cmd === 'yell' ? 'yell' : cmd === 'me' ? 'me' : 'cmd', at: Date.now() }
+      } else {
+        msg = { id: ++chatIdCounter, text: `❌ Unknown command: /${cmd}  (try /help)`, type: 'system', at: Date.now() }
+      }
+    } else {
+      msg = { id: ++chatIdCounter, text: raw, type: 'chat', at: Date.now() }
+    }
+    setMsgs(prev => [...prev.slice(-7), msg])
+    setOpen(false)
+  }
+
+  const msgColor: Record<string, string> = {
+    chat: '#e8e8cc', me: '#66ffaa', yell: '#ff5533', cmd: '#ffcc44', system: '#4488cc',
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)',
+      zIndex: 1600, pointerEvents: 'auto',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+      minWidth: 320, maxWidth: 480,
+    }}>
+      {/* Message log (above input) */}
+      {msgs.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%', alignItems: 'center' }}>
+          {msgs.slice(-4).map(m => (
+            <div key={m.id} style={{
+              background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 8, padding: '4px 14px',
+              color: msgColor[m.type] ?? '#ccc',
+              fontSize: m.type === 'yell' ? 14 : 11,
+              fontFamily: 'monospace',
+              fontWeight: m.type === 'yell' ? 'bold' : 'normal',
+              fontStyle: m.type === 'me' ? 'italic' : 'normal',
+              letterSpacing: m.type === 'yell' ? 2 : 0.3,
+              textShadow: m.type === 'yell' ? '0 0 12px #ff553388' : 'none',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxWidth: 440, textAlign: 'center',
+              pointerEvents: 'none',
+            }}>
+              {m.text}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Input bar */}
+      {open ? (
+        <div style={{ display: 'flex', gap: 6, width: '100%' }}
+          onClick={e => e.stopPropagation()}
+          onPointerDown={e => e.stopPropagation()}>
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); submit() }
+              if (e.key === 'Escape') { setOpen(false); setInput('') }
+              e.stopPropagation()
+            }}
+            placeholder="Chat or /me /rob /yell /rp /help…"
+            maxLength={120}
+            style={{
+              flex: 1, background: 'rgba(4,8,18,0.95)', border: '1.5px solid rgba(0,200,255,0.4)',
+              borderRadius: 10, padding: '10px 14px',
+              color: '#eee', fontSize: 12, fontFamily: 'monospace', outline: 'none',
+              backdropFilter: 'blur(8px)', boxShadow: '0 0 20px rgba(0,180,255,0.15)',
+            }}
+          />
+          <button type="button" onClick={submit} onPointerDown={e=>e.stopPropagation()}
+            style={{
+              padding: '10px 16px', borderRadius: 10, background: 'rgba(0,180,255,0.2)',
+              border: '1.5px solid rgba(0,200,255,0.4)', color: '#00ccff',
+              fontSize: 13, cursor: 'pointer', fontFamily: 'monospace',
+              touchAction: 'manipulation',
+            }}>▶</button>
+          <button type="button" onClick={()=>{setOpen(false);setInput('')}} onPointerDown={e=>e.stopPropagation()}
+            style={{
+              padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.12)', color: '#666',
+              fontSize: 12, cursor: 'pointer', fontFamily: 'monospace',
+              touchAction: 'manipulation',
+            }}>✕</button>
+        </div>
+      ) : (
+        !isPaused && (
+          <button type="button"
+            onClick={e => { e.stopPropagation(); setOpen(true) }}
+            onPointerDown={e => e.stopPropagation()}
+            style={{
+              background: 'rgba(0,0,0,0.60)', backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20,
+              padding: '5px 20px', color: 'rgba(255,255,255,0.3)',
+              fontSize: 11, fontFamily: 'monospace', letterSpacing: 1,
+              cursor: 'pointer', outline: 'none',
+              touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+            }}>
+            💬 CHAT / COMMANDS
+          </button>
+        )
+      )}
     </div>
   )
 }
@@ -687,9 +834,14 @@ export default function HUD() {
         />
       )}
 
+      {/* ── Chat / Roleplay command bar (top center) ────────────────────────── */}
+      {!showFullMap && (
+        <ChatBar isPaused={isPaused} />
+      )}
+
       {/* ── Prominent interaction button (ENTER/EXIT house, vehicle, refuel) ── */}
       {!isPaused && !showFullMap && !showStore && (
-        <InteractionButton prompt={interactionPrompt} onPress={() => {}} />
+        <InteractionButton prompt={interactionPrompt} />
       )}
 
       {/* ── Non-interactive HUD layer ───────────────────────────────────────── */}
@@ -880,18 +1032,22 @@ export default function HUD() {
           </div>
         )}
 
-        {/* ── BOTTOM-RIGHT: MENU Button (always visible) ──────────────────── */}
+        {/* ── BOTTOM-RIGHT: MENU Button ────────────────────────────────────── */}
         <div style={{ position:'absolute', bottom:16, right:16, pointerEvents:'auto' }}>
           <button
-            onClick={() => setPaused(!isPaused)}
+            type="button"
+            onClick={e => { e.stopPropagation(); setPaused(!isPaused) }}
+            onPointerDown={e => e.stopPropagation()}
             style={{
-              padding:'10px 18px', fontSize:12, fontFamily:'monospace',
-              background:'rgba(0,0,0,0.75)', color:'#666',
-              border:'1px solid rgba(255,255,255,0.12)', borderRadius:8,
+              padding:'12px 22px', fontSize:13, fontFamily:'monospace',
+              background:'rgba(0,0,0,0.82)', color:'#888',
+              border:'1px solid rgba(255,255,255,0.18)', borderRadius:10,
               cursor:'pointer', letterSpacing:1, transition:'all 0.12s',
+              touchAction:'manipulation', WebkitTapHighlightColor:'transparent',
+              minWidth:80, minHeight:44,
             }}
-            onMouseEnter={e=>{e.currentTarget.style.color='#aaa'; e.currentTarget.style.borderColor='rgba(255,255,255,0.25)'}}
-            onMouseLeave={e=>{e.currentTarget.style.color='#666'; e.currentTarget.style.borderColor='rgba(255,255,255,0.12)'}}
+            onMouseEnter={e=>{e.currentTarget.style.color='#ccc'; e.currentTarget.style.borderColor='rgba(255,255,255,0.35)'}}
+            onMouseLeave={e=>{e.currentTarget.style.color='#888'; e.currentTarget.style.borderColor='rgba(255,255,255,0.18)'}}
           >
             ☰ MENU
           </button>
