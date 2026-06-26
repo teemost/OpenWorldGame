@@ -4,7 +4,7 @@ import { useKeyboardControls, Html, Sky } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '../store/useGameStore'
 import { useAuthStore } from '../auth/useAuthStore'
-import { useModelStore, modelBlobURLs, animBlobURLs, animFormatMap } from '../store/useModelStore'
+import { useModelStore, modelPoolMap, animBlobURLs, animFormatMap } from '../store/useModelStore'
 import { CustomModel, AnimatedHumanoid, AnimatedCustomHumanoid, VehicleGLBMesh } from './GameModels'
 import {
   CITY_BUILDINGS,
@@ -982,8 +982,11 @@ function Vehicle({ vehicleId }: { vehicleId: string }) {
   const groupRef = useRef<THREE.Group>(null!)
   const vRef = vehicleRefs.get(vehicleId)!
   const { modelRevision } = useModelStore()
-  const vehicleModel = modelBlobURLs.get('vehicle')
-  const style = VEHICLE_STYLES[parseInt(vehicleId.replace('v','')) % 4]
+  void modelRevision
+  const vehicleIdx   = parseInt(vehicleId.replace('v', ''))
+  const vehiclePool  = modelPoolMap.get('vehicle') ?? []
+  const vehicleModel = vehiclePool.length > 0 ? vehiclePool[vehicleIdx % vehiclePool.length] : undefined
+  const style = VEHICLE_STYLES[vehicleIdx % 4]
 
   useEffect(() => { vRef.mesh = groupRef.current; return () => { vRef.mesh = null } }, [vRef])
   useFrame(() => {
@@ -1022,8 +1025,9 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
     : NPC_MALE_NAMES[npcIndex % NPC_MALE_NAMES.length]
   const npcColor = npcData?.color ?? '#888'
   const { modelRevision } = useModelStore()
-  const npcModel = modelBlobURLs.get('npc')
   void modelRevision
+  const npcPool  = modelPoolMap.get('npc') ?? []
+  const npcModel = npcPool.length > 0 ? npcPool[npcIndex % npcPool.length] : undefined
 
   useEffect(() => { nRef.mesh = groupRef.current; return () => { nRef.mesh = null } }, [nRef])
 
@@ -1224,7 +1228,8 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
   const isSwat = sharedWantedLevel.value >= 4
   const uniformColor = isSwat ? '#111' : '#1e3a88'
   const hatColor = isSwat ? '#000' : '#0a1a66'
-  const policeModel = isSwat ? modelBlobURLs.get('swat') : modelBlobURLs.get('police')
+  const policePool  = (isSwat ? modelPoolMap.get('swat') : modelPoolMap.get('police')) ?? []
+  const policeModel = policePool.length > 0 ? policePool[policeIndex % policePool.length] : undefined
 
   // Only show police tag when close (Html overlays are GPU-expensive)
   const policeDistNow = pRef.pos.distanceTo(sharedPlayerPos)
@@ -1343,10 +1348,10 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
   const { modelRevision } = useModelStore()
   const playerModel = (() => {
     const cm = currentUser?.characterModel ?? ''
-    if (cm === 'custom') return modelBlobURLs.get('player')
+    if (cm === 'custom') return modelPoolMap.get('player')?.[0]
     if (cm.startsWith('custom_')) {
       const cat = cm.slice('custom_'.length) as import('../store/useModelStore').ModelCategory
-      return modelBlobURLs.get(cat)
+      return modelPoolMap.get(cat)?.[0]
     }
     return undefined
   })()

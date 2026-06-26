@@ -139,6 +139,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
 export const modelBlobURLs = new Map<ModelCategory, { url: string; format: string }>()
 // All loaded blob URLs keyed by ModelMeta.key (for admin UI showing all uploaded models)
 export const allModelBlobURLs = new Map<string, { url: string; format: string }>()
+// All models per category as an ordered pool — every uploaded model is active
+export const modelPoolMap   = new Map<ModelCategory, Array<{ url: string; format: string }>>()
 // Animation blob URLs — key: `${category}_${clip}`
 export const animBlobURLs   = new Map<string, string>()
 export const animFormatMap  = new Map<string, string>()
@@ -229,8 +231,12 @@ export const useModelStore = create<ModelStore>()(
 
         const url = URL.createObjectURL(new Blob([buf], { type: getMime(format) }))
         allModelBlobURLs.set(key, { url, format })
-        // New upload always becomes active
-        modelBlobURLs.set(category, { url, format })
+        // Add to pool — all uploaded models are active
+        const pool = modelPoolMap.get(category) ?? []
+        const newPool = [...pool, { url, format }]
+        modelPoolMap.set(category, newPool)
+        // modelBlobURLs keeps pointing to first for backward compat
+        if (pool.length === 0) modelBlobURLs.set(category, { url, format })
         modelVersion.value++
 
         const meta: ModelMeta = {
@@ -250,25 +256,21 @@ export const useModelStore = create<ModelStore>()(
         if (entry) URL.revokeObjectURL(entry.url)
         allModelBlobURLs.delete(key)
 
-        const { activeModelId, models } = get()
+        const { models } = get()
         const remaining = (models[category] ?? []).filter(m => m.key !== key)
 
-        let newActiveKey = activeModelId[category]
-        if (newActiveKey === key) {
-          newActiveKey = remaining.length > 0 ? remaining[remaining.length - 1].key : null
-        }
-        if (newActiveKey) {
-          const newEntry = allModelBlobURLs.get(newActiveKey)
-          if (newEntry) modelBlobURLs.set(category, newEntry)
-          else modelBlobURLs.delete(category)
-        } else {
-          modelBlobURLs.delete(category)
-        }
+        // Rebuild pool from remaining models
+        const newPool = remaining
+          .map(m => allModelBlobURLs.get(m.key))
+          .filter((e): e is { url: string; format: string } => !!e)
+        modelPoolMap.set(category, newPool)
+        if (newPool.length > 0) modelBlobURLs.set(category, newPool[0])
+        else modelBlobURLs.delete(category)
 
         modelVersion.value++
         set((s) => ({
           models:        { ...s.models, [category]: remaining },
-          activeModelId: { ...s.activeModelId, [category]: newActiveKey },
+          activeModelId: { ...s.activeModelId, [category]: remaining[0]?.key ?? null },
           modelRevision: s.modelRevision + 1,
         }))
       },
@@ -324,7 +326,7 @@ export const useModelStore = create<ModelStore>()(
       },
 
       loadAllModelURLs: async () => {
-        const { models, animations, activeModelId } = get()
+        const { models, animations } = get()
 
         for (const cat of ALL_CATEGORIES) {
           const catModels = models[cat as ModelCategory] ?? []
@@ -335,10 +337,13 @@ export const useModelStore = create<ModelStore>()(
             const url = URL.createObjectURL(new Blob([buf], { type: getMime(meta.format) }))
             allModelBlobURLs.set(meta.key, { url, format: meta.format })
           }
-          // Sync the active URL into modelBlobURLs
-          const activeKey = activeModelId[cat as ModelCategory]
-          if (activeKey && allModelBlobURLs.has(activeKey)) {
-            modelBlobURLs.set(cat as ModelCategory, allModelBlobURLs.get(activeKey)!)
+          // Build full pool — all uploaded models are active
+          const pool = catModels
+            .map(m => allModelBlobURLs.get(m.key))
+            .filter((e): e is { url: string; format: string } => !!e)
+          if (pool.length > 0) {
+            modelPoolMap.set(cat as ModelCategory, pool)
+            modelBlobURLs.set(cat as ModelCategory, pool[0])
           }
         }
 

@@ -49,16 +49,12 @@ const NAV: { key: Section; label: string; icon: string }[] = [
 
 // ─── Model upload card — supports multiple models per category ────────────────
 function ModelUploadCard({ cat }: { cat: CatDef }) {
-  const { models, activeModelId, uploadModel, removeModel, setActiveModel, modelRevision } = useModelStore()
+  const { models, uploadModel, removeModel, modelRevision } = useModelStore()
   const catModels  = models[cat.key] ?? []
-  const activeKey  = activeModelId[cat.key]
   const fileRef    = useRef<HTMLInputElement>(null)
   const [dragging,  setDragging ] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error,     setError    ] = useState('')
-  const [hasActive, setHasActive] = useState(() => modelBlobURLs.has(cat.key))
-
-  useEffect(() => { setHasActive(modelBlobURLs.has(cat.key)) }, [modelRevision, cat.key])
 
   const handleFile = async (file: File) => {
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
@@ -90,74 +86,44 @@ function ModelUploadCard({ cat }: { cat: CatDef }) {
           <div style={{ color: '#fff', fontSize: 15, fontWeight: 'bold' }}>{cat.label}</div>
           <div style={{ color: '#555', fontSize: 12, marginTop: 2 }}>{cat.desc}</div>
         </div>
-        {hasActive && (
+        {catModels.length > 0 && (
           <div style={{
             background: 'rgba(0,200,100,0.15)', border: '1px solid rgba(0,200,100,0.3)',
             color: '#00cc66', padding: '3px 10px', borderRadius: 20, fontSize: 11, flexShrink: 0,
-          }}>● ACTIVE IN-GAME</div>
+          }}>● {catModels.length} ACTIVE</div>
         )}
-        {catModels.length > 0 && !hasActive && (
-          <div style={{
-            background: 'rgba(200,150,0,0.15)', border: '1px solid rgba(200,150,0,0.3)',
-            color: '#ccaa00', padding: '3px 10px', borderRadius: 20, fontSize: 11, flexShrink: 0,
-          }}>⟳ RELOAD TO ACTIVATE</div>
-        )}
-        <span style={{ color: '#555', fontSize: 11, flexShrink: 0 }}>
-          {catModels.length} model{catModels.length !== 1 ? 's' : ''}
-        </span>
       </div>
 
-      {/* ── Model list ── */}
+      {/* ── Model list — all uploaded models are active ── */}
       {catModels.length > 0 && (
         <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {catModels.map((meta) => {
-            const isActive  = meta.key === activeKey
-            const isLoaded  = allModelBlobURLs.has(meta.key)
-            return (
-              <div key={meta.key} style={{
-                background: isActive ? 'rgba(0,200,100,0.07)' : 'rgba(0,0,0,0.3)',
-                borderRadius: 8, padding: '10px 12px',
-                border: `1px solid ${isActive ? 'rgba(0,200,100,0.3)' : 'rgba(255,255,255,0.06)'}`,
-                display: 'flex', alignItems: 'center', gap: 10,
-              }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: isActive ? '#00cc66' : '#aaa', fontSize: 13, fontWeight: isActive ? 'bold' : 'normal',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {isActive ? '★ ' : '○ '}{meta.name}
-                  </div>
-                  <div style={{ color: '#555', fontSize: 10, marginTop: 2 }}>
-                    .{meta.format.toUpperCase()}
-                    &ensp;·&ensp;{formatBytes(meta.size)}
-                    &ensp;·&ensp;{formatDate(meta.uploadedAt)}
-                    {isLoaded && !isActive && <span style={{ color: '#666', marginLeft: 6 }}>· loaded</span>}
-                  </div>
+          {catModels.map((meta, idx) => (
+            <div key={meta.key} style={{
+              background: 'rgba(0,200,100,0.05)',
+              borderRadius: 8, padding: '10px 12px',
+              border: '1px solid rgba(0,200,100,0.2)',
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: '#00cc66', fontSize: 13, fontWeight: 'bold',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  ✓ #{idx + 1} — {meta.name}
                 </div>
-                {!isActive && (
-                  <button type="button"
-                    onClick={(e) => { e.stopPropagation(); setActiveModel(cat.key, meta.key) }}
-                    style={{
-                      background: 'rgba(0,180,80,0.15)', border: '1px solid rgba(0,180,80,0.3)',
-                      color: '#00cc66', padding: '4px 10px', borderRadius: 6,
-                      fontSize: 11, cursor: 'pointer', fontFamily: 'monospace', flexShrink: 0, whiteSpace: 'nowrap',
-                    }}>Set Active</button>
-                )}
-                {isActive && (
-                  <div style={{
-                    background: 'rgba(0,200,100,0.2)', border: '1px solid rgba(0,200,100,0.35)',
-                    color: '#00cc66', padding: '4px 10px', borderRadius: 6,
-                    fontSize: 11, fontFamily: 'monospace', flexShrink: 0,
-                  }}>✓ Active</div>
-                )}
-                <button type="button"
-                  onClick={(e) => { e.stopPropagation(); removeModel(cat.key, meta.key) }}
-                  style={{
-                    background: 'rgba(200,0,0,0.15)', border: '1px solid rgba(200,0,0,0.3)',
-                    color: '#ff6666', padding: '4px 10px', borderRadius: 6,
-                    fontSize: 11, cursor: 'pointer', fontFamily: 'monospace', flexShrink: 0,
-                  }}>✕</button>
+                <div style={{ color: '#555', fontSize: 10, marginTop: 2 }}>
+                  .{meta.format.toUpperCase()}
+                  &ensp;·&ensp;{formatBytes(meta.size)}
+                  &ensp;·&ensp;{formatDate(meta.uploadedAt)}
+                </div>
               </div>
-            )
-          })}
+              <button type="button"
+                onClick={(e) => { e.stopPropagation(); removeModel(cat.key, meta.key) }}
+                style={{
+                  background: 'rgba(200,0,0,0.15)', border: '1px solid rgba(200,0,0,0.3)',
+                  color: '#ff6666', padding: '4px 10px', borderRadius: 6,
+                  fontSize: 11, cursor: 'pointer', fontFamily: 'monospace', flexShrink: 0,
+                }}>✕</button>
+            </div>
+          ))}
         </div>
       )}
 
