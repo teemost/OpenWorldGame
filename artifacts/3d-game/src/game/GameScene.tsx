@@ -10,10 +10,14 @@ import {
   CITY_BUILDINGS,
   INITIAL_VEHICLES,
   INITIAL_NPCS,
+  GAS_STATIONS,
+  ENTERABLE_HOUSES,
+  SHOPS,
   isInsideBuilding,
   resolveCollision,
 } from './cityData'
 import { touchState } from './touchState'
+import { GasStation, ShopBuilding, EnterableHouse, InteriorRoom } from './WorldObjects'
 
 export enum Controls {
   forward = 'forward',
@@ -35,6 +39,11 @@ const sharedCamYaw   = { value: Math.PI }   // camera starts behind player
 const sharedCamPitch = { value: 0.25 }
 const playerAnimState   = { value: 'Idle' as 'Idle' | 'Walk' | 'Run' | 'Sit' }
 const playerDisplayRot  = { value: Math.PI } // smoothed display rotation
+
+// ─── Interior state ────────────────────────────────────────────────────────────
+const sharedIsInInterior = { value: false }
+const interiorHouseIdx   = { value: 0 }
+const interiorReturnPos  = new THREE.Vector3(0, 0, 0)
 
 // ─── NPC / Police names ───────────────────────────────────────────────────────
 const NPC_MALE_NAMES   = ['Marcus','Luis','Devon','Rico','Andre','Jerome','Bobby','Darius','Tank','Malik','Trevor','Slice','Ricky','Cleo','Ray']
@@ -277,9 +286,9 @@ const LAMP_MAT    = <meshStandardMaterial color="#7a8090" roughness={0.5} metaln
 function City() {
   return (
     <group>
-      {/* Base ground — dark earth/grass */}
+      {/* Base ground — extended map (500×500) */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
-        <planeGeometry args={[300, 300]} />
+        <planeGeometry args={[500, 500]} />
         {GRASS_MAT}
       </mesh>
       {/* Park grass zones — slightly brighter */}
@@ -453,6 +462,64 @@ function City() {
           <CustomModel url={b.url} format="glb" targetHeight={b.h} />
         </group>
       ))}
+
+      {/* ─── Outer ring roads at ±120 ─────────────────────────────────── */}
+      {[-120, 120].map(x=>(
+        <mesh key={`ovr${x}`} rotation={[-Math.PI/2,0,0]} position={[x,0.001,0]} receiveShadow>
+          <planeGeometry args={[13,500]} />
+          {ROAD_MAT}
+        </mesh>
+      ))}
+      {[-120, 120].map(z=>(
+        <mesh key={`ohr${z}`} rotation={[-Math.PI/2,0,0]} position={[0,0.002,z]} receiveShadow>
+          <planeGeometry args={[500,13]} />
+          {ROAD_MAT}
+        </mesh>
+      ))}
+      {/* Outer road center lines */}
+      {[-120, 120].map(x=>(
+        <mesh key={`ocv${x}`} rotation={[-Math.PI/2,0,0]} position={[x,0.004,0]}>
+          <planeGeometry args={[0.22,500]} />
+          <meshStandardMaterial color="#f0d020" roughness={0.85}/>
+        </mesh>
+      ))}
+      {[-120, 120].map(z=>(
+        <mesh key={`och${z}`} rotation={[-Math.PI/2,0,0]} position={[0,0.004,z]}>
+          <planeGeometry args={[500,0.22]} />
+          <meshStandardMaterial color="#f0d020" roughness={0.85}/>
+        </mesh>
+      ))}
+      {/* Outer road sidewalks */}
+      {[-120, 120].map(x=>[-1,1].map(s=>(
+        <mesh key={`oswv${x}${s}`} rotation={[-Math.PI/2,0,0]} position={[x+s*8.5,0.02,0]} receiveShadow>
+          <planeGeometry args={[3,500]} />
+          {SIDEWALK_MAT}
+        </mesh>
+      )))}
+      {[-120, 120].map(z=>[-1,1].map(s=>(
+        <mesh key={`oswh${z}${s}`} rotation={[-Math.PI/2,0,0]} position={[0,0.025,z+s*8.5]} receiveShadow>
+          <planeGeometry args={[500,3]} />
+          {SIDEWALK_MAT}
+        </mesh>
+      )))}
+      {/* Outer ring street lamps */}
+      {[-120, 120].map(x=>[-90,-50,-10,30,70,110].map(z=>(
+        <group key={`olamp${x}${z}`} position={[x+7.5,0,z]}>
+          <mesh position={[0,3.2,0]} castShadow>
+            <cylinderGeometry args={[0.07,0.13,6.4,8]}/>
+            {LAMP_MAT}
+          </mesh>
+          <mesh position={[0.55,6.0,0]} rotation={[0,0,Math.PI/2]}>
+            <cylinderGeometry args={[0.04,0.04,1.1,6]}/>
+            {LAMP_MAT}
+          </mesh>
+          <mesh position={[1.05,5.75,0]}>
+            <sphereGeometry args={[0.18,8,6]}/>
+            <meshStandardMaterial color="#ffe8aa" emissive="#ffdd66" emissiveIntensity={4}/>
+          </mesh>
+          <pointLight position={[1.05,5.5,0]} color="#ffdd88" intensity={18} distance={20} decay={2} castShadow={false}/>
+        </group>
+      )))}
     </group>
   )
 }
@@ -1358,7 +1425,12 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
 
   void modelRevision // subscribe to model store updates
 
-  const { takeDamage, setInVehicle, useAmmo, incrementWanted, addMoney, addScore } = useGameStore()
+  const { takeDamage, setInVehicle, useAmmo, incrementWanted, addMoney, addScore,
+          drainFuel, addFuel, setInteractionPrompt, openStore, enterHouse, exitHouse } = useGameStore()
+  const proximityFrameRef = useRef(0)
+  const nearGasRef        = useRef(false)
+  const nearHouseIdxRef   = useRef(-1)
+  const nearShopIdxRef    = useRef(-1)
 
   useFrame(({ camera }, delta) => {
     if (!groupRef.current) return
@@ -1373,6 +1445,61 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
     }
     fireCooldown.current  = Math.max(0, fireCooldown.current - delta)
     enterCooldown.current = Math.max(0, enterCooldown.current - delta)
+
+    // ── Proximity detection (throttled) ───────────────────────────────────
+    proximityFrameRef.current++
+    if (proximityFrameRef.current % 8 === 0) {
+      const px = posRef.current.x
+      const pz = posRef.current.z
+      let prompt: string | null = null
+      nearGasRef.current      = false
+      nearHouseIdxRef.current = -1
+      nearShopIdxRef.current  = -1
+
+      if (sharedIsInInterior.value) {
+        const intX = 600 + interiorHouseIdx.value * 30
+        if (Math.sqrt((px - intX) ** 2 + pz ** 2) < 4) prompt = '[ E ]  Exit House'
+      } else if (sharedInVehicle.value) {
+        for (let gi = 0; gi < GAS_STATIONS.length; gi++) {
+          const gs = GAS_STATIONS[gi]
+          if (Math.sqrt((px - gs.x) ** 2 + (pz - gs.z) ** 2) < 7) {
+            nearGasRef.current = true
+            prompt = '[ E ]  Refuel  ·  $50'
+            break
+          }
+        }
+      } else {
+        // Near vehicle?
+        for (const [, vRef] of vehicleRefs) {
+          if (!vRef.occupied && posRef.current.distanceTo(vRef.pos) < 4.5) {
+            prompt = '[ E ]  Enter Vehicle'; break
+          }
+        }
+        // Near house door?
+        if (!prompt) {
+          for (let hi = 0; hi < ENTERABLE_HOUSES.length; hi++) {
+            const h = ENTERABLE_HOUSES[hi]
+            if (Math.sqrt((px - h.doorX) ** 2 + (pz - h.doorZ) ** 2) < 3.5) {
+              nearHouseIdxRef.current = hi
+              prompt = `[ E ]  Enter — ${h.label}`
+              break
+            }
+          }
+        }
+        // Near shop?
+        if (!prompt) {
+          for (let si = 0; si < SHOPS.length; si++) {
+            const s = SHOPS[si]
+            if (Math.sqrt((px - s.x) ** 2 + (pz - s.z) ** 2) < 5.5) {
+              nearShopIdxRef.current = si
+              prompt = `[ E ]  Enter — ${s.label}`
+              break
+            }
+          }
+        }
+      }
+      setInteractionPrompt(prompt)
+    }
 
     // ── Camera orbit from right-side drag / mouse ────────────────────────
     const CAM_SEN = 0.0038
