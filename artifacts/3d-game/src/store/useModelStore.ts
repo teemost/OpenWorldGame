@@ -140,7 +140,8 @@ export const modelBlobURLs = new Map<ModelCategory, { url: string; format: strin
 // All loaded blob URLs keyed by ModelMeta.key (for admin UI showing all uploaded models)
 export const allModelBlobURLs = new Map<string, { url: string; format: string }>()
 // Animation blob URLs — key: `${category}_${clip}`
-export const animBlobURLs = new Map<string, string>()
+export const animBlobURLs   = new Map<string, string>()
+export const animFormatMap  = new Map<string, string>()
 // Reactive version counter
 export const modelVersion = { value: 0 }
 
@@ -294,6 +295,7 @@ export const useModelStore = create<ModelStore>()(
 
         const url = URL.createObjectURL(new Blob([buf], { type: getMime(format) }))
         animBlobURLs.set(storeKey, url)
+        animFormatMap.set(storeKey, format)
         modelVersion.value++
 
         const meta: AnimMeta = {
@@ -313,6 +315,7 @@ export const useModelStore = create<ModelStore>()(
         const oldUrl = animBlobURLs.get(storeKey)
         if (oldUrl) URL.revokeObjectURL(oldUrl)
         animBlobURLs.delete(storeKey)
+        animFormatMap.delete(storeKey)
         modelVersion.value++
         set((s) => ({
           animations: { ...s.animations, [storeKey]: null },
@@ -350,6 +353,7 @@ export const useModelStore = create<ModelStore>()(
             const fmt = animations[storeKey]!.format
             const url = URL.createObjectURL(new Blob([buf], { type: getMime(fmt) }))
             animBlobURLs.set(storeKey, url)
+            animFormatMap.set(storeKey, fmt)
           }
         }
 

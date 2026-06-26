@@ -4,7 +4,7 @@ import { useKeyboardControls, Html, Sky } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '../store/useGameStore'
 import { useAuthStore } from '../auth/useAuthStore'
-import { useModelStore, modelBlobURLs, animBlobURLs } from '../store/useModelStore'
+import { useModelStore, modelBlobURLs, animBlobURLs, animFormatMap } from '../store/useModelStore'
 import { CustomModel, AnimatedHumanoid, AnimatedCustomHumanoid, VehicleGLBMesh } from './GameModels'
 import {
   CITY_BUILDINGS,
@@ -1137,6 +1137,11 @@ function NPC({ npcId, npcIndex }: { npcId: string; npcIndex: number }) {
             walk: animBlobURLs.get('npc_walk'),
             run:  animBlobURLs.get('npc_run'),
           }}
+          animFormats={{
+            idle: animFormatMap.get('npc_idle'),
+            walk: animFormatMap.get('npc_walk'),
+            run:  animFormatMap.get('npc_run'),
+          }}
           getAnimState={() => {
             const s = nRef.state
             if (s === 'panicking' || s === 'fleeing') return 'Run' as const
@@ -1252,6 +1257,11 @@ function PoliceUnit({ policeId, policeIndex, onShootPlayer }: {
             idle: animBlobURLs.get(`${policeCat}_idle`),
             walk: animBlobURLs.get(`${policeCat}_walk`),
             run:  animBlobURLs.get(`${policeCat}_run`),
+          }}
+          animFormats={{
+            idle: animFormatMap.get(`${policeCat}_idle`),
+            walk: animFormatMap.get(`${policeCat}_walk`),
+            run:  animFormatMap.get(`${policeCat}_run`),
           }}
           getAnimState={() => {
             const dist = pRef.pos.distanceTo(sharedPlayerPos)
@@ -1569,6 +1579,11 @@ function Player({ onShoot }: { onShoot: (pos: THREE.Vector3, dir: THREE.Vector3)
             idle: animBlobURLs.get('player_idle'),
             walk: animBlobURLs.get('player_walk'),
             run:  animBlobURLs.get('player_run'),
+          }}
+          animFormats={{
+            idle: animFormatMap.get('player_idle'),
+            walk: animFormatMap.get('player_walk'),
+            run:  animFormatMap.get('player_run'),
           }}
           getAnimState={() => playerAnimState.value}
           skinTone={currentUser?.skinTone ?? null}

@@ -301,7 +301,7 @@ function AnimUploadSection({ catKey }: { catKey: ModelCategory }) {
       {open && (
         <div style={{ marginTop: 10 }}>
           <div style={{ color: '#444', fontSize: 10, marginBottom: 10 }}>
-            Upload separate FBX files for each pose. Each file's first animation clip is used.
+            Upload separate animation files (.GLB, .GLTF, or .FBX) for each pose. Each file's first animation clip is used.
             Works best with Mixamo exports (one clip per file).
           </div>
           <div style={{ display: 'flex', gap: 8 }}>

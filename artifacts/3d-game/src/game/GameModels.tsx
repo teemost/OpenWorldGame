@@ -590,10 +590,258 @@ function AnimatedFBXMultiAnimInner({
   )
 }
 
+// ─── AnimatedGLTFMultiAnimInner — GLB/GLTF model + separate GLTF animation files ─
+// Used when the uploaded animation files are .gltf or .glb format.
+// Always makes exactly 4 GLTFLoader calls so hook count never changes.
+function AnimatedGLTFMultiAnimInner({
+  modelPath, idleUrl, walkUrl, runUrl,
+  getAnimState, targetHeight = 1.85, disableAnimation = false,
+  skinTone, shirtColor, pantColor,
+}: {
+  modelPath: string
+  idleUrl?: string; walkUrl?: string; runUrl?: string
+  getAnimState: () => AnimState
+  targetHeight?: number
+  disableAnimation?: boolean
+  skinTone?: string | null
+  shirtColor?: string | null
+  pantColor?: string | null
+}) {
+  const modelGltf = useLoader(GLTFLoader, modelPath)
+  const idleGltf  = useLoader(GLTFLoader, idleUrl  ?? modelPath)
+  const walkGltf  = useLoader(GLTFLoader, walkUrl  ?? modelPath)
+  const runGltf   = useLoader(GLTFLoader, runUrl   ?? modelPath)
+
+  const mixerRef        = useRef<THREE.AnimationMixer | null>(null)
+  const actionsRef      = useRef<Record<string, THREE.AnimationAction>>({})
+  const currentRef      = useRef<string>('')
+  const getAnimStateRef = useRef(getAnimState)
+  useEffect(() => { getAnimStateRef.current = getAnimState }, [getAnimState])
+
+  const { scene, fit } = useMemo(() => {
+    const clone = SkeletonUtils.clone(modelGltf.scene) as THREE.Object3D
+    clone.traverse(c => {
+      const mesh = c as THREE.Mesh
+      if (!mesh.isMesh) return
+      mesh.frustumCulled = false
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+      const cloneMat = (m: THREE.Material) => { const c2 = m.clone(); c2.name = m.name; return c2 }
+      if (Array.isArray(mesh.material)) mesh.material = mesh.material.map(cloneMat)
+      else if (mesh.material) mesh.material = cloneMat(mesh.material)
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      mats.forEach(m => {
+        if (!m || !('color' in m)) return
+        const mat = m as THREE.MeshStandardMaterial
+        const isSkin  = SKIN_MAT_RE.test(mat.name)  || SKIN_MAT_RE.test(mesh.name)
+        const isPants = PANTS_MAT_RE.test(mat.name) || PANTS_MAT_RE.test(mesh.name)
+        if (isSkin && skinTone)        mat.color.set(skinTone)
+        else if (isPants && pantColor) mat.color.set(pantColor)
+        else if (shirtColor)           mat.color.set(shirtColor)
+      })
+    })
+    return { scene: clone, fit: computeFit(clone, targetHeight) }
+  }, [modelGltf.scene, targetHeight, skinTone, shirtColor, pantColor])
+
+  useEffect(() => {
+    const mixer = new THREE.AnimationMixer(scene)
+    const actions: Record<string, THREE.AnimationAction> = {}
+
+    const addClip = (gltf: { animations: THREE.AnimationClip[] }, dedicatedUrl: string | undefined, slotName: string) => {
+      const clips = gltf.animations ?? []
+      const clip = dedicatedUrl
+        ? clips[0]
+        : clips.find(c => new RegExp(slotName, 'i').test(c.name))
+      if (!clip) return
+      const renamed = clip.clone()
+      renamed.name = slotName
+      actions[slotName] = mixer.clipAction(renamed)
+    }
+
+    addClip(idleGltf, idleUrl, 'Idle')
+    addClip(walkGltf, walkUrl, 'Walk')
+    addClip(runGltf,  runUrl,  'Run')
+
+    if (Object.keys(actions).length === 0) {
+      for (const clip of (modelGltf.animations ?? [])) {
+        actions[clip.name] = mixer.clipAction(clip)
+      }
+    }
+
+    actionsRef.current = actions
+    mixerRef.current   = mixer
+    const firstKey = Object.keys(actions).find(n => /idle/i.test(n)) ?? Object.keys(actions)[0]
+    if (firstKey) { actions[firstKey].play(); currentRef.current = firstKey }
+
+    return () => {
+      mixer.stopAllAction()
+      mixer.uncacheRoot(scene)
+      mixerRef.current = null
+      actionsRef.current = {}
+    }
+  }, [scene, modelGltf.animations, idleGltf, walkGltf, runGltf, idleUrl, walkUrl, runUrl])
+
+  useFrame((_, delta) => {
+    if (disableAnimation) return
+    mixerRef.current?.update(delta)
+    const state   = getAnimStateRef.current()
+    const actions = actionsRef.current
+    const desired = state === 'Run'
+      ? Object.keys(actions).find(n => /run/i.test(n))
+      : state === 'Walk'
+        ? Object.keys(actions).find(n => /walk/i.test(n))
+        : state === 'Sit'
+          ? (Object.keys(actions).find(n => /sit/i.test(n)) ?? Object.keys(actions).find(n => /idle/i.test(n)))
+          : Object.keys(actions).find(n => /idle/i.test(n))
+    const target = desired ?? Object.keys(actions)[0]
+    if (target && target !== currentRef.current && actions[target]) {
+      const from = actions[currentRef.current]
+      if (from) from.fadeOut(0.25)
+      actions[target].reset().fadeIn(0.25).play()
+      currentRef.current = target
+    }
+  })
+
+  return (
+    <group position-y={fit.yOffset}>
+      <group rotation-x={fit.counterRotX}>
+        <group scale={fit.scale}>
+          <primitive object={scene} />
+        </group>
+      </group>
+    </group>
+  )
+}
+
+// ─── AnimatedFBXGLTFAnimInner — FBX model + separate GLTF animation files ────
+// Used when the character model is FBX but animation files are .gltf/.glb.
+// Always makes exactly 4 useLoader calls (1 FBXLoader + 3 GLTFLoader).
+function AnimatedFBXGLTFAnimInner({
+  url, idleUrl, walkUrl, runUrl,
+  getAnimState, targetHeight = 1.85, disableAnimation = false,
+  skinTone, shirtColor, pantColor,
+}: {
+  url: string
+  idleUrl?: string; walkUrl?: string; runUrl?: string
+  getAnimState: () => AnimState
+  targetHeight?: number
+  disableAnimation?: boolean
+  skinTone?: string | null
+  shirtColor?: string | null
+  pantColor?: string | null
+}) {
+  const fallbackAnimUrl = (idleUrl ?? walkUrl ?? runUrl)!
+  const mainFBX  = useLoader(FBXLoader,  url)
+  const idleGltf = useLoader(GLTFLoader, idleUrl ?? fallbackAnimUrl)
+  const walkGltf = useLoader(GLTFLoader, walkUrl ?? fallbackAnimUrl)
+  const runGltf  = useLoader(GLTFLoader, runUrl  ?? fallbackAnimUrl)
+
+  const mixerRef        = useRef<THREE.AnimationMixer | null>(null)
+  const actionsRef      = useRef<Record<string, THREE.AnimationAction>>({})
+  const currentRef      = useRef<string>('')
+  const getAnimStateRef = useRef(getAnimState)
+  useEffect(() => { getAnimStateRef.current = getAnimState }, [getAnimState])
+
+  const { clone, fit } = useMemo(() => {
+    const c = SkeletonUtils.clone(mainFBX) as THREE.Group
+    c.traverse(ch => {
+      const mesh = ch as THREE.Mesh
+      if (!mesh.isMesh) return
+      mesh.frustumCulled = false
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+      const cloneMat = (m: THREE.Material) => { const c2 = m.clone(); c2.name = m.name; return c2 }
+      if (Array.isArray(mesh.material)) mesh.material = mesh.material.map(cloneMat)
+      else if (mesh.material) mesh.material = cloneMat(mesh.material)
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      mats.forEach(m => {
+        if (!m || !('color' in m)) return
+        const mat = m as THREE.MeshStandardMaterial
+        const isSkin  = SKIN_MAT_RE.test(mat.name)  || SKIN_MAT_RE.test(mesh.name)
+        const isPants = PANTS_MAT_RE.test(mat.name) || PANTS_MAT_RE.test(mesh.name)
+        if (isSkin && skinTone)        mat.color.set(skinTone)
+        else if (isPants && pantColor) mat.color.set(pantColor)
+        else if (shirtColor)           mat.color.set(shirtColor)
+      })
+    })
+    return { clone: c, fit: computeFit(c, targetHeight) }
+  }, [mainFBX, targetHeight, skinTone, shirtColor, pantColor])
+
+  useEffect(() => {
+    const mixer = new THREE.AnimationMixer(clone)
+    const actions: Record<string, THREE.AnimationAction> = {}
+
+    const addClip = (gltf: { animations: THREE.AnimationClip[] }, dedicatedUrl: string | undefined, slotName: string) => {
+      const clips = gltf.animations ?? []
+      const clip = dedicatedUrl
+        ? clips[0]
+        : clips.find(c => new RegExp(slotName, 'i').test(c.name))
+      if (!clip) return
+      const renamed = clip.clone()
+      renamed.name = slotName
+      actions[slotName] = mixer.clipAction(renamed)
+    }
+
+    addClip(idleGltf, idleUrl, 'Idle')
+    addClip(walkGltf, walkUrl, 'Walk')
+    addClip(runGltf,  runUrl,  'Run')
+
+    if (Object.keys(actions).length === 0) {
+      for (const clip of (mainFBX.animations ?? [])) {
+        actions[clip.name] = mixer.clipAction(clip)
+      }
+    }
+
+    actionsRef.current = actions
+    mixerRef.current   = mixer
+    const firstKey = Object.keys(actions).find(n => /idle/i.test(n)) ?? Object.keys(actions)[0]
+    if (firstKey) { actions[firstKey].play(); currentRef.current = firstKey }
+
+    return () => {
+      mixer.stopAllAction()
+      mixer.uncacheRoot(clone)
+      mixerRef.current = null
+      actionsRef.current = {}
+    }
+  }, [clone, mainFBX, idleGltf, walkGltf, runGltf, idleUrl, walkUrl, runUrl])
+
+  useFrame((_, delta) => {
+    if (disableAnimation) return
+    mixerRef.current?.update(delta)
+    const state   = getAnimStateRef.current()
+    const actions = actionsRef.current
+    const desired = state === 'Run'
+      ? Object.keys(actions).find(n => /run/i.test(n))
+      : state === 'Walk'
+        ? Object.keys(actions).find(n => /walk/i.test(n))
+        : state === 'Sit'
+          ? (Object.keys(actions).find(n => /sit/i.test(n)) ?? Object.keys(actions).find(n => /idle/i.test(n)))
+          : Object.keys(actions).find(n => /idle/i.test(n))
+    const target = desired ?? Object.keys(actions)[0]
+    if (target && target !== currentRef.current && actions[target]) {
+      const from = actions[currentRef.current]
+      if (from) from.fadeOut(0.25)
+      actions[target].reset().fadeIn(0.25).play()
+      currentRef.current = target
+    }
+  })
+
+  return (
+    <group position-y={fit.yOffset}>
+      <group rotation-x={fit.counterRotX}>
+        <group scale={fit.scale}>
+          <primitive object={clone} />
+        </group>
+      </group>
+    </group>
+  )
+}
+
 // ─── AnimatedCustomHumanoid — routes downloaded models through the animation blend system ──
 // Use this instead of CustomModel for character slots (player/NPC/police).
 // Applies proper computeFit scaling AND the idle/walk/run blend.
-// Pass animUrls to override animations with separately-uploaded FBX files.
+// Pass animUrls to override animations with separately-uploaded FBX/GLTF files.
+// Pass animFormats so the router can pick the right loader for each slot.
 export interface AnimatedCustomHumanoidProps {
   url: string
   format: string
@@ -601,20 +849,46 @@ export interface AnimatedCustomHumanoidProps {
   targetHeight?: number
   disableAnimation?: boolean
   animUrls?: { idle?: string; walk?: string; run?: string }
+  animFormats?: { idle?: string; walk?: string; run?: string }
   skinTone?: string | null
   shirtColor?: string | null
   pantColor?: string | null
 }
 
+function isGltfFmt(fmt?: string) {
+  return fmt === 'gltf' || fmt === 'glb'
+}
+
 export function AnimatedCustomHumanoid({
-  url, format, getAnimState, targetHeight = 1.85, disableAnimation = false, animUrls,
+  url, format, getAnimState, targetHeight = 1.85, disableAnimation = false, animUrls, animFormats,
   skinTone, shirtColor, pantColor,
 }: AnimatedCustomHumanoidProps) {
   const fmt         = format.toLowerCase()
   const hasAnimUrls = !!(animUrls && (animUrls.idle || animUrls.walk || animUrls.run))
+  const animsAreGltf = !!(animFormats && (
+    isGltfFmt(animFormats.idle) || isGltfFmt(animFormats.walk) || isGltfFmt(animFormats.run)
+  ))
 
   if (fmt === 'fbx') {
     if (hasAnimUrls) {
+      if (animsAreGltf) {
+        return (
+          <Suspense fallback={<LoadingPlaceholder targetHeight={targetHeight} />}>
+            <AnimatedFBXGLTFAnimInner
+              url={url}
+              idleUrl={animUrls!.idle}
+              walkUrl={animUrls!.walk}
+              runUrl={animUrls!.run}
+              getAnimState={getAnimState}
+              targetHeight={targetHeight}
+              disableAnimation={disableAnimation}
+              skinTone={skinTone}
+              shirtColor={shirtColor}
+              pantColor={pantColor}
+            />
+          </Suspense>
+        )
+      }
       return (
         <Suspense fallback={<LoadingPlaceholder targetHeight={targetHeight} />}>
           <AnimatedFBXMultiAnimInner
@@ -638,7 +912,26 @@ export function AnimatedCustomHumanoid({
       </Suspense>
     )
   }
-  // GLB/GLTF (and unknown formats) — route through the existing GLB blend system
+  // GLB/GLTF (and unknown formats)
+  if (hasAnimUrls && animsAreGltf) {
+    return (
+      <Suspense fallback={<LoadingPlaceholder targetHeight={targetHeight} />}>
+        <AnimatedGLTFMultiAnimInner
+          modelPath={url}
+          idleUrl={animUrls!.idle}
+          walkUrl={animUrls!.walk}
+          runUrl={animUrls!.run}
+          getAnimState={getAnimState}
+          targetHeight={targetHeight}
+          disableAnimation={disableAnimation}
+          skinTone={skinTone}
+          shirtColor={shirtColor}
+          pantColor={pantColor}
+        />
+      </Suspense>
+    )
+  }
+  // Fall back to the existing GLB blend system (uses soldier.glb as anim source)
   return (
     <Suspense fallback={<LoadingPlaceholder targetHeight={targetHeight} />}>
       <AnimatedHumanoidInner modelPath={url} getAnimState={getAnimState} targetHeight={targetHeight} disableAnimation={disableAnimation} colorTint={shirtColor} pantColor={pantColor} skinTone={skinTone} />
